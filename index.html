@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>投資再平衡助手 | 5/25 實戰專業版</title>
+    <title>投資再平衡助手 | 專業風控與預算連動版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -83,7 +83,7 @@
 
         td {
             background: white;
-            padding: 20px 16px;
+            padding: 16px 16px;
             white-space: nowrap;
         }
 
@@ -103,7 +103,7 @@
         }
 
         .text-rebalance-big {
-            font-size: 1.4rem;
+            font-size: 1.3rem;
             font-weight: 800;
         }
 
@@ -124,13 +124,38 @@
         }
 
         .move-btn {
-            padding: 4px 8px;
+            padding: 2px 8px;
             color: #fecdd3;
             transition: all 0.2s;
         }
 
         .move-btn:hover {
             color: var(--primary-pink);
+        }
+
+        /* 5/25 進度條樣式 */
+        .deviation-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: #f1f5f9;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .deviation-bar-fill {
+            height: 100%;
+            transition: width 0.3s ease, background-color 0.3s;
+        }
+
+        .badge-lev {
+            background: #4c0519;
+            color: #fb7185;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
         }
 
         @keyframes spin-fast {
@@ -158,7 +183,7 @@
                 <h1 class="text-3xl font-black text-rose-500 tracking-tighter">
                     <i class="fas fa-heart mr-2"></i>REBALANCE
                 </h1>
-                <p class="text-xs text-rose-300 font-bold mt-1 uppercase tracking-widest">5/25 Practical Mode</p>
+                <p class="text-xs text-rose-300 font-bold mt-1 uppercase tracking-widest">Visual 5/25 Tracker Pro</p>
             </div>
 
             <div class="flex-1 space-y-4" id="accountList"></div>
@@ -190,11 +215,11 @@
 
                 <div class="flex items-center gap-4">
                     <button onclick="exportExcel()"
-                        class="px-6 py-4 bg-emerald-50 text-emerald-600 font-black rounded-2xl hover:bg-emerald-100 transition-all flex items-center gap-2">
+                        class="px-6 py-4 bg-emerald-50 text-emerald-600 font-black rounded-2xl hover:bg-emerald-100 transition-all flex items-center gap-2 shadow-sm">
                         <i class="fas fa-file-export"></i> 匯出
                     </button>
                     <label
-                        class="px-6 py-4 bg-amber-50 text-amber-600 font-black rounded-2xl hover:bg-amber-100 cursor-pointer transition-all flex items-center gap-2">
+                        class="px-6 py-4 bg-amber-50 text-amber-600 font-black rounded-2xl hover:bg-amber-100 cursor-pointer transition-all flex items-center gap-2 shadow-sm">
                         <i class="fas fa-file-import"></i> 匯入
                         <input type="file" class="hidden" accept=".xlsx" onchange="importExcel(event)">
                     </label>
@@ -205,27 +230,32 @@
                 </div>
             </div>
 
-            <!-- 核心數據 -->
+            <!-- 核心數據卡片 -->
             <div class="grid grid-cols-4 gap-6 mb-10 pl-12">
                 <div class="glass-card p-6 border-l-8 border-l-rose-500">
-                    <span class="text-sm font-black text-rose-400 uppercase tracking-widest">投資組合淨值 (Equity)</span>
-                    <div id="totalNetValue" class="text-3xl font-black text-rose-900 font-mono-data mt-2">$0</div>
+                    <span class="text-sm font-black text-rose-400 uppercase tracking-widest">帳戶淨值 (Equity)</span>
+                    <div id="totalNetValue"
+                        class="text-3xl font-black text-rose-900 font-mono-data mt-2 tracking-tight">$0</div>
                 </div>
                 <div class="glass-card p-6 border-l-8 border-l-pink-400">
-                    <span class="text-sm font-black text-pink-400 uppercase tracking-widest">目前名目總曝險</span>
-                    <div id="totalExposure" class="text-3xl font-black text-pink-900 font-mono-data mt-2">$0</div>
+                    <span class="text-sm font-black text-pink-400 uppercase tracking-widest">總名目曝險</span>
+                    <div id="totalExposure"
+                        class="text-3xl font-black text-pink-900 font-mono-data mt-2 tracking-tight">$0</div>
                 </div>
                 <div class="glass-card p-6 border-l-8 border-l-amber-400">
-                    <span class="text-sm font-black text-amber-400 uppercase tracking-widest">目前總槓桿倍數</span>
+                    <span class="text-sm font-black text-amber-400 uppercase tracking-widest">當前實質槓桿</span>
                     <div id="leverageDisplay" class="text-3xl font-black text-amber-700 font-mono-data mt-2">1.00x</div>
                 </div>
-                <div class="glass-card p-6 border-l-8 border-l-rose-600">
-                    <span class="text-sm font-black text-rose-600 uppercase tracking-widest">目標總曝險比例</span>
+                <div class="glass-card p-6 border-l-8 border-l-rose-600 relative overflow-hidden">
+                    <span class="text-sm font-black text-rose-600 uppercase tracking-widest flex items-center gap-2">
+                        預算目標總和
+                        <span id="levBadge" class="badge-lev hidden">結構性槓桿</span>
+                    </span>
                     <div id="targetTotalRatio" class="text-3xl font-black text-rose-900 font-mono-data mt-2">0%</div>
                 </div>
             </div>
 
-            <!-- 參數設定 -->
+            <!-- 參數設定區 -->
             <div class="glass-card p-8 mb-8 flex items-end gap-10 bg-white/50 mx-12">
                 <div class="flex-1">
                     <label class="block text-sm font-black text-rose-900/50 mb-3 uppercase">可用現金 / 負債餘額 (TWD)</label>
@@ -254,16 +284,15 @@
                 </div>
             </div>
 
-            <!-- 資產表格 -->
+            <!-- 資產明細表格 -->
             <div class="flex-1 px-12">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-2xl font-black text-rose-900"><i class="fas fa-layer-group mr-3"></i>曝險資產明細 (按 5/25
-                        原則分析)</h3>
+                    <h3 class="text-2xl font-black text-rose-900"><i class="fas fa-chart-line mr-3"></i>標的配置與監控</h3>
 
                     <div class="flex items-center gap-4">
                         <button onclick="syncAllPrices()"
                             class="px-8 py-4 bg-white border-2 border-rose-100 text-rose-500 font-black rounded-2xl hover:bg-rose-50 transition-all flex items-center gap-3 shadow-sm">
-                            <i id="syncIcon" class="fas fa-sync-alt text-xl"></i> 更新全部報價
+                            <i id="syncIcon" class="fas fa-sync-alt text-xl"></i> 更新報價
                         </button>
                         <button onclick="addAsset()"
                             class="px-10 py-4 btn-pink rounded-2xl shadow-lg flex items-center gap-2">
@@ -275,25 +304,27 @@
                 <table class="w-full">
                     <thead>
                         <tr class="text-rose-400 text-xs font-black uppercase tracking-widest text-left">
-                            <th class="px-4 py-2">排序/名稱</th>
+                            <th class="px-4 py-2">排序/標的</th>
                             <th class="px-4 py-2 w-32 text-center">槓桿因子</th>
                             <th class="px-4 py-2 w-48">目前單價</th>
                             <th class="px-4 py-2 w-48">持有股數</th>
-                            <th class="px-4 py-2">目前名目曝險</th>
+                            <th class="px-4 py-2">目前曝險額</th>
                             <th class="px-4 py-2 w-40 text-center text-rose-600">目標曝險 %</th>
-                            <th class="px-4 py-2">理想曝險額</th>
-                            <th class="px-4 py-2 text-center">5/25 建議</th>
+                            <th class="px-4 py-2">理想投入/曝險</th>
+                            <th class="px-4 py-2 text-center">5/25 執行建議</th>
                             <th class="px-4 py-2"></th>
                         </tr>
                     </thead>
                     <tbody id="assetBody"></tbody>
                     <tfoot>
                         <tr class="font-bold">
-                            <td colspan="4" class="text-right text-rose-900/50 uppercase text-xs font-black">現金/負債調節
+                            <td colspan="4" class="text-right text-rose-900/50 uppercase text-xs font-black">現金調節預算
+                                (Cash Budget)</td>
+                            <td id="footerCurrentCash" class="font-mono-data text-2xl text-rose-900 tracking-tighter">$0
                             </td>
-                            <td id="footerCurrentCash" class="font-mono-data text-2xl text-rose-900">$0</td>
                             <td class="text-center text-xl" id="footerCashRatio">0%</td>
-                            <td id="footerTargetCash" class="font-mono-data text-2xl text-rose-500">$0</td>
+                            <td id="footerTargetCash" class="font-mono-data text-2xl text-rose-500 tracking-tighter">$0
+                            </td>
                             <td id="footerCashSugg" class="text-center"></td>
                             <td></td>
                         </tr>
@@ -311,7 +342,7 @@
     </div>
 
     <script>
-        const STORAGE_KEY = 'INVEST_PRO_REBALANCE_EXPOSURE_V3';
+        const STORAGE_KEY = 'INVEST_PRO_REBALANCE_EXPOSURE_V5';
 
         let appState = {
             activeId: 'acc_default',
@@ -321,11 +352,11 @@
                     id: 'acc_default',
                     name: '主帳戶',
                     currentCash: 100000,
-                    cashRatio: 0,
+                    cashRatio: 10,
                     usdRate: 32.5,
                     assets: [
                         { id: 1, name: '2330', price: 1000, shares: 100, targetRatio: 40, leverage: 1 },
-                        { id: 2, name: '00631L', price: 200, shares: 500, targetRatio: 60, leverage: 2 }
+                        { id: 2, name: '00631L', price: 200, shares: 500, targetRatio: 80, leverage: 2 }
                     ]
                 }
             ]
@@ -368,7 +399,6 @@
             save();
         }
 
-        // --- 帳戶與渲染 ---
         function renderAccountList() {
             const list = document.getElementById('accountList');
             list.innerHTML = '';
@@ -379,7 +409,7 @@
                 div.innerHTML = `
           <div class="flex items-center gap-4 flex-1 overflow-hidden" onclick="switchAccount('${acc.id}')">
             <i class="fas fa-wallet ${isActive ? 'text-rose-200' : 'text-rose-300'} text-xl"></i>
-            <span class="font-black text-xl truncate">${acc.name}</span>
+            <span class="font-black text-xl truncate tracking-tight">${acc.name}</span>
           </div>
           <button onclick="event.stopPropagation(); deleteAccount('${acc.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-rose-200 hover:text-white transition-all">
             <i class="fas fa-trash-alt"></i>
@@ -412,7 +442,7 @@
                 <button onclick="moveAsset(${asset.id}, 1)" class="move-btn ${index === acc.assets.length - 1 ? 'invisible' : ''}"><i class="fas fa-chevron-down"></i></button>
               </div>
               <input type="text" value="${asset.name}" onchange="updateAsset(${asset.id}, 'name', this.value)" 
-                class="bg-transparent border-b-2 border-transparent focus:border-rose-300 outline-none uppercase font-black text-2xl text-rose-900 w-32">
+                class="bg-transparent border-b-2 border-transparent focus:border-rose-300 outline-none uppercase font-black text-2xl text-rose-900 w-32 tracking-tight">
             </div>
           </td>
           <td>
@@ -426,8 +456,8 @@
             <div class="flex items-center gap-2">
               <input type="number" value="${asset.price}" onchange="updateAsset(${asset.id}, 'price', this.value)" 
                 class="w-full pink-input font-mono-data font-bold text-xl">
-              <button onclick="fetchLivePrice(${asset.id}, '${asset.name}')" class="text-rose-300 hover:text-rose-500 p-2">
-                <i id="assetSync-${asset.id}" class="fas fa-sync-alt text-xl"></i>
+              <button onclick="fetchLivePrice(${asset.id}, '${asset.name}')" class="text-rose-300 hover:text-rose-500 p-1">
+                <i id="assetSync-${asset.id}" class="fas fa-sync-alt text-lg"></i>
               </button>
             </div>
           </td>
@@ -435,7 +465,7 @@
             <input type="number" value="${asset.shares}" onchange="updateAsset(${asset.id}, 'shares', this.value)" 
               class="w-full pink-input font-mono-data font-bold text-xl">
           </td>
-          <td id="curVal-${asset.id}" class="font-mono-data text-rose-900 font-black text-xl">$0</td>
+          <td id="curVal-${asset.id}" class="font-mono-data text-rose-900 font-black text-xl tracking-tighter">$0</td>
           <td>
              <div class="flex items-center justify-center gap-1">
                <input type="number" value="${asset.targetRatio}" onchange="updateAsset(${asset.id}, 'targetRatio', this.value)" 
@@ -443,7 +473,7 @@
                <span class="text-rose-300 font-black">%</span>
              </div>
           </td>
-          <td id="targetVal-${asset.id}" class="font-mono-data text-rose-400 text-xl">$0</td>
+          <td id="targetVal-${asset.id}"></td>
           <td id="sugg-${asset.id}" class="text-center"></td>
           <td class="text-right">
             <button onclick="removeAsset(${asset.id})" class="p-2 text-rose-100 hover:text-rose-600 transition-all text-xl">
@@ -457,21 +487,16 @@
             calculate();
         }
 
-        // --- 排序與資產管理 ---
         function moveAsset(id, direction) {
             const acc = appState.accounts.find(a => a.id === appState.activeId);
             const index = acc.assets.findIndex(a => a.id === id);
             if (index === -1) return;
-
             const newIndex = index + direction;
             if (newIndex < 0 || newIndex >= acc.assets.length) return;
-
             const temp = acc.assets[index];
             acc.assets[index] = acc.assets[newIndex];
             acc.assets[newIndex] = temp;
-
-            save();
-            renderMainUI();
+            save(); renderMainUI();
         }
 
         function calculate() {
@@ -494,14 +519,23 @@
 
             const netValue = totalAssetBookValue + safeNum(acc.currentCash);
             const totalLeverage = netValue > 0 ? (totalNominalExposure / netValue) : 0;
-            const targetTotalRatio = acc.assets.reduce((s, a) => s + safeNum(a.targetRatio), 0);
+
+            const targetAssetRatioSum = acc.assets.reduce((s, a) => s + safeNum(a.targetRatio), 0);
+            const targetTotalCombined = targetAssetRatioSum + safeNum(acc.cashRatio);
 
             document.getElementById('totalNetValue').innerText = `$${Math.round(netValue).toLocaleString()}`;
             document.getElementById('totalExposure').innerText = `$${Math.round(totalNominalExposure).toLocaleString()}`;
             document.getElementById('leverageDisplay').innerText = `${totalLeverage.toFixed(2)}x`;
-            document.getElementById('targetTotalRatio').innerText = `${Math.round(targetTotalRatio)}%`;
+            document.getElementById('targetTotalRatio').innerText = `${Math.round(targetTotalCombined)}%`;
 
-            // 5/25 原則分析
+            // 預算衝突警示
+            const levBadge = document.getElementById('levBadge');
+            if (targetTotalCombined > 100.1) {
+                levBadge.classList.remove('hidden');
+            } else {
+                levBadge.classList.add('hidden');
+            }
+
             acc.assets.forEach(asset => {
                 const isTW = /^\d{4,6}[A-Z]?$/.test(asset.name.trim().toUpperCase());
                 const priceTwd = isTW ? safeNum(asset.price) : (safeNum(asset.price) * safeNum(acc.usdRate));
@@ -512,30 +546,67 @@
                 const targetPct = safeNum(asset.targetRatio);
 
                 const targetNominal = netValue * (targetPct / 100);
-                const diffNominal = targetNominal - currentNominal;
-                const diffShares = (priceTwd * factor) > 0 ? Math.round(diffNominal / (priceTwd * factor)) : 0;
+                const targetBookValue = targetNominal / factor;
 
-                document.getElementById(`targetVal-${asset.id}`).innerText = `$${Math.round(targetNominal).toLocaleString()}`;
+                document.getElementById(`targetVal-${asset.id}`).innerHTML = `
+          <div class="flex flex-col text-xs font-bold">
+            <span class="text-rose-900 font-mono-data text-lg tracking-tighter">$${Math.round(targetNominal).toLocaleString()}</span>
+            <span class="text-rose-300 uppercase tracking-widest mt-0.5">預計投入: $${Math.round(targetBookValue).toLocaleString()}</span>
+          </div>
+        `;
 
-                // 5/25 判斷
-                const absDiff = Math.abs(currentPct - targetPct); // 絕對偏離 (e.g. 5%)
-                const relDiff = targetPct !== 0 ? (absDiff / targetPct) : 0; // 相對偏離 (e.g. 25%)
-
+                const absDiff = Math.abs(currentPct - targetPct);
+                const relDiff = targetPct !== 0 ? (absDiff / targetPct) : 0;
                 const isTriggered = absDiff > 5 || relDiff > 0.25;
 
                 const suggCell = document.getElementById(`sugg-${asset.id}`);
                 if (!isTriggered) {
-                    suggCell.innerHTML = `<span class="px-5 py-2 bg-rose-50 text-rose-200 rounded-xl text-lg font-black uppercase italic">偏離微小</span>`;
-                } else {
-                    const isBuy = diffNominal > 0;
+                    const absProgress = (absDiff / 5) * 100;
+                    const relProgress = (relDiff / 0.25) * 100;
+                    const progress = Math.min(100, Math.max(absProgress, relProgress));
+                    const color = progress > 80 ? '#f43f5e' : (progress > 50 ? '#fb923c' : '#fb7185');
+
                     suggCell.innerHTML = `
-            <div class="flex items-center gap-4 justify-center">
-              <span class="${isBuy ? 'text-emerald-500' : 'text-rose-500'} text-rebalance-big">
-                ${isBuy ? '加倉' : '減倉'} $${Math.abs(Math.round(diffNominal)).toLocaleString()}
-              </span>
-              <span class="text-rose-300 text-rebalance-big border-l-2 border-rose-100 pl-4">
-                ${Math.abs(diffShares).toLocaleString()} 股
-              </span>
+            <div class="flex flex-col items-center justify-center w-full px-4">
+              <div class="flex justify-between w-full text-[10px] font-black uppercase text-rose-300 tracking-wider">
+                <span>偏離監控</span>
+                <span>${Math.round(progress)}%</span>
+              </div>
+              <div class="deviation-bar-bg">
+                <div class="deviation-bar-fill" style="width: ${progress}%; background-color: ${color}"></div>
+              </div>
+            </div>
+          `;
+                } else {
+                    const diffNominal = targetNominal - currentNominal;
+                    const diffCashImpact = diffNominal / factor;
+                    const diffSharesRaw = (priceTwd * factor) > 0 ? (diffNominal / (priceTwd * factor)) : 0;
+
+                    let actionText = "";
+                    let finalShares = 0;
+                    let isBuy = diffNominal > 0;
+
+                    if (!isBuy && Math.abs(diffSharesRaw) >= (asset.shares * 0.99)) {
+                        actionText = "全清 (Sell All)";
+                        finalShares = asset.shares;
+                    } else {
+                        actionText = isBuy ? "加倉" : "減倉";
+                        finalShares = Math.abs(Math.round(diffSharesRaw));
+                    }
+
+                    suggCell.innerHTML = `
+            <div class="flex flex-col items-center">
+              <div class="flex items-center gap-3">
+                <span class="${isBuy ? 'text-emerald-500' : 'text-rose-500'} text-rebalance-big tracking-tighter">
+                  ${actionText} $${Math.abs(Math.round(diffNominal)).toLocaleString()}
+                </span>
+                <span class="text-rose-400 text-rebalance-big border-l-2 border-rose-100 pl-3 tracking-tighter">
+                  ${finalShares.toLocaleString()} 股
+                </span>
+              </div>
+              <div class="text-[10px] font-bold text-rose-300 uppercase tracking-widest mt-1">
+                現金動支估計: $${Math.abs(Math.round(diffCashImpact)).toLocaleString()}
+              </div>
             </div>
           `;
                 }
@@ -551,51 +622,75 @@
             if (Math.abs(cashDiff) < 100) {
                 cashSugg.innerHTML = `<span class="text-rose-200 font-black italic text-xl">OK</span>`;
             } else {
-                cashSugg.innerHTML = `<span class="${cashDiff > 0 ? 'text-emerald-500' : 'text-rose-500'} text-2xl font-black">需${cashDiff > 0 ? '入金' : '提領'} $${Math.abs(Math.round(cashDiff)).toLocaleString()}</span>`;
+                cashSugg.innerHTML = `<span class="${cashDiff > 0 ? 'text-emerald-500' : 'text-rose-500'} text-2xl font-black tracking-tighter">
+            需${cashDiff > 0 ? '備金' : '抽出'} $${Math.abs(Math.round(cashDiff)).toLocaleString()}</span>`;
             }
             save();
         }
 
-        // --- API & 其他功能 ---
+        // --- 健壯的報價系統 ---
         async function fetchLivePrice(id, symbol) {
             if (!symbol) return;
             const icon = document.getElementById(`assetSync-${id}`);
             if (icon) icon.classList.add('fa-spin-fast', 'text-rose-600');
+
             let ticker = symbol.trim().toUpperCase();
             if (!ticker.includes('.') && /^\d{4,6}[A-Z]?$/.test(ticker)) ticker += ".TW";
 
-            try {
-                const proxy = 'https://corsproxy.io/?';
-                const url = encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
-                const res = await fetch(proxy + url);
-                const data = await res.json();
-                const price = data.chart?.result?.[0]?.meta?.regularMarketPrice;
-                if (price) {
-                    const acc = appState.accounts.find(a => a.id === appState.activeId);
-                    const asset = acc.assets.find(a => a.id === id);
-                    if (asset) {
-                        asset.price = price;
-                        renderMainUI();
-                        return true;
+            const proxies = [
+                'https://corsproxy.io/?',
+                'https://api.allorigins.win/raw?url='
+            ];
+
+            let priceFound = false;
+            for (let proxy of proxies) {
+                try {
+                    const url = encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
+                    const res = await fetch(proxy + url);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+
+                    const meta = data.chart?.result?.[0]?.meta;
+                    const price = meta?.regularMarketPrice || meta?.previousClose;
+
+                    if (price) {
+                        const acc = appState.accounts.find(a => a.id === appState.activeId);
+                        const asset = acc.assets.find(a => a.id === id);
+                        if (asset) {
+                            asset.price = price;
+                            priceFound = true;
+                            break;
+                        }
                     }
+                } catch (e) {
+                    console.warn(`Proxy ${proxy} failed for ${ticker}`);
                 }
-            } catch (e) { return false; }
-            finally { if (icon) icon.classList.remove('fa-spin-fast', 'text-rose-600'); }
+            }
+
+            if (priceFound) {
+                renderMainUI();
+            } else {
+                showToast(`無法獲取 ${ticker} 報價，請檢查連線或代號`);
+            }
+
+            if (icon) icon.classList.remove('fa-spin-fast', 'text-rose-600');
+            return priceFound;
         }
 
         async function syncAllPrices() {
             const mainSync = document.getElementById('syncIcon');
             mainSync.classList.add('fa-spin-fast');
-            showToast("正在按 5/25 實戰原則更新報價...");
+            showToast("正在更新報價並檢核預算...");
             const acc = appState.accounts.find(a => a.id === appState.activeId);
             for (let asset of acc.assets) {
                 if (asset.name) {
                     await fetchLivePrice(asset.id, asset.name);
-                    await new Promise(r => setTimeout(r, 400));
+                    // 增加隨機延遲避免被封鎖
+                    await new Promise(r => setTimeout(r, 400 + Math.random() * 200));
                 }
             }
             mainSync.classList.remove('fa-spin-fast');
-            showToast("同步完成！");
+            showToast("報價同步完成");
         }
 
         function updateGlobal(field, val) {
@@ -618,7 +713,7 @@
         }
 
         function removeAsset(id) {
-            if (!confirm("確定刪除此標的？")) return;
+            if (!confirm("確定要刪除這項資產嗎？")) return;
             const acc = appState.accounts.find(a => a.id === appState.activeId);
             acc.assets = acc.assets.filter(as => as.id !== id);
             renderMainUI();
@@ -639,7 +734,7 @@
 
         function deleteAccount(id) {
             if (appState.accounts.length <= 1) return showToast("必須保留至少一個帳戶");
-            if (!confirm("確定刪除此帳戶？")) return;
+            if (!confirm("確定刪除此帳戶資料？")) return;
             appState.accounts = appState.accounts.filter(a => a.id !== id);
             if (appState.activeId === id) appState.activeId = appState.accounts[0].id;
             save(); renderAccountList(); renderMainUI();
@@ -649,25 +744,18 @@
 
         function renameCurrentAccount() {
             const acc = appState.accounts.find(a => a.id === appState.activeId);
-            const newName = prompt("重新命名:", acc.name);
+            const newName = prompt("重新命名計畫:", acc.name);
             if (newName) { acc.name = newName; save(); renderAccountList(); renderMainUI(); }
         }
 
         function exportExcel() {
             const acc = appState.accounts.find(a => a.id === appState.activeId);
-            const data = [
-                ["項目", acc.name],
-                ["匯率", acc.usdRate],
-                ["現金/負債", acc.currentCash],
-                ["提示", "排序狀態已包含在內"],
-                [],
-                ["代號", "單價", "股數", "槓桿", "目標曝險%"]
-            ];
+            const data = [["帳戶名稱", acc.name], ["美金匯率", acc.usdRate], ["現金/負債", acc.currentCash], ["現金目標%", acc.cashRatio], [], ["標代號", "單價", "股數", "槓桿因子", "目標曝險%"]];
             acc.assets.forEach(a => data.push([a.name, a.price, a.shares, a.leverage, a.targetRatio]));
             const ws = XLSX.utils.aoa_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Portfolio");
-            XLSX.writeFile(wb, `${acc.name}_5-25_Plan.xlsx`);
+            XLSX.writeFile(wb, `${acc.name}_Rebalance_Pro.xlsx`);
         }
 
         function importExcel(e) {
@@ -684,25 +772,22 @@
                         name: rows[0][1].toString(),
                         usdRate: safeNum(rows[1][1], 32.5),
                         currentCash: safeNum(rows[2][1]),
-                        cashRatio: 0,
+                        cashRatio: safeNum(rows[3][1]),
                         assets: []
                     };
                     for (let i = 5; i < rows.length; i++) {
                         const r = rows[i];
                         if (r && r[0]) {
                             newAcc.assets.push({
-                                id: Date.now() + i,
-                                name: r[0].toString(),
-                                price: safeNum(r[1]),
-                                shares: safeNum(r[2]),
-                                leverage: safeNum(r[3], 1),
-                                targetRatio: safeNum(r[4])
+                                id: Date.now() + i, name: r[0].toString(), price: safeNum(r[1]),
+                                shares: safeNum(r[2]), leverage: safeNum(r[3], 1), targetRatio: safeNum(r[4])
                             });
                         }
                     }
                     appState.accounts.push(newAcc);
                     switchAccount(newAcc.id);
-                } catch (err) { showToast("匯入格式有誤"); }
+                    showToast("匯入成功且已校準");
+                } catch (err) { showToast("匯入格式不符，請參考匯出檔"); }
                 finally { e.target.value = ''; }
             };
             reader.readAsArrayBuffer(file);
