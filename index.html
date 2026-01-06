@@ -186,7 +186,6 @@
                         onclick="renameCurrentAccount()">
                         載入中...
                     </h2>
-                    <p class="text-rose-400 font-bold mt-1 text-lg italic">「總曝險」導向配置模組 (5/25 實戰版)</p>
                 </div>
 
                 <div class="flex items-center gap-4">
@@ -320,7 +319,7 @@
             accounts: [
                 {
                     id: 'acc_default',
-                    name: '5/25 實戰帳戶',
+                    name: '主帳戶',
                     currentCash: 100000,
                     cashRatio: 0,
                     usdRate: 32.5,
@@ -631,7 +630,7 @@
         }
 
         function createNewAccount() {
-            const name = prompt("輸入帳戶名稱:", "新實戰計畫");
+            const name = prompt("輸入帳戶名稱:", "新帳戶");
             if (!name) return;
             const id = 'acc_' + Date.now();
             appState.accounts.push({ id, name, currentCash: 0, cashRatio: 0, usdRate: 32.5, assets: [] });
