@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>投資再平衡助手 | 專業風控與預算連動版</title>
+    <title>投資再平衡助手 | 專業無邊框版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -52,6 +52,24 @@
             pointer-events: none;
         }
 
+        /* --- 優化後的底線輸入格 --- */
+        .underline-input {
+            background: transparent;
+            border-bottom: 2px solid #fecdd3;
+            border-radius: 0;
+            padding: 4px 2px;
+            transition: all 0.3s;
+            outline: none;
+            font-weight: 700;
+            width: 100%;
+        }
+
+        .underline-input:focus {
+            border-color: var(--accent-pink);
+            background: rgba(251, 113, 133, 0.05);
+        }
+
+        /* 頂部全域參數仍保留卡片感，但個股改底線 */
         .pink-input {
             background: white;
             border: 2px solid #fecdd3;
@@ -63,11 +81,6 @@
             font-weight: 700;
         }
 
-        .pink-input:focus {
-            border-color: var(--primary-pink);
-            box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.1);
-        }
-
         .glass-card {
             background: rgba(255, 255, 255, 0.8);
             backdrop-filter: blur(10px);
@@ -77,13 +90,13 @@
         }
 
         table {
-            border-spacing: 0 16px;
+            border-spacing: 0 12px;
             border-collapse: separate;
         }
 
         td {
             background: white;
-            padding: 16px 16px;
+            padding: 12px 16px;
             white-space: nowrap;
         }
 
@@ -124,7 +137,7 @@
         }
 
         .move-btn {
-            padding: 2px 8px;
+            padding: 2px 4px;
             color: #fecdd3;
             transition: all 0.2s;
         }
@@ -133,7 +146,6 @@
             color: var(--primary-pink);
         }
 
-        /* 5/25 進度條樣式 */
         .deviation-bar-bg {
             width: 100%;
             height: 6px;
@@ -145,7 +157,7 @@
 
         .deviation-bar-fill {
             height: 100%;
-            transition: width 0.3s ease, background-color 0.3s;
+            transition: width 0.3s ease;
         }
 
         .badge-lev {
@@ -183,7 +195,7 @@
                 <h1 class="text-3xl font-black text-rose-500 tracking-tighter">
                     <i class="fas fa-heart mr-2"></i>REBALANCE
                 </h1>
-                <p class="text-xs text-rose-300 font-bold mt-1 uppercase tracking-widest">Visual 5/25 Tracker Pro</p>
+                <p class="text-xs text-rose-300 font-bold mt-1 uppercase tracking-widest">Minimalist Mode</p>
             </div>
 
             <div class="flex-1 space-y-4" id="accountList"></div>
@@ -304,13 +316,13 @@
                 <table class="w-full">
                     <thead>
                         <tr class="text-rose-400 text-xs font-black uppercase tracking-widest text-left">
-                            <th class="px-4 py-2">排序/標的</th>
-                            <th class="px-4 py-2 w-32 text-center">槓桿因子</th>
-                            <th class="px-4 py-2 w-48">目前單價</th>
-                            <th class="px-4 py-2 w-48">持有股數</th>
-                            <th class="px-4 py-2">目前曝險額</th>
-                            <th class="px-4 py-2 w-40 text-center text-rose-600">目標曝險 %</th>
-                            <th class="px-4 py-2">理想投入/曝險</th>
+                            <th class="px-4 py-2 w-48">排序/標的</th>
+                            <th class="px-4 py-2 w-24 text-center">槓桿</th>
+                            <th class="px-4 py-2 w-40">目前單價</th>
+                            <th class="px-4 py-2 w-40">持有股數</th>
+                            <th class="px-4 py-2">當前曝險</th>
+                            <th class="px-4 py-2 w-32 text-center text-rose-600">目標 %</th>
+                            <th class="px-4 py-2">理想曝險/投入</th>
                             <th class="px-4 py-2 text-center">5/25 執行建議</th>
                             <th class="px-4 py-2"></th>
                         </tr>
@@ -342,7 +354,7 @@
     </div>
 
     <script>
-        const STORAGE_KEY = 'INVEST_PRO_REBALANCE_EXPOSURE_V5';
+        const STORAGE_KEY = 'INVEST_PRO_REBALANCE_EXPOSURE_V6';
 
         let appState = {
             activeId: 'acc_default',
@@ -436,26 +448,23 @@
                 row.className = 'asset-row group';
                 row.innerHTML = `
           <td>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1">
               <div class="flex flex-col">
-                <button onclick="moveAsset(${asset.id}, -1)" class="move-btn ${index === 0 ? 'invisible' : ''}"><i class="fas fa-chevron-up"></i></button>
-                <button onclick="moveAsset(${asset.id}, 1)" class="move-btn ${index === acc.assets.length - 1 ? 'invisible' : ''}"><i class="fas fa-chevron-down"></i></button>
+                <button onclick="moveAsset(${asset.id}, -1)" class="move-btn ${index === 0 ? 'invisible' : ''}"><i class="fas fa-caret-up"></i></button>
+                <button onclick="moveAsset(${asset.id}, 1)" class="move-btn ${index === acc.assets.length - 1 ? 'invisible' : ''}"><i class="fas fa-caret-down"></i></button>
               </div>
               <input type="text" value="${asset.name}" onchange="updateAsset(${asset.id}, 'name', this.value)" 
-                class="bg-transparent border-b-2 border-transparent focus:border-rose-300 outline-none uppercase font-black text-2xl text-rose-900 w-32 tracking-tight">
+                class="underline-input uppercase text-2xl text-rose-900 tracking-tight" placeholder="代號">
             </div>
           </td>
           <td>
-            <div class="flex items-center justify-center gap-2">
-              <input type="number" value="${asset.leverage}" onchange="updateAsset(${asset.id}, 'leverage', this.value)" 
-                class="w-20 pink-input text-center text-rose-600 font-black" step="0.1">
-              <span class="text-sm text-rose-300 font-black">x</span>
-            </div>
+            <input type="number" value="${asset.leverage}" onchange="updateAsset(${asset.id}, 'leverage', this.value)" 
+                class="underline-input text-center text-rose-600 font-black text-xl" step="0.1">
           </td>
           <td>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1">
               <input type="number" value="${asset.price}" onchange="updateAsset(${asset.id}, 'price', this.value)" 
-                class="w-full pink-input font-mono-data font-bold text-xl">
+                class="underline-input font-mono-data font-bold text-xl" placeholder="0.0">
               <button onclick="fetchLivePrice(${asset.id}, '${asset.name}')" class="text-rose-300 hover:text-rose-500 p-1">
                 <i id="assetSync-${asset.id}" class="fas fa-sync-alt text-lg"></i>
               </button>
@@ -463,13 +472,13 @@
           </td>
           <td>
             <input type="number" value="${asset.shares}" onchange="updateAsset(${asset.id}, 'shares', this.value)" 
-              class="w-full pink-input font-mono-data font-bold text-xl">
+              class="underline-input font-mono-data font-bold text-xl" placeholder="0">
           </td>
           <td id="curVal-${asset.id}" class="font-mono-data text-rose-900 font-black text-xl tracking-tighter">$0</td>
           <td>
              <div class="flex items-center justify-center gap-1">
                <input type="number" value="${asset.targetRatio}" onchange="updateAsset(${asset.id}, 'targetRatio', this.value)" 
-                class="w-24 pink-input text-center text-rose-700 font-black text-xl border-rose-300">
+                class="underline-input text-center text-rose-700 font-black text-xl" placeholder="0">
                <span class="text-rose-300 font-black">%</span>
              </div>
           </td>
@@ -528,13 +537,9 @@
             document.getElementById('leverageDisplay').innerText = `${totalLeverage.toFixed(2)}x`;
             document.getElementById('targetTotalRatio').innerText = `${Math.round(targetTotalCombined)}%`;
 
-            // 預算衝突警示
             const levBadge = document.getElementById('levBadge');
-            if (targetTotalCombined > 100.1) {
-                levBadge.classList.remove('hidden');
-            } else {
-                levBadge.classList.add('hidden');
-            }
+            if (targetTotalCombined > 100.1) levBadge.classList.remove('hidden');
+            else levBadge.classList.add('hidden');
 
             acc.assets.forEach(asset => {
                 const isTW = /^\d{4,6}[A-Z]?$/.test(asset.name.trim().toUpperCase());
@@ -567,8 +572,8 @@
                     const color = progress > 80 ? '#f43f5e' : (progress > 50 ? '#fb923c' : '#fb7185');
 
                     suggCell.innerHTML = `
-            <div class="flex flex-col items-center justify-center w-full px-4">
-              <div class="flex justify-between w-full text-[10px] font-black uppercase text-rose-300 tracking-wider">
+            <div class="flex flex-col items-center justify-center w-full px-2">
+              <div class="flex justify-between w-full text-[9px] font-black uppercase text-rose-300 tracking-wider">
                 <span>偏離監控</span>
                 <span>${Math.round(progress)}%</span>
               </div>
@@ -596,15 +601,15 @@
 
                     suggCell.innerHTML = `
             <div class="flex flex-col items-center">
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2">
                 <span class="${isBuy ? 'text-emerald-500' : 'text-rose-500'} text-rebalance-big tracking-tighter">
                   ${actionText} $${Math.abs(Math.round(diffNominal)).toLocaleString()}
                 </span>
-                <span class="text-rose-400 text-rebalance-big border-l-2 border-rose-100 pl-3 tracking-tighter">
+                <span class="text-rose-400 text-rebalance-big border-l-2 border-rose-100 pl-2 tracking-tighter">
                   ${finalShares.toLocaleString()} 股
                 </span>
               </div>
-              <div class="text-[10px] font-bold text-rose-300 uppercase tracking-widest mt-1">
+              <div class="text-[9px] font-bold text-rose-300 uppercase tracking-widest mt-1">
                 現金動支估計: $${Math.abs(Math.round(diffCashImpact)).toLocaleString()}
               </div>
             </div>
@@ -649,10 +654,8 @@
                     const res = await fetch(proxy + url);
                     if (!res.ok) continue;
                     const data = await res.json();
-
                     const meta = data.chart?.result?.[0]?.meta;
                     const price = meta?.regularMarketPrice || meta?.previousClose;
-
                     if (price) {
                         const acc = appState.accounts.find(a => a.id === appState.activeId);
                         const asset = acc.assets.find(a => a.id === id);
@@ -662,16 +665,11 @@
                             break;
                         }
                     }
-                } catch (e) {
-                    console.warn(`Proxy ${proxy} failed for ${ticker}`);
-                }
+                } catch (e) { }
             }
 
-            if (priceFound) {
-                renderMainUI();
-            } else {
-                showToast(`無法獲取 ${ticker} 報價，請檢查連線或代號`);
-            }
+            if (priceFound) renderMainUI();
+            else showToast(`${ticker} 更新失敗`);
 
             if (icon) icon.classList.remove('fa-spin-fast', 'text-rose-600');
             return priceFound;
@@ -680,17 +678,16 @@
         async function syncAllPrices() {
             const mainSync = document.getElementById('syncIcon');
             mainSync.classList.add('fa-spin-fast');
-            showToast("正在更新報價並檢核預算...");
+            showToast("更新報價中...");
             const acc = appState.accounts.find(a => a.id === appState.activeId);
             for (let asset of acc.assets) {
                 if (asset.name) {
                     await fetchLivePrice(asset.id, asset.name);
-                    // 增加隨機延遲避免被封鎖
                     await new Promise(r => setTimeout(r, 400 + Math.random() * 200));
                 }
             }
             mainSync.classList.remove('fa-spin-fast');
-            showToast("報價同步完成");
+            showToast("更新完成");
         }
 
         function updateGlobal(field, val) {
@@ -725,7 +722,7 @@
         }
 
         function createNewAccount() {
-            const name = prompt("輸入帳戶名稱:", "新帳戶");
+            const name = prompt("帳戶名稱:", "新計畫");
             if (!name) return;
             const id = 'acc_' + Date.now();
             appState.accounts.push({ id, name, currentCash: 0, cashRatio: 0, usdRate: 32.5, assets: [] });
@@ -734,7 +731,7 @@
 
         function deleteAccount(id) {
             if (appState.accounts.length <= 1) return showToast("必須保留至少一個帳戶");
-            if (!confirm("確定刪除此帳戶資料？")) return;
+            if (!confirm("確定刪除此帳戶？")) return;
             appState.accounts = appState.accounts.filter(a => a.id !== id);
             if (appState.activeId === id) appState.activeId = appState.accounts[0].id;
             save(); renderAccountList(); renderMainUI();
@@ -744,7 +741,7 @@
 
         function renameCurrentAccount() {
             const acc = appState.accounts.find(a => a.id === appState.activeId);
-            const newName = prompt("重新命名計畫:", acc.name);
+            const newName = prompt("計畫名稱:", acc.name);
             if (newName) { acc.name = newName; save(); renderAccountList(); renderMainUI(); }
         }
 
@@ -786,8 +783,8 @@
                     }
                     appState.accounts.push(newAcc);
                     switchAccount(newAcc.id);
-                    showToast("匯入成功且已校準");
-                } catch (err) { showToast("匯入格式不符，請參考匯出檔"); }
+                    showToast("匯入成功");
+                } catch (err) { showToast("匯入格式不符"); }
                 finally { e.target.value = ''; }
             };
             reader.readAsArrayBuffer(file);
