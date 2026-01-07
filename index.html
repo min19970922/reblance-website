@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>投資再平衡助手 | 專業無邊框版</title>
+    <title>投資再平衡助手</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -22,7 +22,7 @@
 
         body {
             font-family: 'Noto Sans TC', sans-serif;
-            background-color: #fff5f6;
+            background-color: #fffafb;
             color: #4c0519;
             margin: 0;
             overflow: hidden;
@@ -52,60 +52,55 @@
             pointer-events: none;
         }
 
-        /* --- 優化後的底線輸入格 --- */
+        /* --- 核心底線輸入格設計 --- */
         .underline-input {
             background: transparent;
             border-bottom: 2px solid #fecdd3;
             border-radius: 0;
-            padding: 4px 2px;
-            transition: all 0.3s;
+            padding: 6px 2px;
+            transition: all 0.3s ease;
             outline: none;
             font-weight: 700;
             width: 100%;
+            color: #4c0519;
         }
 
         .underline-input:focus {
-            border-color: var(--accent-pink);
-            background: rgba(251, 113, 133, 0.05);
+            border-bottom-color: var(--accent-pink);
+            background: rgba(251, 113, 133, 0.03);
         }
 
-        /* 頂部全域參數仍保留卡片感，但個股改底線 */
-        .pink-input {
-            background: white;
-            border: 2px solid #fecdd3;
-            border-radius: 12px;
-            padding: 10px 14px;
-            transition: all 0.3s;
-            outline: none;
-            font-size: 1.15rem;
-            font-weight: 700;
+        /* 數字字體專用 */
+        .font-mono-data {
+            font-family: 'JetBrains Mono', monospace;
         }
 
         .glass-card {
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(251, 113, 133, 0.2);
             border-radius: 24px;
-            box-shadow: 0 10px 25px -5px rgba(251, 113, 133, 0.1);
+            border: 1px solid rgba(251, 113, 133, 0.1);
+            box-shadow: 0 4px 20px -5px rgba(251, 113, 133, 0.05);
         }
 
         table {
-            border-spacing: 0 12px;
+            border-spacing: 0 8px;
             border-collapse: separate;
         }
 
         td {
             background: white;
-            padding: 12px 16px;
+            padding: 14px 16px;
             white-space: nowrap;
+            border-bottom: 1px solid #fff5f6;
         }
 
         td:first-child {
-            border-radius: 20px 0 0 20px;
+            border-radius: 16px 0 0 16px;
         }
 
         td:last-child {
-            border-radius: 0 20px 20px 0;
+            border-radius: 0 16px 16px 0;
         }
 
         .btn-pink {
@@ -115,9 +110,15 @@
             transition: all 0.3s;
         }
 
+        .btn-pink:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 15px -3px rgba(225, 29, 72, 0.2);
+        }
+
         .text-rebalance-big {
-            font-size: 1.3rem;
-            font-weight: 800;
+            font-size: 1.45rem;
+            /* 微幅加大 */
+            font-weight: 900;
         }
 
         .sidebar-toggle-btn {
@@ -128,16 +129,8 @@
             transition: all 0.4s;
         }
 
-        .sidebar-collapsed .sidebar-toggle-btn {
-            left: 20px;
-        }
-
-        .font-mono-data {
-            font-family: 'JetBrains Mono', monospace;
-        }
-
         .move-btn {
-            padding: 2px 4px;
+            padding: 2px 6px;
             color: #fecdd3;
             transition: all 0.2s;
         }
@@ -146,28 +139,30 @@
             color: var(--primary-pink);
         }
 
+        /* 進度條監測 */
         .deviation-bar-bg {
             width: 100%;
             height: 6px;
+            /* 加粗進度條 */
             background: #f1f5f9;
             border-radius: 10px;
             overflow: hidden;
-            margin-top: 4px;
+            margin-top: 8px;
         }
 
         .deviation-bar-fill {
             height: 100%;
-            transition: width 0.3s ease;
+            transition: width 0.4s ease-out;
         }
 
         .badge-lev {
             background: #4c0519;
             color: #fb7185;
             padding: 2px 8px;
-            border-radius: 6px;
-            font-size: 10px;
+            border-radius: 4px;
+            font-size: 11px;
             font-weight: 900;
-            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
         @keyframes spin-fast {
@@ -190,29 +185,30 @@
 
     <div class="dashboard-container" id="mainContainer">
         <!-- 側邊欄 -->
-        <aside class="bg-white border-r border-rose-100 flex flex-col p-6 overflow-y-auto relative">
+        <aside class="bg-white border-r border-rose-50 flex flex-col p-6 overflow-y-auto relative">
             <div class="mb-10 text-center pt-10">
                 <h1 class="text-3xl font-black text-rose-500 tracking-tighter">
                     <i class="fas fa-heart mr-2"></i>REBALANCE
                 </h1>
-                <p class="text-xs text-rose-300 font-bold mt-1 uppercase tracking-widest">Minimalist Mode</p>
+                <p class="text-[10px] text-rose-400 font-bold mt-1 uppercase tracking-[0.2em]">Minimalist Portfolio Pro
+                </p>
             </div>
 
-            <div class="flex-1 space-y-4" id="accountList"></div>
+            <div class="flex-1 space-y-3" id="accountList"></div>
 
             <div class="mt-10 pt-6 border-t border-rose-50">
                 <button onclick="createNewAccount()"
-                    class="w-full py-5 rounded-2xl bg-rose-50 text-rose-600 font-black hover:bg-rose-100 transition-all flex items-center justify-center gap-2">
+                    class="w-full py-4 rounded-2xl bg-rose-50 text-rose-600 font-black hover:bg-rose-100 transition-all flex items-center justify-center gap-2">
                     <i class="fas fa-plus-circle"></i> 新增投資組合
                 </button>
             </div>
         </aside>
 
         <!-- 主面板 -->
-        <main class="flex flex-col h-screen overflow-y-auto p-10 relative">
+        <main class="flex flex-col h-screen overflow-y-auto p-10 relative bg-[#fffafb]">
 
             <button onclick="toggleSidebar()"
-                class="sidebar-toggle-btn p-3 bg-white text-rose-400 hover:text-rose-600 rounded-xl shadow-md border border-rose-50 transition-all">
+                class="sidebar-toggle-btn p-3 bg-white text-rose-500 hover:text-rose-700 rounded-xl shadow-sm border border-rose-50 transition-all">
                 <i id="toggleIcon" class="fas fa-chevron-left text-xl"></i>
             </button>
 
@@ -227,39 +223,40 @@
 
                 <div class="flex items-center gap-4">
                     <button onclick="exportExcel()"
-                        class="px-6 py-4 bg-emerald-50 text-emerald-600 font-black rounded-2xl hover:bg-emerald-100 transition-all flex items-center gap-2 shadow-sm">
-                        <i class="fas fa-file-export"></i> 匯出
+                        class="px-6 py-3 bg-emerald-50 text-emerald-700 font-black rounded-xl hover:bg-emerald-100 transition-all flex items-center gap-2 text-sm shadow-sm">
+                        <i class="fas fa-file-export"></i> 匯出報表
                     </button>
                     <label
-                        class="px-6 py-4 bg-amber-50 text-amber-600 font-black rounded-2xl hover:bg-amber-100 cursor-pointer transition-all flex items-center gap-2 shadow-sm">
-                        <i class="fas fa-file-import"></i> 匯入
+                        class="px-6 py-3 bg-amber-50 text-amber-700 font-black rounded-xl hover:bg-amber-100 cursor-pointer transition-all flex items-center gap-2 text-sm shadow-sm">
+                        <i class="fas fa-file-import"></i> 匯入數據
                         <input type="file" class="hidden" accept=".xlsx" onchange="importExcel(event)">
                     </label>
                     <button onclick="deleteCurrentAccount()"
-                        class="p-3 text-rose-200 hover:text-rose-600 transition-all">
+                        class="p-3 text-rose-300 hover:text-rose-600 transition-all">
                         <i class="fas fa-trash-alt text-2xl"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- 核心數據卡片 -->
+            <!-- 頂部數據看板 -->
             <div class="grid grid-cols-4 gap-6 mb-10 pl-12">
-                <div class="glass-card p-6 border-l-8 border-l-rose-500">
-                    <span class="text-sm font-black text-rose-400 uppercase tracking-widest">帳戶淨值 (Equity)</span>
+                <div class="glass-card p-6 border-t-4 border-t-rose-400">
+                    <span class="text-[12px] font-black text-rose-500 uppercase tracking-widest">帳戶淨值 (Equity)</span>
                     <div id="totalNetValue"
-                        class="text-3xl font-black text-rose-900 font-mono-data mt-2 tracking-tight">$0</div>
+                        class="text-3xl font-black text-rose-900 font-mono-data mt-2 tracking-tighter">$0</div>
                 </div>
-                <div class="glass-card p-6 border-l-8 border-l-pink-400">
-                    <span class="text-sm font-black text-pink-400 uppercase tracking-widest">總名目曝險</span>
+                <div class="glass-card p-6 border-t-4 border-t-pink-400">
+                    <span class="text-[12px] font-black text-pink-600 uppercase tracking-widest">總名目曝險 (Nominal)</span>
                     <div id="totalExposure"
-                        class="text-3xl font-black text-pink-900 font-mono-data mt-2 tracking-tight">$0</div>
+                        class="text-3xl font-black text-pink-900 font-mono-data mt-2 tracking-tighter">$0</div>
                 </div>
-                <div class="glass-card p-6 border-l-8 border-l-amber-400">
-                    <span class="text-sm font-black text-amber-400 uppercase tracking-widest">當前實質槓桿</span>
+                <div class="glass-card p-6 border-t-4 border-t-amber-400">
+                    <span class="text-[12px] font-black text-amber-600 uppercase tracking-widest">當前實質總槓桿</span>
                     <div id="leverageDisplay" class="text-3xl font-black text-amber-700 font-mono-data mt-2">1.00x</div>
                 </div>
-                <div class="glass-card p-6 border-l-8 border-l-rose-600 relative overflow-hidden">
-                    <span class="text-sm font-black text-rose-600 uppercase tracking-widest flex items-center gap-2">
+                <div class="glass-card p-6 border-t-4 border-t-rose-600 relative">
+                    <span
+                        class="text-[12px] font-black text-rose-700 uppercase tracking-widest flex items-center gap-2">
                         預算目標總和
                         <span id="levBadge" class="badge-lev hidden">結構性槓桿</span>
                     </span>
@@ -267,71 +264,102 @@
                 </div>
             </div>
 
-            <!-- 參數設定區 -->
-            <div class="glass-card p-8 mb-8 flex items-end gap-10 bg-white/50 mx-12">
-                <div class="flex-1">
-                    <label class="block text-sm font-black text-rose-900/50 mb-3 uppercase">可用現金 / 負債餘額 (TWD)</label>
-                    <div class="relative">
-                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-rose-300 font-bold">$</span>
-                        <input type="number" id="cashInput" oninput="updateGlobal('currentCash', this.value)"
-                            class="w-full pl-10 pink-input font-mono-data text-2xl font-bold" placeholder="輸入現金餘額">
+            <!-- 全球參數與風險策略 (字體放大，顏色加深) -->
+            <div class="px-12 mb-10">
+                <div class="flex flex-wrap items-start gap-12 py-8 border-y border-rose-100">
+                    <div class="flex-1 min-w-[240px]">
+                        <label class="block text-[14px] font-black text-rose-500 uppercase tracking-widest mb-3">可用現金 /
+                            負債餘額 (TWD)</label>
+                        <div class="relative">
+                            <span
+                                class="absolute left-0 top-1/2 -translate-y-1/2 text-rose-400 font-bold text-xl">$</span>
+                            <input type="number" id="cashInput" oninput="updateGlobal('currentCash', this.value)"
+                                class="underline-input pl-8 font-mono-data text-2xl font-bold" placeholder="0">
+                        </div>
                     </div>
-                </div>
-                <div class="w-64">
-                    <label class="block text-sm font-black text-rose-900/50 mb-3 uppercase">現金目標佔比 (%)</label>
-                    <div class="relative">
+                    <div class="w-28">
+                        <label class="block text-[14px] font-black text-rose-500 uppercase tracking-widest mb-3">現金目標
+                            %</label>
                         <input type="number" id="cashRatioInput" oninput="updateGlobal('cashRatio', this.value)"
-                            class="w-full pink-input font-mono-data text-2xl font-bold text-center" value="0">
-                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-rose-300 font-bold">%</span>
+                            class="underline-input font-mono-data text-2xl font-bold text-center" value="0">
                     </div>
-                </div>
-                <div class="w-64">
-                    <label class="block text-sm font-black text-rose-900/50 mb-3 uppercase">美金匯率</label>
-                    <div class="relative">
+                    <div class="w-28">
+                        <label
+                            class="block text-[14px] font-black text-rose-500 uppercase tracking-widest mb-3">美金匯率</label>
                         <input type="number" id="usdRateInput" oninput="updateGlobal('usdRate', this.value)"
-                            class="w-full pink-input font-mono-data text-2xl font-bold text-center" step="0.1"
+                            class="underline-input font-mono-data text-2xl font-bold text-center" step="0.1"
                             value="32.5">
-                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-rose-300 font-bold">USD</span>
+                    </div>
+
+                    <div class="h-16 w-px bg-rose-100 hidden lg:block"></div>
+
+                    <div class="flex gap-10">
+                        <div class="w-40">
+                            <label
+                                class="block text-[14px] font-black text-rose-600 uppercase tracking-widest mb-3">絕對偏離門檻</label>
+                            <div class="relative">
+                                <input type="number" id="rebalanceAbsInput"
+                                    oninput="updateGlobal('rebalanceAbs', this.value)"
+                                    class="underline-input font-mono-data text-2xl font-bold text-center border-rose-300"
+                                    value="5">
+                                <span
+                                    class="absolute right-0 top-1/2 -translate-y-1/2 text-rose-400 font-bold text-lg">%</span>
+                            </div>
+                        </div>
+                        <div class="w-40">
+                            <label
+                                class="block text-[14px] font-black text-rose-600 uppercase tracking-widest mb-3">相對偏離門檻</label>
+                            <div class="relative">
+                                <input type="number" id="rebalanceRelInput"
+                                    oninput="updateGlobal('rebalanceRel', this.value)"
+                                    class="underline-input font-mono-data text-2xl font-bold text-center border-rose-300"
+                                    value="25">
+                                <span
+                                    class="absolute right-0 top-1/2 -translate-y-1/2 text-rose-400 font-bold text-lg">%</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 資產明細表格 -->
+            <!-- 資產表格 -->
             <div class="flex-1 px-12">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-2xl font-black text-rose-900"><i class="fas fa-chart-line mr-3"></i>標的配置與監控</h3>
+                    <h3 class="text-2xl font-black text-rose-900 tracking-tight"><i
+                            class="fas fa-layer-group mr-3"></i>投資標的配置與監控</h3>
 
                     <div class="flex items-center gap-4">
                         <button onclick="syncAllPrices()"
-                            class="px-8 py-4 bg-white border-2 border-rose-100 text-rose-500 font-black rounded-2xl hover:bg-rose-50 transition-all flex items-center gap-3 shadow-sm">
-                            <i id="syncIcon" class="fas fa-sync-alt text-xl"></i> 更新報價
+                            class="px-8 py-3 bg-white border-2 border-rose-100 text-rose-600 font-black rounded-xl hover:bg-rose-50 transition-all flex items-center gap-3 shadow-sm">
+                            <i id="syncIcon" class="fas fa-sync-alt"></i> 更新即時報價
                         </button>
                         <button onclick="addAsset()"
-                            class="px-10 py-4 btn-pink rounded-2xl shadow-lg flex items-center gap-2">
-                            <i class="fas fa-plus"></i> 新增標的
+                            class="px-10 py-3 btn-pink rounded-xl shadow-md flex items-center gap-2">
+                            <i class="fas fa-plus"></i> 新增投資標的
                         </button>
                     </div>
                 </div>
 
                 <table class="w-full">
                     <thead>
-                        <tr class="text-rose-400 text-xs font-black uppercase tracking-widest text-left">
-                            <th class="px-4 py-2 w-48">排序/標的</th>
-                            <th class="px-4 py-2 w-24 text-center">槓桿</th>
+                        <tr class="text-rose-500 text-[13px] font-black uppercase tracking-[0.15em] text-left">
+                            <th class="px-4 py-2 w-48">排序 / 標的代號</th>
+                            <th class="px-4 py-2 w-28 text-center">槓桿因子</th>
                             <th class="px-4 py-2 w-40">目前單價</th>
                             <th class="px-4 py-2 w-40">持有股數</th>
-                            <th class="px-4 py-2">當前曝險</th>
-                            <th class="px-4 py-2 w-32 text-center text-rose-600">目標 %</th>
-                            <th class="px-4 py-2">理想曝險/投入</th>
-                            <th class="px-4 py-2 text-center">5/25 執行建議</th>
+                            <th class="px-4 py-2">目前名目曝險</th>
+                            <th class="px-4 py-2 w-32 text-center text-rose-700">目標比例</th>
+                            <th class="px-4 py-2">理想曝險 / 預計投入</th>
+                            <th class="px-4 py-2 text-center">風險策略建議</th>
                             <th class="px-4 py-2"></th>
                         </tr>
                     </thead>
                     <tbody id="assetBody"></tbody>
                     <tfoot>
                         <tr class="font-bold">
-                            <td colspan="4" class="text-right text-rose-900/50 uppercase text-xs font-black">現金調節預算
-                                (Cash Budget)</td>
+                            <td colspan="4"
+                                class="text-right text-rose-400 uppercase text-[12px] font-black tracking-widest pr-10">
+                                現金調節預算 (Cash Budgeting)</td>
                             <td id="footerCurrentCash" class="font-mono-data text-2xl text-rose-900 tracking-tighter">$0
                             </td>
                             <td class="text-center text-xl" id="footerCashRatio">0%</td>
@@ -350,11 +378,11 @@
 
     <div id="toast"
         class="fixed bottom-10 right-10 px-8 py-4 bg-rose-900 text-white rounded-2xl shadow-2xl opacity-0 transition-all z-50 pointer-events-none flex items-center gap-3 font-bold text-lg">
-        <i class="fas fa-bell text-rose-300"></i> <span id="toastMsg"></span>
+        <i class="fas fa-bell text-rose-200"></i> <span id="toastMsg"></span>
     </div>
 
     <script>
-        const STORAGE_KEY = 'INVEST_PRO_REBALANCE_EXPOSURE_V6';
+        const STORAGE_KEY = 'INVEST_PRO_REBALANCE_EXPOSURE_V9';
 
         let appState = {
             activeId: 'acc_default',
@@ -366,6 +394,8 @@
                     currentCash: 100000,
                     cashRatio: 10,
                     usdRate: 32.5,
+                    rebalanceAbs: 5,
+                    rebalanceRel: 25,
                     assets: [
                         { id: 1, name: '2330', price: 1000, shares: 100, targetRatio: 40, leverage: 1 },
                         { id: 2, name: '00631L', price: 200, shares: 500, targetRatio: 80, leverage: 2 }
@@ -390,6 +420,12 @@
             if (!appState.activeId || !appState.accounts.find(a => a.id === appState.activeId)) {
                 appState.activeId = appState.accounts[0].id;
             }
+
+            appState.accounts.forEach(acc => {
+                if (acc.rebalanceAbs === undefined) acc.rebalanceAbs = 5;
+                if (acc.rebalanceRel === undefined) acc.rebalanceRel = 25;
+            });
+
             if (appState.isSidebarCollapsed) {
                 document.getElementById('mainContainer').classList.add('sidebar-collapsed');
                 document.getElementById('toggleIcon').className = 'fas fa-bars text-xl';
@@ -417,11 +453,11 @@
             appState.accounts.forEach(acc => {
                 const isActive = acc.id === appState.activeId;
                 const div = document.createElement('div');
-                div.className = `group flex items-center justify-between p-5 rounded-2xl cursor-pointer transition-all ${isActive ? 'bg-rose-500 text-white shadow-lg scale-105' : 'bg-white hover:bg-rose-50 text-rose-900 border border-rose-50'}`;
+                div.className = `group flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all ${isActive ? 'bg-rose-500 text-white shadow-md scale-105' : 'bg-white hover:bg-rose-50 text-rose-900 border border-rose-50'}`;
                 div.innerHTML = `
-          <div class="flex items-center gap-4 flex-1 overflow-hidden" onclick="switchAccount('${acc.id}')">
-            <i class="fas fa-wallet ${isActive ? 'text-rose-200' : 'text-rose-300'} text-xl"></i>
-            <span class="font-black text-xl truncate tracking-tight">${acc.name}</span>
+          <div class="flex items-center gap-3 flex-1 overflow-hidden" onclick="switchAccount('${acc.id}')">
+            <i class="fas fa-wallet ${isActive ? 'text-rose-200' : 'text-rose-300'} text-lg"></i>
+            <span class="font-black text-lg truncate tracking-tight">${acc.name}</span>
           </div>
           <button onclick="event.stopPropagation(); deleteAccount('${acc.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-rose-200 hover:text-white transition-all">
             <i class="fas fa-trash-alt"></i>
@@ -435,10 +471,12 @@
             const acc = appState.accounts.find(a => a.id === appState.activeId);
             if (!acc) return;
 
-            document.getElementById('activeAccountTitle').innerHTML = `${acc.name} <i class="fas fa-pen text-sm text-rose-200"></i>`;
+            document.getElementById('activeAccountTitle').innerHTML = `${acc.name} <i class="fas fa-pen text-sm text-rose-400"></i>`;
             document.getElementById('cashInput').value = acc.currentCash;
             document.getElementById('cashRatioInput').value = acc.cashRatio;
             document.getElementById('usdRateInput').value = acc.usdRate;
+            document.getElementById('rebalanceAbsInput').value = acc.rebalanceAbs;
+            document.getElementById('rebalanceRelInput').value = acc.rebalanceRel;
 
             const body = document.getElementById('assetBody');
             body.innerHTML = '';
@@ -454,7 +492,7 @@
                 <button onclick="moveAsset(${asset.id}, 1)" class="move-btn ${index === acc.assets.length - 1 ? 'invisible' : ''}"><i class="fas fa-caret-down"></i></button>
               </div>
               <input type="text" value="${asset.name}" onchange="updateAsset(${asset.id}, 'name', this.value)" 
-                class="underline-input uppercase text-2xl text-rose-900 tracking-tight" placeholder="代號">
+                class="underline-input uppercase text-2xl text-rose-900 tracking-tighter" placeholder="代號">
             </div>
           </td>
           <td>
@@ -464,8 +502,8 @@
           <td>
             <div class="flex items-center gap-1">
               <input type="number" value="${asset.price}" onchange="updateAsset(${asset.id}, 'price', this.value)" 
-                class="underline-input font-mono-data font-bold text-xl" placeholder="0.0">
-              <button onclick="fetchLivePrice(${asset.id}, '${asset.name}')" class="text-rose-300 hover:text-rose-500 p-1">
+                class="underline-input font-mono-data font-bold text-xl" placeholder="0.00">
+              <button onclick="fetchLivePrice(${asset.id}, '${asset.name}')" class="text-rose-400 hover:text-rose-600 p-1">
                 <i id="assetSync-${asset.id}" class="fas fa-sync-alt text-lg"></i>
               </button>
             </div>
@@ -479,7 +517,7 @@
              <div class="flex items-center justify-center gap-1">
                <input type="number" value="${asset.targetRatio}" onchange="updateAsset(${asset.id}, 'targetRatio', this.value)" 
                 class="underline-input text-center text-rose-700 font-black text-xl" placeholder="0">
-               <span class="text-rose-300 font-black">%</span>
+               <span class="text-rose-400 font-black text-base">%</span>
              </div>
           </td>
           <td id="targetVal-${asset.id}"></td>
@@ -528,7 +566,6 @@
 
             const netValue = totalAssetBookValue + safeNum(acc.currentCash);
             const totalLeverage = netValue > 0 ? (totalNominalExposure / netValue) : 0;
-
             const targetAssetRatioSum = acc.assets.reduce((s, a) => s + safeNum(a.targetRatio), 0);
             const targetTotalCombined = targetAssetRatioSum + safeNum(acc.cashRatio);
 
@@ -538,82 +575,59 @@
             document.getElementById('targetTotalRatio').innerText = `${Math.round(targetTotalCombined)}%`;
 
             const levBadge = document.getElementById('levBadge');
-            if (targetTotalCombined > 100.1) levBadge.classList.remove('hidden');
-            else levBadge.classList.add('hidden');
+            levBadge.classList.toggle('hidden', targetTotalCombined <= 100.1);
 
             acc.assets.forEach(asset => {
                 const isTW = /^\d{4,6}[A-Z]?$/.test(asset.name.trim().toUpperCase());
                 const priceTwd = isTW ? safeNum(asset.price) : (safeNum(asset.price) * safeNum(acc.usdRate));
                 const factor = safeNum(asset.leverage, 1);
-
                 const currentNominal = (priceTwd * safeNum(asset.shares)) * factor;
                 const currentPct = netValue > 0 ? (currentNominal / netValue * 100) : 0;
                 const targetPct = safeNum(asset.targetRatio);
-
                 const targetNominal = netValue * (targetPct / 100);
                 const targetBookValue = targetNominal / factor;
 
                 document.getElementById(`targetVal-${asset.id}`).innerHTML = `
-          <div class="flex flex-col text-xs font-bold">
+          <div class="flex flex-col text-[11px] font-black">
             <span class="text-rose-900 font-mono-data text-lg tracking-tighter">$${Math.round(targetNominal).toLocaleString()}</span>
-            <span class="text-rose-300 uppercase tracking-widest mt-0.5">預計投入: $${Math.round(targetBookValue).toLocaleString()}</span>
+            <span class="text-rose-400 uppercase tracking-widest">預計投入: $${Math.round(targetBookValue).toLocaleString()}</span>
           </div>
         `;
 
                 const absDiff = Math.abs(currentPct - targetPct);
                 const relDiff = targetPct !== 0 ? (absDiff / targetPct) : 0;
-                const isTriggered = absDiff > 5 || relDiff > 0.25;
+                const thresholdAbs = safeNum(acc.rebalanceAbs, 5);
+                const thresholdRel = safeNum(acc.rebalanceRel, 25) / 100;
+                const isTriggered = absDiff > thresholdAbs || relDiff > thresholdRel;
 
                 const suggCell = document.getElementById(`sugg-${asset.id}`);
                 if (!isTriggered) {
-                    const absProgress = (absDiff / 5) * 100;
-                    const relProgress = (relDiff / 0.25) * 100;
-                    const progress = Math.min(100, Math.max(absProgress, relProgress));
+                    const progress = Math.min(100, Math.max((absDiff / thresholdAbs) * 100, (relDiff / thresholdRel) * 100));
                     const color = progress > 80 ? '#f43f5e' : (progress > 50 ? '#fb923c' : '#fb7185');
-
                     suggCell.innerHTML = `
-            <div class="flex flex-col items-center justify-center w-full px-2">
-              <div class="flex justify-between w-full text-[9px] font-black uppercase text-rose-300 tracking-wider">
-                <span>偏離監控</span>
-                <span>${Math.round(progress)}%</span>
+            <div class="flex flex-col items-center justify-center w-full px-4">
+              <div class="flex justify-between w-full text-[11px] font-black uppercase text-rose-500 tracking-widest">
+                <span>策略監測</span><span>${Math.round(progress)}%</span>
               </div>
-              <div class="deviation-bar-bg">
-                <div class="deviation-bar-fill" style="width: ${progress}%; background-color: ${color}"></div>
-              </div>
-            </div>
-          `;
+              <div class="deviation-bar-bg"><div class="deviation-bar-fill" style="width: ${progress}%; background-color: ${color}"></div></div>
+            </div>`;
                 } else {
                     const diffNominal = targetNominal - currentNominal;
                     const diffCashImpact = diffNominal / factor;
                     const diffSharesRaw = (priceTwd * factor) > 0 ? (diffNominal / (priceTwd * factor)) : 0;
+                    let actionText = ""; let finalShares = 0; let isBuy = diffNominal > 0;
 
-                    let actionText = "";
-                    let finalShares = 0;
-                    let isBuy = diffNominal > 0;
-
-                    if (!isBuy && Math.abs(diffSharesRaw) >= (asset.shares * 0.99)) {
-                        actionText = "全清 (Sell All)";
-                        finalShares = asset.shares;
-                    } else {
-                        actionText = isBuy ? "加倉" : "減倉";
-                        finalShares = Math.abs(Math.round(diffSharesRaw));
-                    }
+                    if (!isBuy && Math.abs(diffSharesRaw) >= (asset.shares * 0.99)) { actionText = "全清"; finalShares = asset.shares; }
+                    else { actionText = isBuy ? "加倉" : "減倉"; finalShares = Math.abs(Math.round(diffSharesRaw)); }
 
                     suggCell.innerHTML = `
             <div class="flex flex-col items-center">
-              <div class="flex items-center gap-2">
-                <span class="${isBuy ? 'text-emerald-500' : 'text-rose-500'} text-rebalance-big tracking-tighter">
-                  ${actionText} $${Math.abs(Math.round(diffNominal)).toLocaleString()}
-                </span>
-                <span class="text-rose-400 text-rebalance-big border-l-2 border-rose-100 pl-2 tracking-tighter">
-                  ${finalShares.toLocaleString()} 股
-                </span>
+              <div class="flex items-center gap-3">
+                <span class="${isBuy ? 'text-emerald-500' : 'text-rose-600'} text-rebalance-big tracking-tighter">${actionText} $${Math.abs(Math.round(diffNominal)).toLocaleString()}</span>
+                <span class="text-rose-500 text-rebalance-big border-l-2 border-rose-100 pl-3 tracking-tighter">${finalShares.toLocaleString()} 股</span>
               </div>
-              <div class="text-[9px] font-bold text-rose-300 uppercase tracking-widest mt-1">
-                現金動支估計: $${Math.abs(Math.round(diffCashImpact)).toLocaleString()}
-              </div>
-            </div>
-          `;
+              <div class="text-[11px] font-bold text-rose-400 uppercase tracking-widest mt-1">現金動支: $${Math.abs(Math.round(diffCashImpact)).toLocaleString()}</div>
+            </div>`;
                 }
             });
 
@@ -624,29 +638,21 @@
             document.getElementById('footerTargetCash').innerText = `$${Math.round(targetCashVal).toLocaleString()}`;
 
             const cashSugg = document.getElementById('footerCashSugg');
-            if (Math.abs(cashDiff) < 100) {
-                cashSugg.innerHTML = `<span class="text-rose-200 font-black italic text-xl">OK</span>`;
-            } else {
-                cashSugg.innerHTML = `<span class="${cashDiff > 0 ? 'text-emerald-500' : 'text-rose-500'} text-2xl font-black tracking-tighter">
-            需${cashDiff > 0 ? '備金' : '抽出'} $${Math.abs(Math.round(cashDiff)).toLocaleString()}</span>`;
+            if (Math.abs(cashDiff) < 100) cashSugg.innerHTML = `<span class="text-rose-200 font-black italic text-xl">Perfect</span>`;
+            else {
+                const isDeposit = cashDiff > 0;
+                cashSugg.innerHTML = `<span class="${isDeposit ? 'text-emerald-500' : 'text-rose-600'} text-2xl font-black tracking-tighter">${isDeposit ? '需補' : '可抽'} $${Math.abs(Math.round(cashDiff)).toLocaleString()}</span>`;
             }
             save();
         }
 
-        // --- 健壯的報價系統 ---
         async function fetchLivePrice(id, symbol) {
             if (!symbol) return;
             const icon = document.getElementById(`assetSync-${id}`);
             if (icon) icon.classList.add('fa-spin-fast', 'text-rose-600');
-
             let ticker = symbol.trim().toUpperCase();
             if (!ticker.includes('.') && /^\d{4,6}[A-Z]?$/.test(ticker)) ticker += ".TW";
-
-            const proxies = [
-                'https://corsproxy.io/?',
-                'https://api.allorigins.win/raw?url='
-            ];
-
+            const proxies = ['https://corsproxy.io/?', 'https://api.allorigins.win/raw?url='];
             let priceFound = false;
             for (let proxy of proxies) {
                 try {
@@ -659,18 +665,11 @@
                     if (price) {
                         const acc = appState.accounts.find(a => a.id === appState.activeId);
                         const asset = acc.assets.find(a => a.id === id);
-                        if (asset) {
-                            asset.price = price;
-                            priceFound = true;
-                            break;
-                        }
+                        if (asset) { asset.price = price; priceFound = true; break; }
                     }
                 } catch (e) { }
             }
-
-            if (priceFound) renderMainUI();
-            else showToast(`${ticker} 更新失敗`);
-
+            if (priceFound) renderMainUI(); else showToast(`${ticker} 更新失敗`);
             if (icon) icon.classList.remove('fa-spin-fast', 'text-rose-600');
             return priceFound;
         }
@@ -678,16 +677,16 @@
         async function syncAllPrices() {
             const mainSync = document.getElementById('syncIcon');
             mainSync.classList.add('fa-spin-fast');
-            showToast("更新報價中...");
+            showToast("正在按配置策略同步報價...");
             const acc = appState.accounts.find(a => a.id === appState.activeId);
             for (let asset of acc.assets) {
                 if (asset.name) {
                     await fetchLivePrice(asset.id, asset.name);
-                    await new Promise(r => setTimeout(r, 400 + Math.random() * 200));
+                    await new Promise(r => setTimeout(r, 450));
                 }
             }
             mainSync.classList.remove('fa-spin-fast');
-            showToast("更新完成");
+            showToast("所有標的報價已校準");
         }
 
         function updateGlobal(field, val) {
@@ -710,28 +709,25 @@
         }
 
         function removeAsset(id) {
-            if (!confirm("確定要刪除這項資產嗎？")) return;
+            if (!confirm("確定刪除此標的？")) return;
             const acc = appState.accounts.find(a => a.id === appState.activeId);
             acc.assets = acc.assets.filter(as => as.id !== id);
             renderMainUI();
         }
 
-        function switchAccount(id) {
-            appState.activeId = id;
-            save(); renderAccountList(); renderMainUI();
-        }
+        function switchAccount(id) { appState.activeId = id; save(); renderAccountList(); renderMainUI(); }
 
         function createNewAccount() {
-            const name = prompt("帳戶名稱:", "新計畫");
+            const name = prompt("帳戶名稱:", "新實戰計畫");
             if (!name) return;
             const id = 'acc_' + Date.now();
-            appState.accounts.push({ id, name, currentCash: 0, cashRatio: 0, usdRate: 32.5, assets: [] });
+            appState.accounts.push({ id, name, currentCash: 0, cashRatio: 10, usdRate: 32.5, rebalanceAbs: 5, rebalanceRel: 25, assets: [] });
             switchAccount(id);
         }
 
         function deleteAccount(id) {
             if (appState.accounts.length <= 1) return showToast("必須保留至少一個帳戶");
-            if (!confirm("確定刪除此帳戶？")) return;
+            if (!confirm("確定刪除此帳戶資料？")) return;
             appState.accounts = appState.accounts.filter(a => a.id !== id);
             if (appState.activeId === id) appState.activeId = appState.accounts[0].id;
             save(); renderAccountList(); renderMainUI();
@@ -741,18 +737,18 @@
 
         function renameCurrentAccount() {
             const acc = appState.accounts.find(a => a.id === appState.activeId);
-            const newName = prompt("計畫名稱:", acc.name);
+            const newName = prompt("重新命名計畫:", acc.name);
             if (newName) { acc.name = newName; save(); renderAccountList(); renderMainUI(); }
         }
 
         function exportExcel() {
             const acc = appState.accounts.find(a => a.id === appState.activeId);
-            const data = [["帳戶名稱", acc.name], ["美金匯率", acc.usdRate], ["現金/負債", acc.currentCash], ["現金目標%", acc.cashRatio], [], ["標代號", "單價", "股數", "槓桿因子", "目標曝險%"]];
+            const data = [["項目", acc.name], ["匯率", acc.usdRate], ["現金", acc.currentCash], ["Abs", acc.rebalanceAbs], ["Rel", acc.rebalanceRel], [], ["代號", "單價", "股數", "槓桿", "目標%"]];
             acc.assets.forEach(a => data.push([a.name, a.price, a.shares, a.leverage, a.targetRatio]));
             const ws = XLSX.utils.aoa_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Portfolio");
-            XLSX.writeFile(wb, `${acc.name}_Rebalance_Pro.xlsx`);
+            XLSX.writeFile(wb, `${acc.name}_Tracker.xlsx`);
         }
 
         function importExcel(e) {
@@ -765,26 +761,18 @@
                     const wb = XLSX.read(ab, { type: 'array' });
                     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
                     const newAcc = {
-                        id: 'acc_' + Date.now(),
-                        name: rows[0][1].toString(),
-                        usdRate: safeNum(rows[1][1], 32.5),
-                        currentCash: safeNum(rows[2][1]),
-                        cashRatio: safeNum(rows[3][1]),
-                        assets: []
+                        id: 'acc_' + Date.now(), name: rows[0][1].toString(), usdRate: safeNum(rows[1][1], 32.5),
+                        currentCash: safeNum(rows[2][1]), rebalanceAbs: safeNum(rows[3][1], 5), rebalanceRel: safeNum(rows[4][1], 25),
+                        cashRatio: 10, assets: []
                     };
-                    for (let i = 5; i < rows.length; i++) {
+                    for (let i = 6; i < rows.length; i++) {
                         const r = rows[i];
                         if (r && r[0]) {
-                            newAcc.assets.push({
-                                id: Date.now() + i, name: r[0].toString(), price: safeNum(r[1]),
-                                shares: safeNum(r[2]), leverage: safeNum(r[3], 1), targetRatio: safeNum(r[4])
-                            });
+                            newAcc.assets.push({ id: Date.now() + i, name: r[0].toString(), price: safeNum(r[1]), shares: safeNum(r[2]), leverage: safeNum(r[3], 1), targetRatio: safeNum(r[4]) });
                         }
                     }
-                    appState.accounts.push(newAcc);
-                    switchAccount(newAcc.id);
-                    showToast("匯入成功");
-                } catch (err) { showToast("匯入格式不符"); }
+                    appState.accounts.push(newAcc); switchAccount(newAcc.id);
+                } catch (err) { showToast("格式錯誤"); }
                 finally { e.target.value = ''; }
             };
             reader.readAsArrayBuffer(file);
