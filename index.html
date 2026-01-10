@@ -3,8 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>投資再平衡助手 - 美學專家版</title>
-
+    <title>再平衡終端 - 專家版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
@@ -13,12 +12,9 @@
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="styles.css" />
   </head>
-
   <body>
     <div class="dashboard-container" id="mainContainer">
-      <aside
-        class="bg-white border-r border-rose-100 flex flex-col p-5 overflow-y-auto"
-      >
+      <aside class="bg-white flex flex-col p-5 overflow-y-auto">
         <div class="mb-10 text-center pt-8">
           <h1 class="text-3xl font-black text-rose-500 tracking-tighter">
             <i class="fas fa-heart mr-2"></i>REBALANCE
@@ -30,10 +26,10 @@
           </p>
         </div>
         <div class="flex-1 space-y-3" id="accountList"></div>
-        <div class="mt-8 pt-6 border-t border-rose-100">
+        <div class="mt-8 pt-6 border-t">
           <button
             id="btnCreateAccount"
-            class="w-full py-4 rounded-xl bg-rose-50 text-rose-700 font-black hover:bg-rose-100 transition-all flex items-center justify-center gap-2 text-lg"
+            class="w-full py-4 rounded-xl bg-rose-50 text-rose-700 font-black hover:bg-rose-100 flex items-center justify-center gap-2 text-lg"
           >
             <i class="fas fa-plus-circle"></i> 新增計畫
           </button>
@@ -43,7 +39,7 @@
       <main class="bg-[#fffafb]">
         <div class="flex items-center justify-between mb-8">
           <div class="flex items-center gap-6">
-            <button id="btnToggleSidebar">
+            <button id="btnToggleSidebar" class="shadow-sm">
               <i id="toggleIcon" class="fas fa-chevron-left text-xl"></i>
             </button>
             <h2
@@ -56,21 +52,18 @@
           <div class="flex items-center gap-4">
             <button
               id="btnExport"
-              class="px-6 py-3 bg-white border border-emerald-200 text-emerald-700 font-black rounded-xl hover:bg-emerald-50 transition-all flex items-center gap-2 shadow-sm"
+              class="px-6 py-3 bg-white border border-emerald-200 text-emerald-700 font-black rounded-xl hover:bg-emerald-50 flex items-center gap-2 shadow-sm"
             >
               <i class="fas fa-file-export"></i> 匯出
             </button>
             <label
-              class="px-6 py-3 bg-white border border-amber-200 text-amber-700 font-black rounded-xl hover:bg-amber-50 cursor-pointer transition-all flex items-center gap-2 shadow-sm"
-            >
-              <i class="fas fa-file-import"></i> 匯入
-              <input
+              class="px-6 py-3 bg-white border border-amber-200 text-amber-700 font-black rounded-xl hover:bg-amber-50 cursor-pointer flex items-center gap-2 shadow-sm"
+              ><i class="fas fa-file-import"></i> 匯入<input
                 type="file"
                 id="inputImport"
                 class="hidden"
                 accept=".xlsx"
-              />
-            </label>
+            /></label>
             <button
               id="btnDeleteAccount"
               class="p-3 text-rose-200 hover:text-rose-600"
@@ -113,62 +106,46 @@
           </div>
         </div>
 
-        <div class="params-row">
-          <div class="flex-1">
-            <label class="text-lg font-black text-rose-400 mb-2 block"
-              >貸款/負債 (Loan)</label
-            >
-            <div class="relative">
-              <span
-                class="absolute left-0 bottom-1 text-rose-300 font-black text-3xl"
-                >$</span
-              >
-              <input
-                type="number"
-                id="debtInput"
-                class="underline-input pl-8 font-mono-data"
-                placeholder="0"
-              />
+        <div class="params-row-tight mb-8">
+          <div class="input-group">
+            <label>貸款/負債 (Loan)</label>
+            <div class="input-wrapper">
+              <span>$</span
+              ><input type="number" id="debtInput" placeholder="0" />
             </div>
           </div>
-          <div class="flex-1">
-            <label class="text-lg font-black text-rose-400 mb-2 block"
-              >現金餘額 (Cash)</label
-            >
-            <div class="relative">
-              <span
-                class="absolute left-0 bottom-1 text-rose-300 font-black text-3xl"
-                >$</span
-              >
-              <input
-                type="number"
-                id="cashInput"
-                class="underline-input pl-8 font-mono-data"
-                placeholder="0"
-              />
+          <div class="input-group">
+            <label>現金餘額 (Cash)</label>
+            <div class="input-wrapper">
+              <span>$</span
+              ><input type="number" id="cashInput" placeholder="0" />
             </div>
           </div>
-          <div class="w-32">
-            <label
-              class="text-lg font-black text-rose-400 mb-2 block text-center"
-              >匯率</label
-            >
+          <div class="input-group-small">
+            <label>美金匯率</label>
             <input
               type="number"
               id="usdRateInput"
-              class="underline-input text-center font-mono-data"
               step="0.1"
+              class="center-input"
             />
           </div>
-          <div class="w-36">
-            <label
-              class="text-lg font-black text-rose-400 mb-2 block text-center"
-              >絕對門檻 %</label
-            >
+          <div class="input-group-small">
+            <label>絕對門檻 %</label>
             <input
               type="number"
               id="rebalanceAbsInput"
-              class="underline-input text-center font-mono-data"
+              step="0.1"
+              class="center-input accent-border"
+            />
+          </div>
+          <div class="input-group-small">
+            <label>相對門檻 %</label>
+            <input
+              type="number"
+              id="rebalanceRelInput"
+              step="0.1"
+              class="center-input accent-border"
             />
           </div>
         </div>
@@ -181,7 +158,7 @@
             <div class="flex items-center gap-4">
               <button
                 id="btnSyncAll"
-                class="px-8 py-4 bg-white border-2 border-rose-300 text-rose-700 font-black rounded-2xl hover:bg-rose-50 transition-all flex items-center gap-3"
+                class="px-8 py-4 bg-white border-2 border-rose-300 text-rose-700 font-black rounded-2xl hover:bg-rose-50 flex items-center gap-3"
               >
                 <i id="syncIcon" class="fas fa-sync-alt"></i> 更新報價
               </button>
@@ -193,10 +170,9 @@
               </button>
             </div>
           </div>
-
-          <table>
+          <table class="auto-table">
             <thead>
-              <tr class="text-left text-rose-400 font-black text-lg">
+              <tr class="text-left text-rose-400 font-black text-xl">
                 <th class="px-4">標的 / 名稱</th>
                 <th class="px-4 text-center">槓桿</th>
                 <th class="px-4">目前單價</th>
@@ -214,14 +190,12 @@
         </div>
       </main>
     </div>
-
     <div
       id="toast"
-      class="fixed bottom-10 right-10 px-10 py-5 bg-rose-950 text-white rounded-2xl shadow-2xl opacity-0 transition-all z-50 pointer-events-none flex items-center gap-4 font-black text-xl"
+      class="fixed bottom-10 right-10 px-10 py-5 bg-rose-950 text-white rounded-2xl shadow-2xl opacity-0 z-50 pointer-events-none flex items-center gap-4 font-black text-xl"
     >
       <i class="fas fa-bell text-rose-400"></i> <span id="toastMsg"></span>
     </div>
-
     <script type="module" src="main.js"></script>
   </body>
 </html>

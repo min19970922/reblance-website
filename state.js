@@ -1,17 +1,17 @@
 /**
- * state.js (V21 最終修正版)
+ * state.js (V22 專家級邏輯版)
  */
-export const STORAGE_KEY = "INVEST_REBAL_V21_CLEAN_FIX"; // 更新版本號強制清除 500,000 負債
+export const STORAGE_KEY = "INVEST_REBAL_V22_LOGIC";
 
 export const initialAccountTemplate = (name = "新實戰計畫") => ({
   id: "acc_" + Date.now(),
   name: name,
   currentCash: 0,
-  totalDebt: 0, // 修正：預設負債歸零
+  totalDebt: 0,
   cashRatio: 0,
   usdRate: 32.5,
-  rebalanceAbs: 5,
-  rebalanceRel: 25,
+  rebalanceAbs: 5, // 絕對門檻 (例: 5%)
+  rebalanceRel: 25, // 相對門檻 (例: 25%)
   assets: [],
 });
 
@@ -56,15 +56,13 @@ export function calculateAccountData(acc) {
 
   const assetsCalculated = acc.assets.map((asset) => {
     const ticker = (asset.name || "").trim().toUpperCase();
-    const isTW = /^\d{4,6}/.test(ticker); // 台股判定
+    const isTW = /^\d{4,6}[A-Z]?$/.test(ticker);
     const rawPrice = safeNum(asset.price, 0);
     const priceTwd = isTW ? rawPrice : rawPrice * safeNum(acc.usdRate, 32.5);
     const bookValue = priceTwd * safeNum(asset.shares, 0);
     const nominalValue = bookValue * safeNum(asset.leverage, 1);
-
     totalAssetBookValue += bookValue;
     totalNominalExposure += nominalValue;
-
     return { ...asset, isTW, priceTwd, bookValue, nominalValue };
   });
 
@@ -87,16 +85,34 @@ export function calculateAccountData(acc) {
   };
 }
 
+/**
+ * 再平衡核心邏輯
+ */
 export function getRebalanceSuggestion(asset, acc, netValue) {
   const factor = safeNum(asset.leverage, 1);
   const currentPct =
     netValue > 0 ? (safeNum(asset.nominalValue) / netValue) * 100 : 0;
   const targetPct = safeNum(asset.targetRatio);
+
+  // 1. 絕對偏差
+  const absDiff = Math.abs(currentPct - targetPct);
+  // 2. 相對偏差
+  const relDiff = targetPct > 0 ? (absDiff / targetPct) * 100 : 0;
+
+  const isAbsTriggered = absDiff >= safeNum(acc.rebalanceAbs);
+  const isRelTriggered = relDiff >= safeNum(acc.rebalanceRel);
+
   const targetNominal = netValue * (targetPct / 100);
   const diffNominal = targetNominal - safeNum(asset.nominalValue);
   const priceTwd = safeNum(asset.priceTwd, 0);
   const diffShares =
     priceTwd * factor > 0 ? diffNominal / (priceTwd * factor) : 0;
+
+  // 計算進度條飽和度 (取兩個門檻中較接近的一個)
+  const saturation = Math.max(
+    absDiff / safeNum(acc.rebalanceAbs, 5),
+    relDiff / safeNum(acc.rebalanceRel, 25)
+  );
 
   return {
     currentPct,
@@ -104,7 +120,9 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
     targetBookValue: targetNominal / factor,
     diffNominal,
     diffShares: Math.round(diffShares),
-    isTriggered: true, // 修正：強制開啟建議，解決位數門檻問題
-    absDiff: Math.abs(currentPct - targetPct),
+    isTriggered: isAbsTriggered || isRelTriggered,
+    absDiff,
+    relDiff,
+    saturation,
   };
 }

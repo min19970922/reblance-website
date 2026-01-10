@@ -1,5 +1,5 @@
 /**
- * ui.js - 美學專家大字版
+ * ui.js (專家介面版)
  */
 import {
   safeNum,
@@ -10,8 +10,11 @@ import {
 export function toggleSidebarUI(isCollapsed) {
   const container = document.getElementById("mainContainer");
   const icon = document.getElementById("toggleIcon");
+  const aside = document.querySelector("aside");
   container.classList.toggle("sidebar-collapsed", isCollapsed);
   icon.className = isCollapsed ? "fas fa-bars" : "fas fa-chevron-left";
+  // 徹底解決露出邊緣問題
+  aside.style.borderRight = isCollapsed ? "none" : "1px solid #fff1f2";
 }
 
 export function renderAccountList(appState, onSwitch, onDelete) {
@@ -23,41 +26,38 @@ export function renderAccountList(appState, onSwitch, onDelete) {
     div.className = `group flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all ${
       isActive
         ? "bg-rose-500 text-white shadow-lg"
-        : "bg-white hover:bg-rose-50 text-rose-900 border"
+        : "bg-white hover:bg-rose-50 border"
     }`;
     div.innerHTML = `
-            <div class="flex items-center gap-3 flex-1" onclick="${onSwitch}('${
+      <div class="flex items-center gap-3 flex-1" onclick="${onSwitch}('${
       acc.id
     }')">
-              <i class="fas fa-wallet ${
-                isActive ? "text-rose-200" : "text-rose-300"
-              } text-xl"></i>
-              <span class="font-black text-xl">${acc.name}</span>
-            </div>
-            <button onclick="event.stopPropagation(); ${onDelete}('${
+        <i class="fas fa-wallet ${
+          isActive ? "text-rose-200" : "text-rose-300"
+        } text-xl"></i>
+        <span class="font-black text-xl">${acc.name}</span>
+      </div>
+      <button onclick="event.stopPropagation(); ${onDelete}('${
       acc.id
-    }')" class="opacity-0 group-hover:opacity-100 p-1 text-rose-200 hover:text-white">
-              <i class="fas fa-trash-alt text-lg"></i>
-            </button>
-        `;
+    }')" class="opacity-0 group-hover:opacity-100 p-1 text-rose-200 hover:text-white"><i class="fas fa-trash-alt text-lg"></i></button>`;
     list.appendChild(div);
   });
 }
 
 export function renderMainUI(acc) {
   if (!acc) return;
-  const titleEl = document.getElementById("activeAccountTitle");
-  if (titleEl) titleEl.innerText = acc.name;
-
+  document.getElementById(
+    "activeAccountTitle"
+  ).innerHTML = `${acc.name} <i class="fas fa-pen text-xl text-rose-200 ml-3"></i>`;
   document.getElementById("debtInput").value = acc.totalDebt;
   document.getElementById("cashInput").value = acc.currentCash;
   document.getElementById("usdRateInput").value = acc.usdRate;
   document.getElementById("rebalanceAbsInput").value = acc.rebalanceAbs;
+  document.getElementById("rebalanceRelInput").value = acc.rebalanceRel;
 
   const body = document.getElementById("assetBody");
   body.innerHTML = "";
   const data = calculateAccountData(acc);
-
   data.assetsCalculated.forEach((asset, index) => {
     const row = document.createElement("tr");
     row.innerHTML = generateAssetRowHTML(
@@ -82,118 +82,115 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     : "text-rose-300 animate-pulse";
 
   return `
-        <td>
-            <div class="flex items-center gap-4">
-                <div class="flex flex-col">
-                    <button onclick="moveAsset(${asset.id}, -1)" class="${
+    <td class="col-symbol">
+      <div class="flex items-center gap-4">
+        <div class="flex flex-col"><button onclick="moveAsset(${
+          asset.id
+        },-1)" class="${
     index === 0 ? "invisible" : ""
   }"><i class="fas fa-caret-up"></i></button>
-                    <button onclick="moveAsset(${asset.id}, 1)" class="${
+        <button onclick="moveAsset(${asset.id},1)" class="${
     index === totalAssets - 1 ? "invisible" : ""
-  }"><i class="fas fa-caret-down"></i></button>
-                </div>
-                <div class="flex flex-col">
-                    <input type="text" value="${
-                      asset.name
-                    }" onchange="updateAsset(${
+  }"><i class="fas fa-caret-down"></i></button></div>
+        <div class="flex flex-col min-w-[200px]">
+          <input type="text" value="${asset.name}" onchange="updateAsset(${
     asset.id
-  }, 'name', this.value)" class="underline-input uppercase w-40">
-                    <span id="nameLabel-${
-                      asset.id
-                    }" class="text-xl font-black ${nameColor} mt-1">${displayName}</span>
-                </div>
-            </div>
-        </td>
-        <td class="text-center">
-            <input type="number" value="${
-              asset.leverage
-            }" onchange="updateAsset(${
+  },'name',this.value)" class="underline-input uppercase font-black">
+          <span id="nameLabel-${
+            asset.id
+          }" class="text-xl font-black ${nameColor} mt-1">${displayName}</span>
+        </div>
+      </div>
+    </td>
+    <td class="text-center"><input type="number" value="${
+      asset.leverage
+    }" onchange="updateAsset(${
     asset.id
-  }, 'leverage', this.value)" class="underline-input text-center text-rose-600 w-20" step="0.1">
-        </td>
-        <td>
-            <div class="flex items-center gap-2">
-                <input type="number" value="${
-                  asset.price
-                }" onchange="updateAsset(${
+  },'leverage',this.value)" class="underline-input text-center text-rose-600 w-24"></td>
+    <td><div class="flex items-center gap-2"><input type="number" value="${
+      asset.price
+    }" onchange="updateAsset(${
     asset.id
-  }, 'price', this.value)" class="underline-input font-mono-data w-44">
-                <button onclick="fetchLivePrice(${asset.id}, '${
+  },'price',this.value)" class="underline-input font-mono-data w-full">
+      <button onclick="fetchLivePrice(${asset.id},'${
     asset.name
-  }')" class="text-rose-200 hover:text-rose-500">
-                    <i id="assetSync-${
-                      asset.id
-                    }" class="fas fa-sync-alt text-xl"></i>
-                </button>
-            </div>
-        </td>
-        <td>
-            <input type="number" value="${
-              asset.shares
-            }" onchange="updateAsset(${
+  }')"><i id="assetSync-${
     asset.id
-  }, 'shares', this.value)" class="underline-input font-mono-data w-44">
-        </td>
-        <td id="curVal-${
-          asset.id
-        }" class="font-mono-data text-rose-950 font-black"></td>
-        <td id="curPct-${
-          asset.id
-        }" class="font-mono-data text-indigo-800 text-center font-black"></td>
-        <td class="text-center">
-            <input type="number" value="${
-              asset.targetRatio
-            }" onchange="updateAsset(${
+  }" class="fas fa-sync-alt text-rose-200"></i></button></div></td>
+    <td><input type="number" value="${asset.shares}" onchange="updateAsset(${
     asset.id
-  }, 'targetRatio', this.value)" class="underline-input text-center text-rose-900 w-20" step="0.1">%
-        </td>
-        <td id="targetVal-${asset.id}" class="text-center"></td>
-        <td id="sugg-${asset.id}" class="text-center"></td>
-        <td class="text-right">
-            <button onclick="removeAsset(${
-              asset.id
-            })" class="p-2 text-rose-100 hover:text-rose-600"><i class="fas fa-trash-alt text-2xl"></i></button>
-        </td>
-    `;
+  },'shares',this.value)" class="underline-input font-mono-data w-full"></td>
+    <td id="curVal-${
+      asset.id
+    }" class="font-mono-data text-rose-950 font-black"></td>
+    <td id="curPct-${
+      asset.id
+    }" class="font-mono-data text-indigo-800 text-center font-black"></td>
+    <td class="text-center"><input type="number" value="${
+      asset.targetRatio
+    }" onchange="updateAsset(${
+    asset.id
+  },'targetRatio',this.value)" class="underline-input text-center text-rose-900 w-24">%</td>
+    <td id="targetVal-${asset.id}" class="text-center"></td>
+    <td id="sugg-${asset.id}" class="text-center"></td>
+    <td><button onclick="removeAsset(${
+      asset.id
+    })" class="text-rose-100 hover:text-rose-600"><i class="fas fa-trash-alt text-2xl"></i></button></td>`;
 }
 
 function updateAssetRowData(asset, acc, netValue) {
   if (netValue <= 0) return;
-  const sugg = getRebalanceSuggestion(asset, acc, netValue);
+  const s = getRebalanceSuggestion(asset, acc, netValue);
   document.getElementById(`curVal-${asset.id}`).innerText = `$${Math.round(
     asset.nominalValue
   ).toLocaleString()}`;
   document.getElementById(
     `curPct-${asset.id}`
-  ).innerText = `${sugg.currentPct.toFixed(1)}%`;
+  ).innerText = `${s.currentPct.toFixed(1)}%`;
   document.getElementById(`targetVal-${asset.id}`).innerHTML = `
-        <div class="flex flex-col font-black items-center">
-            <span class="text-rose-950 font-mono-data text-2xl">$${Math.round(
-              sugg.targetNominal
-            ).toLocaleString()}</span>
-            <span class="text-rose-400 text-lg">預算: $${Math.round(
-              sugg.targetBookValue
-            ).toLocaleString()}</span>
-        </div>`;
+    <div class="flex flex-col font-black">
+      <span class="text-2xl text-rose-950 font-mono-data">$${Math.round(
+        s.targetNominal
+      ).toLocaleString()}</span>
+      <span class="text-lg text-rose-400">預算: $${Math.round(
+        s.targetBookValue
+      ).toLocaleString()}</span>
+    </div>`;
 
-  const isBuy = sugg.diffNominal > 0;
+  // 進度條顏色與邏輯
+  let barColor = "bg-emerald-500"; // 綠
+  if (s.saturation > 0.4) barColor = "bg-lime-500"; // 淺綠
+  if (s.saturation > 0.6) barColor = "bg-yellow-500"; // 黃
+  if (s.saturation > 0.8) barColor = "bg-orange-500 pulsate-bar"; // 橘 + 閃爍
+  if (s.saturation >= 1) barColor = "bg-rose-600 pulsate-bar"; // 紅 + 閃爍
+
+  const isBuy = s.diffNominal > 0;
   document.getElementById(`sugg-${asset.id}`).innerHTML = `
-    <div class="flex flex-col items-center">
-        <div class="flex items-center gap-4">
-            <span class="${
-              isBuy ? "text-emerald-500" : "text-rose-700"
-            } font-black text-2xl">
-              ${isBuy ? "加碼" : "減持"} $${Math.abs(
-    Math.round(sugg.diffNominal)
+    <div class="flex flex-col items-center min-w-[300px]">
+      <div class="flex items-center gap-4 ${
+        s.isTriggered ? "scale-110 transition-transform" : ""
+      }">
+        <span class="${
+          isBuy ? "text-emerald-500" : "text-rose-700"
+        } font-black text-2xl">
+          ${isBuy ? "加碼" : "減持"} $${Math.abs(
+    Math.round(s.diffNominal)
   ).toLocaleString()}
-            </span>
-            <span class="text-rose-900 font-black text-2xl border-l-2 border-rose-100 pl-4">
-              ${Math.abs(sugg.diffShares).toLocaleString()} 股
-            </span>
-        </div>
-        <div class="text-lg font-black text-rose-300">偏差: ${sugg.absDiff.toFixed(
-          1
-        )}%</div>
+        </span>
+        <span class="text-rose-900 font-black text-2xl border-l-2 pl-4">
+          ${Math.abs(s.diffShares).toLocaleString()} 股
+        </span>
+      </div>
+      <div class="w-full h-3 bg-gray-100 rounded-full mt-2 overflow-hidden border">
+        <div class="h-full ${barColor} transition-all duration-500" style="width: ${Math.min(
+    s.saturation * 100,
+    100
+  )}%"></div>
+      </div>
+      <div class="flex justify-between w-full text-sm font-bold mt-1 text-rose-300">
+        <span>偏離: ${s.absDiff.toFixed(1)}%</span>
+        <span>${Math.round(s.saturation * 100)}% 達標</span>
+      </div>
     </div>`;
 }
 
@@ -217,9 +214,7 @@ function updateDashboardUI(data, acc) {
 
 export function showToast(msg) {
   const t = document.getElementById("toast");
-  const msgEl = document.getElementById("toastMsg");
-  if (!t || !msgEl) return;
-  msgEl.innerText = msg;
+  document.getElementById("toastMsg").innerText = msg;
   t.style.opacity = "1";
   t.style.transform = "translateY(-10px)";
   setTimeout(() => {
