@@ -90,7 +90,7 @@ export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  if (window.showToast) window.showToast("正在智慧辨識 (v5.7)...");
+  if (window.showToast) window.showToast("正在智慧辨識 (v6.0)…");
 
   try {
     const worker = await Tesseract.createWorker("chi_tra+eng", 1, {
@@ -106,12 +106,11 @@ export async function importFromImage(e, onComplete) {
     await worker.terminate();
 
     const rawLines = text.split("\n");
-    let isTableStarted = false; // 錨點開關：偵測到標頭後才開始存數據
-    const newAssets = [];
+    let isTableStarted = false;
+    const assets = [];
 
     for (let line of rawLines) {
-      // 1. 錨點偵測：尋找表格真正的起點標籤
-      // 只要看到「商品」、「類別」、「股數」或「均價」，就代表進入了數據區
+      // ⚡ 表格啟動錨點
       if (
         line.includes("商品") ||
         line.includes("類別") ||
@@ -119,93 +118,83 @@ export async function importFromImage(e, onComplete) {
         line.includes("均價")
       ) {
         isTableStarted = true;
-        continue; // 跳過標頭行本身
+        continue;
       }
 
-      // 2. 如果還沒進入表格區，或者該行包含統計關鍵字，一律丟棄 (解決 17371 / 17040 問題)
+      // ⚡ 過濾非表格 & 垃圾行
       if (
         !isTableStarted ||
         line.includes("總股數") ||
         line.includes("總成本") ||
         line.includes("帳號") ||
         line.includes("總額")
-      ) {
+      )
         continue;
-      }
 
-      // 3. 數據清洗：移除逗號
-      let cleanLine = line.replace(/,/g, "");
+      let clean = line.replace(/,/g, "");
 
       /**
-       * 4. 定位代碼：搜尋 4-6 位代碼
-       * 排除掉單純的長數字，代碼後方通常會跟著中文字（名稱）
+       * 🎯 股票代碼規則
+       * 4~5 位數字 + 可選英文字母 1 位
+       * 範例：
+       * 00631L
+       * 00935
+       * 6811U
        */
-      const tickerMatch = cleanLine.match(/([0-9]{4,5}[A-Z1]?)/);
+      const tickerMatch = clean.match(/\b(\d{4,5}[A-Z]?)\b/);
 
-      if (tickerMatch) {
-        let ticker = tickerMatch[1].toUpperCase();
-        // L/1 校正
-        if (ticker.length === 6 && ticker.endsWith("1"))
-          ticker = ticker.slice(0, -1) + "L";
+      if (!tickerMatch) continue;
+      const ticker = tickerMatch[1].toUpperCase();
 
-        const afterTicker = cleanLine.substring(
-          tickerMatch.index + tickerMatch[1].length
-        );
+      // 代碼後面的字串
+      const after = clean.substring(tickerMatch.index + tickerMatch[1].length);
 
-        // 合併手機版可能斷裂的股數 (如 "7 000")
-        const joinedPart = afterTicker.replace(
-          /(\b\d{1,3})\s+(\d{3})(?!\d)/g,
-          "$1$2"
-        );
+      // 修復 7 000 → 7000
+      const fixed = after.replace(/(\b\d{1,3})\s+(\d{3})(?!\d)/g, "$1$2");
 
-        /**
-         * 5. 股數提取：鎖定類別關鍵字（現買、擔保品）後的數字
-         * 這樣能完美避開標的名稱內的「50」
-         */
-        const categoryMatch = joinedPart.match(
-          /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買)[^\d]*(\d{2,})/
-        );
+      /**
+       * 🎯 股數抽取（必須跟交易類型）
+       */
+      const categoryMatch = fixed.match(
+        /(現買|擔保品|融資|庫存|普通|現賣|現股)[^\d]*?(\d{2,6})/
+      );
 
-        let shares = 0;
-        if (categoryMatch && categoryMatch[1]) {
-          shares = parseInt(categoryMatch[1]);
-        } else {
-          // 備用方案：抓取代碼後的首個顯著整數 (排除小數字)
-          const allNums = joinedPart.match(/\b\d{2,}\b/g);
-          if (allNums) {
-            shares = parseInt(
-              allNums.find((n) => parseInt(n) > 5) || allNums[0]
-            );
-          }
-        }
+      let shares = 0;
+      if (categoryMatch) shares = parseInt(categoryMatch[2]);
 
-        if (shares > 0) {
-          newAssets.push({
-            id: Date.now() + Math.random(),
-            name: ticker,
-            fullName: "---",
-            price: 0,
-            shares: shares,
-            leverage: 1,
-            targetRatio: 0,
-          });
+      // 備援：取代碼後第一個合理大數字
+      if (!shares) {
+        const nums = fixed.match(/\b\d{2,6}\b/g);
+        if (nums) {
+          const pick = nums.find((n) => parseInt(n) > 10);
+          if (pick) shares = parseInt(pick);
         }
       }
+
+      // 安全濾網
+      if (!shares || shares < 10 || shares > 1000000) continue;
+
+      assets.push({
+        id: Date.now() + Math.random(),
+        name: ticker,
+        shares,
+      });
     }
 
-    if (newAssets.length > 0) {
-      const uniqueAssets = Array.from(
-        new Map(newAssets.map((a) => [a.name, a])).values()
+    if (assets.length) {
+      // 去重
+      const unique = Array.from(
+        new Map(assets.map((a) => [a.name, a])).values()
       );
-      onComplete(uniqueAssets);
+      onComplete(unique);
       if (window.showToast)
-        window.showToast(`辨識成功！發現 ${uniqueAssets.length} 筆資產`);
+        window.showToast(`辨識成功！取得 ${unique.length} 筆股票`);
     } else {
       if (window.showToast)
-        window.showToast("未能辨識有效資料，請完整拍攝表格");
+        window.showToast("未能辨識有效股票資料，請確認截圖清晰");
     }
   } catch (err) {
-    if (window.showToast) window.showToast("辨識衝突，請重新整理");
+    if (window.showToast) window.showToast("辨識失敗，請重試");
   } finally {
     e.target.value = "";
   }
