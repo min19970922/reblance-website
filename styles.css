@@ -1,6 +1,4 @@
-/* * styles.css - 終極美學大氣版 (v3.2 強制權重與對齊修復版)
- * 職責：解決對齊、權重覆蓋、與字體平衡問題
- */
+/* * styles.css - 終極美學大氣版 (v3.3 精準對齊與寬度優化) */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 
@@ -9,38 +7,30 @@
   --accent-pink: #e11d48;
   --sidebar-width: 320px;
   --bg-soft-pink: #fffafb;
-  /* 字體尺寸 - 老花友善 */
-  --font-size-base: 1.2rem;
   --font-size-data: 2.2rem;
-  --font-size-table: 1.6rem;
+  --font-size-table: 1.4rem; /* 稍微縮小表格字體，視覺更精緻 */
 }
 
-/* 1. 基礎重設與強制字體 */
 body {
   font-family: "Calibri", "Microsoft JhengHei", sans-serif !important;
   background-color: var(--bg-soft-pink) !important;
   color: #1a0005 !important;
   margin: 0;
-  line-height: 1.5;
   overflow-x: hidden;
 }
 
-/* 2. 佈局架構 */
+/* --- 佈局架構 --- */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
   min-height: 100vh;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 .dashboard-container.sidebar-collapsed {
   grid-template-columns: 0px 1fr;
 }
 
 aside {
   width: var(--sidebar-width);
-  overflow: hidden;
-  white-space: nowrap;
   background: white !important;
   border-right: 1px solid #fff1f2 !important;
   display: flex;
@@ -51,10 +41,8 @@ main {
   width: 100%;
   padding: 40px;
   box-sizing: border-box;
-  overflow-y: auto;
 }
 
-/* 3. 數據摘要卡片 (頂部 5 格) */
 .dashboard-grid {
   display: grid !important;
   grid-template-columns: repeat(5, 1fr) !important;
@@ -68,28 +56,18 @@ main {
   border: 1px solid rgba(251, 113, 133, 0.2) !important;
   padding: 20px !important;
   box-shadow: 0 10px 25px -5px rgba(251, 113, 133, 0.08) !important;
-  display: flex;
-  flex-direction: column;
-}
-
-.glass-card span {
-  font-size: 1.1rem !important;
-  font-weight: 900 !important;
-  color: #9d174d !important;
-  margin-bottom: 8px;
 }
 
 .glass-card div {
   font-size: var(--font-size-data) !important;
   font-weight: 900 !important;
   font-family: "Calibri", sans-serif !important;
-  letter-spacing: -1px;
 }
 
-/* 4. 參數列優化方案 (修復文字位置與高度) */
+/* --- [修正區] 參數列：精準對齊與高度校準 --- */
 .params-row-tight {
   display: grid !important;
-  grid-template-columns: repeat(5, 1fr) !important; /* 完美對齊上方卡片 */
+  grid-template-columns: repeat(5, 1fr) !important;
   background: white !important;
   border: 2px solid #fff1f2 !important;
   border-radius: 24px !important;
@@ -100,46 +78,38 @@ main {
 }
 
 .param-item {
-  padding: 15px 25px !important;
+  padding: 15px 20px !important;
   display: flex !important;
   flex-direction: column !important;
   justify-content: center !important;
   border-right: 1px solid #fff1f2 !important;
-  transition: background 0.2s;
-}
-
-.param-item:hover {
-  background-color: #fffafb !important;
 }
 
 .param-item label {
   font-size: 0.85rem !important;
   font-weight: 900 !important;
   color: var(--primary-pink) !important;
-  margin-bottom: 4px !important;
-  display: block;
+  margin-bottom: 2px !important;
   white-space: nowrap;
-  letter-spacing: 0.05em;
 }
 
-/* 關鍵修復：解決符號與數字不同高的問題 */
+/* 核心對齊：符號與數字底部在一條線上 */
 .input-wrapper {
   display: flex !important;
-  align-items: baseline !important; /* 強制所有元素底部對齊 */
+  align-items: baseline !important;
   gap: 4px !important;
 }
 
 .prefix,
 .suffix {
-  font-size: 1.3rem !important;
+  font-size: 1.2rem !important;
   font-weight: 900 !important;
-  color: #fecdd3 !important; /* 淡淡的粉紅襯托 */
+  color: #fecdd3 !important;
   font-family: "Calibri", sans-serif !important;
 }
 
 .param-item input {
   border: none !important;
-  outline: none !important;
   background: transparent !important;
   font-size: 1.8rem !important;
   font-weight: 900 !important;
@@ -147,85 +117,72 @@ main {
   color: #1a0005 !important;
   width: 100% !important;
   padding: 0 !important;
-  margin: 0 !important;
-  text-align: left !important;
+  outline: none !important;
 }
 
 .accent-text {
   color: var(--accent-pink) !important;
 }
-
 .no-border {
   border-right: none !important;
 }
 
-/* 5. 資產監控表格 */
+/* --- [修正區] 表格與輸入欄位自動調整 --- */
 .auto-table {
   width: 100% !important;
-  border-spacing: 0 15px !important;
+  border-spacing: 0 10px !important;
   border-collapse: separate !important;
-  table-layout: auto !important;
 }
 
-.auto-table th {
-  padding: 0 20px !important;
+/* 輸入欄位自適應寬度關鍵 */
+.underline-input {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2px solid #fecdd3 !important;
+  outline: none !important;
   font-weight: 900 !important;
-  color: var(--primary-pink) !important;
-  font-family: "Microsoft JhengHei", sans-serif !important;
+  font-family: "Calibri", sans-serif !important;
+  font-size: var(--font-size-table) !important;
+  /* 根據文字內容自動調整，設定一個合理的基礎寬度 */
+  min-width: 40px;
+  max-width: 150px;
+  width: auto;
+  transition: border-color 0.3s, transform 0.3s;
+}
+
+.underline-input:focus {
+  border-bottom-color: var(--accent-pink) !important;
+  transform: translateY(-1px);
 }
 
 td {
   background: white !important;
-  padding: 20px !important;
+  padding: 12px 15px !important;
   vertical-align: middle !important;
   font-size: var(--font-size-table) !important;
   font-weight: 900 !important;
-  font-family: "Calibri", "Microsoft JhengHei", sans-serif !important;
+  white-space: nowrap;
 }
 
 td:first-child {
-  border-radius: 24px 0 0 24px !important;
+  border-radius: 20px 0 0 20px !important;
 }
 td:last-child {
-  border-radius: 0 24px 24px 0 !important;
+  border-radius: 0 20px 20px 0 !important;
 }
 
-/* 下底線輸入框 */
-.underline-input {
-  background: transparent !important;
-  border: none !important;
-  border-bottom: 3px solid #fecdd3 !important;
-  outline: none !important;
-  font-weight: 900 !important;
-  font-family: "Calibri", sans-serif !important;
-}
-
-/* 6. UI 按鈕 */
+/* 標題動畫效果 */
 .btn-pink {
   background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%) !important;
   color: white !important;
   font-weight: 900 !important;
-  border-radius: 18px !important;
-  border: none !important;
+  border-radius: 16px !important;
+  transition: all 0.3s;
 }
 
-/* 7. 雜項修復 */
+/* 移除 Chrome 數字箭頭 */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
-}
-
-.font-mono-data {
-  font-family: "Calibri", sans-serif !important;
-}
-
-/* 滾動條 */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-thumb {
-  background: #fecdd3;
-  border-radius: 10px;
 }
