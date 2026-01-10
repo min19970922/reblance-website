@@ -104,18 +104,26 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // --- 修正點 1：從 window 讀取 key ---
+    // --- 修正點 1：確保從 window 讀取到最新值 ---
+    // 有時候因為模組化載入順序，直接用變數會抓不到，改用 window.XXX 確保讀取全域
     const apiKey = window.GEMINI_API_KEY;
-    if (!apiKey || apiKey === "你的_API_KEY_字串") {
-      throw new Error("請先在 index.html 中設定有效的 API Key");
+
+    // 嚴格檢查：如果抓不到或是預設字串，直接中斷
+    if (!apiKey || apiKey === "你的_API_KEY_字串" || apiKey.length < 10) {
+      throw new Error(
+        "API Key 尚未設定。請檢查 index.html 中的 window.GEMINI_API_KEY"
+      );
     }
 
-    // --- 修正點 2：更正模型名稱 ---
+    // --- 修正點 2：更正模型名稱與網址 ---
+    // 確保使用 1.5 系列，不要使用 2.5 (目前不存在)
     const model = "gemini-1.5-flash";
     const mimeType = file.type || "image/png";
 
-    // (中間 systemPrompt 與 payload 保持不變...)
-    const systemPrompt = `你是一位專業的台灣證券數據分析師...`; // 保持你原有的內容
+    // 構建 API 網址 (確保 apiKey 有被填入)
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const systemPrompt = `你是一位專業的台灣證券數據分析師...`;
     const userQuery = "請將這張截圖中的所有持股代號與股數轉換為 JSON 陣列。";
 
     const payload = {
@@ -136,58 +144,34 @@ export async function importFromImage(e, onComplete) {
       systemInstruction: { parts: [{ text: systemPrompt }] },
       generationConfig: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            assets: {
-              type: "ARRAY",
-              items: {
-                type: "OBJECT",
-                properties: {
-                  name: { type: "STRING" },
-                  shares: { type: "NUMBER" },
-                },
-                required: ["name", "shares"],
-              },
-            },
-          },
-        },
+        // 注意：如果 API 報 400 錯誤，可能是 responseSchema 格式問題，
+        // 建議先移除 responseSchema 測試，或確保格式完全正確。
       },
     };
 
-    // --- 執行請求 ---
-    let retries = 0;
-    const maxRetries = 3;
     let assets = [];
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-    while (retries < maxRetries) {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
+    if (!response.ok) {
+      const errData = await response.json();
+      // 如果這裡報 403，請檢查 Google Cloud Console 裡的 API 是否已啟動
+      throw new Error(
+        errData.error?.message || `請求失敗 (${response.status})`
       );
-
-      if (!response.ok) {
-        const errData = await response.json();
-        // 如果是 403，通常是 API Key 無效或未啟動 Gemini API 權限
-        if (response.status === 403)
-          throw new Error(`API Key 權限錯誤: ${errData.error?.message}`);
-        throw new Error(errData.error?.message || "請求失敗");
-      }
-
-      const result = await response.json();
-      const rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (rawJson) {
-        assets = JSON.parse(rawJson).assets || [];
-        break;
-      }
-      retries++;
     }
 
-    // (後續處理資料邏輯保持不變...)
+    const result = await response.json();
+    const rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (rawJson) {
+      const parsedData = JSON.parse(rawJson);
+      assets = parsedData.assets || [];
+    }
+
     if (assets.length > 0) {
       const formattedAssets = assets
         .map((a) => ({
@@ -203,14 +187,13 @@ export async function importFromImage(e, onComplete) {
 
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
+    } else {
+      showToast("AI 未能從圖片中辨識出有效的股號或股數");
     }
   } catch (err) {
     console.error("AI辨識詳細錯誤:", err);
-    showToast(
-      err.message.includes("Key")
-        ? "API Key 無效"
-        : "辨識失敗，請檢查網路或圖片內容"
-    );
+    // 這裡會顯示具體的錯誤原因，例如 "API Key not found"
+    showToast(`錯誤: ${err.message}`);
   } finally {
     e.target.value = "";
   }
