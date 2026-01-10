@@ -90,14 +90,16 @@ export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  showToast("正在智慧辨識 (v5.0)...");
+  showToast("正在初始化穩定版引擎...");
 
   try {
+    // 強制指定穩定 Core 路徑，解決 wasm.js:31 報錯
     const worker = await Tesseract.createWorker("chi_tra+eng", 1, {
       workerPath:
         "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js",
       corePath:
         "https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js",
+      logger: (m) => console.log(m),
     });
 
     const {
@@ -105,73 +107,97 @@ export async function importFromImage(e, onComplete) {
     } = await worker.recognize(file);
     await worker.terminate();
 
-    // 1. 過濾統計區：只取最後一個「明細」之後的內容
-    const lastKeywordIdx = text.lastIndexOf("明細");
-    const targetText =
-      lastKeywordIdx !== -1 ? text.substring(lastKeywordIdx) : text;
+    console.log("辨識成功內容:", text);
 
-    const lines = targetText.split("\n");
+    // 1. 清理數據：移除逗號，將文字切分為 Token 陣列
+    const tokens = text.replace(/,/g, "").split(/\s+/);
     const newAssets = [];
 
-    lines.forEach((line) => {
-      // 移除逗號
-      let cleanLine = line.replace(/,/g, "");
-      // 嘗試找代碼：4-5位數字，或5位數字+1位英數
-      const tickerMatch = cleanLine.match(/([0-9]{4,5}[A-Z1]?)/);
+    // 2. 遍歷 Token 尋找潛在標的
+    for (let i = 0; i < tokens.length; i++) {
+      // 關鍵字檢查：包含「明細」或符合常見 OCR 誤認模式
+      const token = tokens[i];
+      if (token.includes("明細") || /BHfE|茹/.test(token)) {
+        // 規則：[i]是按鈕, [i+1]通常是代碼 (如 00631L)
+        const potentialCodeToken = tokens[i + 1];
+        if (!potentialCodeToken) continue;
 
-      if (tickerMatch) {
-        let ticker = tickerMatch[1].toUpperCase();
-        // L/1 校正：如果長度為 6 且結尾是 1，通常是槓桿標的
-        if (ticker.length === 6 && ticker.endsWith("1"))
-          ticker = ticker.slice(0, -1) + "L";
+        // 從 Token 中分離出 4-6 位的英數組合 (適配代碼與名稱黏在一起的情況)
+        const codeMatch = potentialCodeToken.match(/^([0-9A-Z]{4,6})/);
+        if (codeMatch) {
+          const code = codeMatch[1].toUpperCase();
 
-        // 截取該行代碼後的文字，並嘗試合併被拆散的股數 (如 7 000)
-        const afterTicker = cleanLine.substring(
-          tickerMatch.index + tickerMatch[1].length
-        );
-        const joinedLine = afterTicker.replace(/(\d)\s+(?=\d)/g, "$1");
+          // 根據規則：搜尋到代碼後兩個欄位就是股數
+          // [i+1]代碼, [i+2]跳過項, [i+3]股數
+          const potentialShares = tokens[i + 3];
+          const shares = parseInt(potentialShares);
 
-        // 股數定位：鎖定「交易類別」後的長數字
-        const categoryMatch = joinedLine.match(
-          /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買)[^\d]*(\d{2,})/
-        );
-
-        let shares = 0;
-        if (categoryMatch) {
-          shares = parseInt(categoryMatch[1]);
-        } else {
-          // 備用：取該行除了標的名稱(50, 2)以外的第一個長數字
-          const allNums = joinedLine.match(/\b\d{2,}\b/g);
-          if (allNums) shares = parseInt(allNums[0]);
-        }
-
-        if (shares > 0) {
-          newAssets.push({
-            id: Date.now() + Math.random(),
-            name: ticker,
-            fullName: "---",
-            price: 0,
-            shares: shares,
-            leverage: 1,
-            targetRatio: 0,
-          });
+          if (!isNaN(shares) && shares > 0) {
+            newAssets.push({
+              id: Date.now() + Math.random(),
+              name: code,
+              fullName: "---",
+              price: 0,
+              shares: shares,
+              leverage: 1,
+              targetRatio: 0,
+            });
+          }
         }
       }
-    });
+    }
 
     if (newAssets.length > 0) {
-      const uniqueAssets = Array.from(
-        new Map(newAssets.map((a) => [a.name, a])).values()
-      );
-      onComplete(uniqueAssets);
-      showToast(`成功辨識 ${uniqueAssets.length} 筆資產`);
+      onComplete(newAssets);
+      showToast(`成功辨識 ${newAssets.length} 筆資產`);
     } else {
-      showToast("未能辨識有效標的，請靠近拍攝");
+      showToast("未偵測到明細關鍵字或格式不符");
     }
   } catch (err) {
-    console.error("OCR 錯誤:", err);
-    showToast("辨識引擎衝突，請重新整理");
+    console.error("OCR 致命錯誤:", err);
+    showToast("辨識引擎衝突，請重新整理頁面");
   } finally {
     e.target.value = "";
   }
+}
+export function parsePastedText(text) {
+  const lines = text.split("\n");
+  const detectedAssets = [];
+
+  lines.forEach((line) => {
+    // 移除頭尾空白
+    let cleanLine = line.trim();
+    if (!cleanLine) return;
+
+    // 1. 嘗試找出代碼 (假設代碼在前面，通常是數字或數字帶英文)
+    // 這裡使用一個簡單的規則：取第一個空白前的部分當作代碼
+    // 如果是 Excel 貼上，中間可能是 Tab (\t) 或多個空白
+    let parts = cleanLine.split(/[\s,\t]+/); // 用空白、逗號或 Tab 分割
+
+    // 過濾掉空字串
+    parts = parts.filter((p) => p.length > 0);
+
+    if (parts.length >= 2) {
+      // 假設第一個部分是代碼
+      let symbol = parts[0].toUpperCase();
+      // 假設最後一個部分是股數 (移除可能的逗號)
+      let sharesStr = parts[parts.length - 1].replace(/,/g, "");
+      let shares = parseInt(sharesStr);
+
+      // 基本驗證：代碼長度至少 3 碼，股數要是有效數字
+      if (symbol.length >= 3 && !isNaN(shares) && shares > 0) {
+        detectedAssets.push({
+          id: Date.now() + Math.random(),
+          name: symbol,
+          fullName: "待同步...",
+          price: 0,
+          shares: shares,
+          leverage: 1,
+          targetRatio: 0,
+        });
+      }
+    }
+  });
+
+  return detectedAssets;
 }
