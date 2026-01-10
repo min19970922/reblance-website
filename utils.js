@@ -83,7 +83,7 @@ export async function importFromImage(e, onComplete) {
 
   const showToast = window.showToast || console.log;
 
-  // 1. 取得 API Key (優先從全域或 LocalStorage)
+  // 1. 取得 API Key (優先從全域變數或 LocalStorage)
   const apiKey =
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
 
@@ -107,13 +107,13 @@ export async function importFromImage(e, onComplete) {
     const base64Image = await fileToBase64(file);
 
     // 2. 修正後的 API 設定
-    // 注意：v1beta 下的模型路徑必須完整包含 models/
-    const modelPath = "models/gemini-1.5-flash";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:generateContent?key=${apiKey}`;
+    // 網址結構調整為：v1beta/models/gemini-1.5-flash:generateContent
+    const modelId = "gemini-1.5-flash";
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
     const systemPrompt = `你是一位專業的台灣證券數據分析師，請從圖片中提取持股代號(name)與股數(shares)。
     如果是台灣股票，代號通常是 4 到 6 位數字。
-    請嚴格以 JSON 格式輸出：{"assets": [{"name":"2330","shares":1000}, {"name":"0050","shares":500}]}`;
+    請嚴格以 JSON 格式輸出，不要包含額外文字：{"assets": [{"name":"2330","shares":1000}]}`;
 
     const payload = {
       contents: [
@@ -145,7 +145,6 @@ export async function importFromImage(e, onComplete) {
 
     if (!response.ok) {
       const errData = await response.json();
-      // 常見錯誤處理：403 (Key 沒開權限), 404 (路徑錯), 400 (格式錯)
       throw new Error(
         errData.error?.message || `請求失敗 (${response.status})`
       );
@@ -156,16 +155,11 @@ export async function importFromImage(e, onComplete) {
 
     let assets = [];
     if (rawJson) {
-      try {
-        const parsedData = JSON.parse(rawJson);
-        assets = parsedData.assets || [];
-      } catch (e) {
-        console.error("JSON 解析失敗:", rawJson);
-        throw new Error("AI 回傳格式異常");
-      }
+      const parsedData = JSON.parse(rawJson);
+      assets = parsedData.assets || [];
     }
 
-    // 4. 資料格式化與回傳
+    // 4. 資料格式化與過濾
     if (assets.length > 0) {
       const formattedAssets = assets
         .map((a) => ({
@@ -173,9 +167,10 @@ export async function importFromImage(e, onComplete) {
           name: (a.name || "").toString().toUpperCase().trim(),
           fullName: "---",
           price: 0,
+          // 修正點：將 shares 轉為字串後移除逗號，再轉為整數
           shares: Math.abs(
             parseInt(a.shares.toString().replace(/,/g, "")) || 0
-          ), // 處理千分位逗號
+          ),
           leverage: 1,
           targetRatio: 0,
         }))
@@ -184,16 +179,12 @@ export async function importFromImage(e, onComplete) {
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能從圖片辨識出資產內容");
+      showToast("AI 未能辨識出有效資產內容");
     }
   } catch (err) {
     console.error("AI辨識詳細錯誤:", err);
-    // 針對 404 再次提示
-    const errorMsg = err.message.includes("not found")
-      ? "模型路徑錯誤 (404)，請確認 API 版本"
-      : err.message;
-    showToast(`辨識失敗: ${errorMsg}`);
+    showToast(`辨識失敗: ${err.message}`);
   } finally {
-    e.target.value = ""; // 清空 input 以便下次觸發 onchange
+    e.target.value = "";
   }
 }
