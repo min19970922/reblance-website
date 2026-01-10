@@ -1,12 +1,10 @@
 /**
- * utils.js - 專業明細定位辨識版 (v3.5)
+ * utils.js - 專業辨識修復版 (v3.9)
+ * 解決 WASM 報錯問題
  */
 import { safeNum } from "./state.js";
 import { showToast } from "./ui.js";
 
-/**
- * 匯出 Excel
- */
 export function exportExcel(acc) {
   if (!acc) return;
   const data = [
@@ -35,9 +33,6 @@ export function exportExcel(acc) {
   XLSX.writeFile(wb, `${acc.name}_財務快照.xlsx`);
 }
 
-/**
- * 匯入 Excel
- */
 export function importExcel(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -64,7 +59,7 @@ export function importExcel(e, onComplete) {
         if (r && r[0])
           newAcc.assets.push({
             id: Date.now() + i,
-            name: r[0].toString().toUpperCase(), // 強制大寫
+            name: r[0].toString().toUpperCase(),
             fullName: r[1] || "",
             price: safeNum(r[2]),
             shares: safeNum(r[3]),
@@ -84,36 +79,41 @@ export function importExcel(e, onComplete) {
 }
 
 /**
- * 相機明細辨識邏輯
- * 規則：搜尋「明細」 -> 下一個是代碼 -> 跳過一格 -> 再下一個是股數
+ * 強力修復：穩定版相機辨識
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  showToast("正在分析明細結構...");
+  showToast("正在初始化穩定版引擎...");
 
   try {
-    // 解決 WASM 報錯：使用較穩定的初始化方式
-    const worker = await Tesseract.createWorker("chi_tra+eng");
+    // 解決 WASM 崩潰的核心：指定正確的 Worker 與 Core 路徑
+    const worker = await Tesseract.createWorker("chi_tra+eng", 1, {
+      workerPath:
+        "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js",
+      corePath:
+        "https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js",
+      logger: (m) => console.log(m),
+    });
+
     const {
       data: { text },
     } = await worker.recognize(file);
     await worker.terminate();
 
-    // 1. 文字清洗：移除逗號並按空格切分
+    console.log("辨識成功內容:", text);
+
     const tokens = text.replace(/,/g, "").split(/\s+/);
     const newAssets = [];
 
-    // 2. 尋找「明細」錨點
     for (let i = 0; i < tokens.length; i++) {
       if (tokens[i].includes("明細")) {
-        // [i]明細 -> [i+1]代碼 -> [i+2]跳過項 -> [i+3]股數
         const potentialCode = tokens[i + 1];
         const potentialShares = tokens[i + 3];
 
         if (potentialCode && potentialCode.length >= 4) {
-          const code = potentialCode.toUpperCase(); // 強制轉大寫
+          const code = potentialCode.toUpperCase();
           const shares = parseInt(potentialShares);
 
           if (!isNaN(shares) && shares > 0) {
@@ -133,13 +133,13 @@ export async function importFromImage(e, onComplete) {
 
     if (newAssets.length > 0) {
       onComplete(newAssets);
-      showToast(`成功辨識 ${newAssets.length} 筆明細資產`);
+      showToast(`成功辨識 ${newAssets.length} 筆資產`);
     } else {
-      showToast("找不到明細格式，請確保照片清晰");
+      showToast("格式不符，請確認照片包含「明細」關鍵字");
     }
   } catch (err) {
-    console.error("OCR Error:", err);
-    showToast("辨識過程出錯");
+    console.error("OCR 致命錯誤:", err);
+    showToast("相機引擎衝突，請重新整理後重試");
   } finally {
     e.target.value = "";
   }

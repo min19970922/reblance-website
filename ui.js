@@ -78,7 +78,7 @@ export function renderMainUI(acc) {
 }
 
 /**
- * 輔助函式：生成鏡像輸入框結構
+ * 自動對齊組件：生成疊加的隱形鏡像層與輸入框
  */
 const autoWidthInput = (
   assetId,
@@ -132,11 +132,13 @@ function generateAssetRowHTML(asset, index, totalAssets) {
       </div>
     </td>
     <td class="text-center">
-      <input type="number" value="${
-        asset.leverage
-      }" style="width: 4ch" onchange="updateAsset(${
-    asset.id
-  },'leverage',this.value)" class="underline-input text-rose-600 font-black text-center text-xl">
+      ${autoWidthInput(
+        asset.id,
+        "leverage",
+        asset.leverage,
+        "text-rose-600 font-black text-center text-xl",
+        "number"
+      )}
     </td>
     <td class="text-right">
       <div class="flex items-center justify-end gap-1">
@@ -170,11 +172,16 @@ function generateAssetRowHTML(asset, index, totalAssets) {
       asset.id
     }" class="font-mono-data text-indigo-800 text-center font-black px-4 text-xl"></td>
     <td class="text-center">
-      <input type="number" value="${
-        asset.targetRatio
-      }" style="width: 5ch" onchange="updateAsset(${
-    asset.id
-  },'targetRatio',this.value)" class="underline-input text-center text-rose-900 font-black text-xl">%
+      <div class="flex items-center justify-center gap-1">
+        ${autoWidthInput(
+          asset.id,
+          "targetRatio",
+          asset.targetRatio,
+          "text-center text-rose-900 font-black text-xl",
+          "number"
+        )}
+        <span class="text-rose-900 font-black">%</span>
+      </div>
     </td>
     <td id="targetVal-${asset.id}" class="text-center px-4"></td>
     <td id="sugg-${asset.id}" class="text-center px-4"></td>

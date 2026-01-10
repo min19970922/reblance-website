@@ -1,7 +1,7 @@
-/* * styles.css - 終極美學大氣版 (v3.8) 
+/* * styles.css - 終極美學大氣版 (v3.9 欄位全自動對齊) 
  * 1. 保留上方卡片 5 欄配置
  * 2. 修正 Loan/Cash 參數列垂直基準線對齊
- * 3. 實現代碼/股數整欄自動對齊最寬值 (鏡像技術)
+ * 3. 實現代碼/槓桿/單價/股數/目標% 整欄自動對齊最寬值
  */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
@@ -46,7 +46,7 @@ main {
   box-sizing: border-box;
 }
 
-/* 3. 上方數據摘要卡片 - 保持 5 欄配置不動 */
+/* 3. 上方數據摘要卡片 - 嚴格保留 5 欄配置 */
 .dashboard-grid {
   display: grid !important;
   grid-template-columns: repeat(5, 1fr) !important;
@@ -68,7 +68,7 @@ main {
   font-family: "Calibri", sans-serif !important;
 }
 
-/* 4. 參數列修正：解決 Loan/Cash 行對齊與符號歪斜 */
+/* 4. 參數列修正：解決 Loan/Cash 行對齊問題 */
 .params-row-tight {
   display: grid !important;
   grid-template-columns: repeat(5, 1fr) !important;
@@ -113,20 +113,20 @@ main {
   outline: none !important;
 }
 
-/* 5. 表格監控欄位自適應對齊 (鏡像技術) */
+/* 5. 表格欄位自適應對齊 (鏡像技術核心) */
 .auto-table {
   width: 100% !important;
   border-spacing: 0 10px !important;
   border-collapse: separate !important;
-  table-layout: auto !important; /* 核心：自動根據內容分配寬度 */
+  table-layout: auto !important;
 }
 
-/* 容器：疊加隱形文字來同步整欄寬度 */
+/* 鏡像容器：利用隱形文字撐開整欄寬度 */
 .input-col-wrapper {
   display: inline-grid !important;
   vertical-align: middle;
   grid-template-columns: min-content !important;
-  min-width: 60px;
+  min-width: 40px; /* 槓桿與%這類短數值需要的最小寬度 */
 }
 
 .input-col-wrapper > * {
@@ -149,7 +149,6 @@ main {
   font-weight: 900 !important;
   font-family: "Calibri", sans-serif !important;
   width: 100% !important;
-  transition: border-color 0.3s;
 }
 
 .underline-input:focus {
@@ -172,7 +171,7 @@ td:last-child {
   border-radius: 0 20px 20px 0 !important;
 }
 
-/* 其他基礎樣式 */
+/* 6. 其他 UI 細節 */
 .prefix,
 .suffix {
   font-family: "Calibri", sans-serif !important;
@@ -185,8 +184,28 @@ td:last-child {
 .no-border {
   border-right: none !important;
 }
+
+.btn-pink {
+  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%) !important;
+  color: white !important;
+  font-weight: 900 !important;
+  border-radius: 16px !important;
+  border: none !important;
+}
+
+/* 移除 Chrome 數字箭頭 */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/* 滾動條美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #fecdd3;
+  border-radius: 10px;
 }
