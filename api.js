@@ -1,26 +1,31 @@
 /**
- * api.js
- * 修正：上櫃公司報價抓取失敗、確保中文名稱不被代號覆蓋
+ * api.js 修正版
+ * 1. 強化 00722B 等債券與上櫃標的 (.TWO) 的偵測
+ * 2. 修正 Proxy 解析錯誤與失效切換邏輯
  */
 import { renderMainUI, showToast } from "./ui.js";
 import { saveToStorage } from "./state.js";
 
 const PROXIES = [
-  "https://api.codetabs.com/v1/proxy?quest=", // 優先使用相對穩定的代理
   "https://corsproxy.io/?",
+  "https://api.codetabs.com/v1/proxy?quest=",
   "https://api.allorigins.win/get?url=",
 ];
 
+/**
+ * 抓取單一資產報價與名稱
+ */
 export async function fetchLivePrice(id, symbol, appState) {
   if (!symbol) return false;
   const icon = document.getElementById(`assetSync-${id}`);
   if (icon) icon.classList.add("fa-spin-fast", "text-rose-600");
 
   let ticker = symbol.trim().toUpperCase();
-  const isTaiwan = /^\d{4,6}$/.test(ticker);
+  // 判定是否為台股/台資產 (純數字或數字+字母組合，如 00722B)
+  const isTaiwanStyle = /^\d{4,6}[A-Z]?$/.test(ticker);
 
   const tryFetchData = async (targetTicker) => {
-    // v7 quote API 是同時獲取價格與中文名稱的最佳平衡點
+    // 使用 v7 quote API 同時抓取價格與名稱，這是最穩定的方式
     const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${targetTicker}&lang=zh-Hant-TW&region=TW`;
 
     for (let proxy of PROXIES) {
@@ -30,65 +35,62 @@ export async function fetchLivePrice(id, symbol, appState) {
           : proxy + yahooUrl;
 
         const res = await fetch(finalUrl);
+        // 如果是 404 則代表代號後綴不對（例如上市誤用上櫃），直接跳出換下一個後綴
+        if (res.status === 404) return null;
         if (!res.ok) continue;
 
         const rawData = await res.json();
-        // 修正：更嚴謹地解析不同代理的回傳格式
         let data =
           proxy.includes("allorigins") && rawData.contents
             ? JSON.parse(rawData.contents)
             : rawData;
 
         const result = data.quoteResponse?.result?.[0];
-        // 必須確保價格存在才算成功
         if (result && result.regularMarketPrice !== undefined) {
           return {
             price: result.regularMarketPrice,
-            // 優先取 longName (中文全稱)
-            name: result.longName || result.shortName,
+            name: result.longName || result.shortName || result.symbol,
           };
         }
       } catch (e) {
-        console.warn(`代理 ${proxy} 嘗試 ${targetTicker} 失敗`);
+        console.warn(`代理請求異常: ${proxy}`);
         continue;
       }
     }
     return null;
   };
 
-  // 1. 執行報價抓取：台股自動輪詢上市(.TW)與上櫃(.TWO)
+  // 1. 執行報價抓取：針對台股資產嘗試 .TW 與 .TWO
   let result = null;
-  if (isTaiwan) {
-    // 先測上市，失敗則測上櫃
+  if (isTaiwanStyle && !ticker.includes(".")) {
+    // 優先嘗試上市 (.TW)
     result = await tryFetchData(ticker + ".TW");
+    // 若失敗 (包含 00722B 這種可能是上櫃或債券)，嘗試上櫃 (.TWO)
     if (!result) {
       result = await tryFetchData(ticker + ".TWO");
     }
   } else {
+    // 美股或已帶後綴的標的
     result = await tryFetchData(ticker);
   }
 
-  // 2. 更新數據
-  if (result && result.price) {
+  // 2. 處理更新結果
+  if (result) {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     const asset = acc.assets.find((a) => a.id === id);
     if (asset) {
       asset.price = result.price;
 
-      // 檢查名稱是否包含中文
+      // 檢查名稱是否有中文，若有則更新，若無則保留舊有名稱
       const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
-
       if (result.name && hasChinese(result.name)) {
         asset.fullName = result.name;
-      }
-      // 修正：如果 API 沒給中文，且原本已經有中文名稱，就不應該用代號覆蓋它
-      else if (!asset.fullName || asset.fullName === "---") {
+      } else if (!asset.fullName || asset.fullName === "---") {
         asset.fullName = ticker;
       }
 
       saveToStorage();
-      renderMainUI(acc); // 確保 UI 立即更新下方文字
-
+      renderMainUI(acc); // 確保觸發渲染，更新建議文字
       if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
       return true;
     }
@@ -101,7 +103,7 @@ export async function fetchLivePrice(id, symbol, appState) {
 export async function syncAllPrices(appState) {
   const mainSync = document.getElementById("syncIcon");
   if (mainSync) mainSync.classList.add("fa-spin-fast");
-  showToast("更新中，請稍候...");
+  showToast("更新報價與名稱中...");
 
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   let successCount = 0;
@@ -110,7 +112,7 @@ export async function syncAllPrices(appState) {
     if (asset.name) {
       const success = await fetchLivePrice(asset.id, asset.name, appState);
       if (success) successCount++;
-      // 增加延遲避免 Proxy 被暫時封鎖
+      // 延遲增加到 1 秒，減少 Proxy 被阻擋機率
       await new Promise((r) => setTimeout(r, 1000));
     }
   }
