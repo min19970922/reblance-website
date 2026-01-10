@@ -1,5 +1,5 @@
 /**
- * api.js - 自動回退版
+ * api.js - 核心修復版
  * 報價：Yahoo v8 Chart
  * 名稱：Yahoo Search API (抓不到則回傳代號)
  */
@@ -16,7 +16,6 @@ const PROXIES = [
  * 抓取繁體中文全名
  */
 async function fetchChineseName(ticker) {
-  // 針對基金或債券，Search 接口通常需要乾淨的代號
   const cleanTicker = ticker.split(".")[0];
   const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${cleanTicker}&quotesCount=1&newsCount=0&lang=zh-Hant-TW&region=TW`;
 
@@ -99,10 +98,10 @@ export async function fetchLivePrice(id, symbol, appState) {
       saveToStorage();
       renderMainUI(acc);
 
-      // 3. 名稱抓取邏輯：抓不到就回傳代號
+      // 3. 名稱抓取邏輯：抓不到就存入代號
       fetchChineseName(result.finalTicker).then((name) => {
         const label = document.getElementById(`nameLabel-${id}`);
-        const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
+        const hasChinese = (str) => str && /[\u4e00-\u9fa5]/.test(str);
 
         if (name && hasChinese(name)) {
           asset.fullName = name;
@@ -112,14 +111,15 @@ export async function fetchLivePrice(id, symbol, appState) {
             label.classList.add("text-rose-600");
           }
         } else {
-          // --- 重點：抓不到名稱時，直接顯示代號並停止 Loading ---
+          // --- 修復點：如果沒抓到中文，立即存入代號並停止 Loading 狀態 ---
           asset.fullName = ticker;
           if (label) {
             label.innerText = ticker;
             label.classList.remove("text-rose-300", "animate-pulse");
-            label.classList.add("text-rose-400"); // 用較淡的顏色代表這是代號
+            label.classList.add("text-rose-400");
           }
         }
+        // 抓完後強制存檔，防止下次重新整理又變回 "---"
         saveToStorage();
       });
 
@@ -135,7 +135,7 @@ export async function fetchLivePrice(id, symbol, appState) {
 export async function syncAllPrices(appState) {
   const mainSync = document.getElementById("syncIcon");
   if (mainSync) mainSync.classList.add("fa-spin-fast");
-  showToast("更新報價中...");
+  showToast("正在更新報價中...");
 
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   for (let asset of acc.assets) {
@@ -145,5 +145,5 @@ export async function syncAllPrices(appState) {
     }
   }
   if (mainSync) mainSync.classList.remove("fa-spin-fast");
-  showToast("同步完成");
+  showToast("更新完成");
 }

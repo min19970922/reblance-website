@@ -1,5 +1,6 @@
 /**
  * ui.js
+ * 修正：解決重新整理時 00982A 等標的一直處於 Loading 的問題
  */
 import {
   safeNum,
@@ -76,12 +77,16 @@ export function renderMainUI(acc) {
 }
 
 function generateAssetRowHTML(asset, index, totalAssets) {
-  // 修正：如果 fullName 已經有內容（不管是代號還是中文），就直接顯示
+  // --- 修正邏輯：只要 fullName 有內容且不是初始值，就直接顯示 ---
   const hasContent =
     asset.fullName && asset.fullName !== "" && asset.fullName !== "---";
+  const hasChinese = /[\u4e00-\u9fa5]/.test(asset.fullName);
+
   const displayName = hasContent ? asset.fullName : "正在載入資訊...";
   const nameColor = hasContent
-    ? "text-rose-600"
+    ? hasChinese
+      ? "text-rose-600"
+      : "text-rose-400"
     : "text-rose-300 animate-pulse";
 
   return `
