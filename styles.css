@@ -1,7 +1,8 @@
-/* * styles.css - 終極美學大氣版 (v3.9 欄位全自動對齊) 
- * 1. 保留上方卡片 5 欄配置
- * 2. 修正 Loan/Cash 參數列垂直基準線對齊
- * 3. 實現代碼/槓桿/單價/股數/目標% 整欄自動對齊最寬值
+/* * styles.css - 終極美學大氣版 (v4.0 標題置中與全欄位自動對齊) 
+ * 1. 保留上方 5 欄數據卡片
+ * 2. 參數列 Loan/Cash 垂直對齊 (Baseline)
+ * 3. 標題與內容全置中顯示
+ * 4. 鏡像對齊技術：根據內容自動調整欄位寬度
  */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
@@ -24,7 +25,7 @@ body {
   overflow-x: hidden;
 }
 
-/* 2. 佈局架構 */
+/* 2. 佈局與上方卡片 (保持 5 欄不動) */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
@@ -46,14 +47,12 @@ main {
   box-sizing: border-box;
 }
 
-/* 3. 上方數據摘要卡片 - 嚴格保留 5 欄配置 */
 .dashboard-grid {
   display: grid !important;
   grid-template-columns: repeat(5, 1fr) !important;
   gap: 20px;
   margin-bottom: 30px;
 }
-
 .glass-card {
   background: white !important;
   border-radius: 24px !important;
@@ -61,14 +60,13 @@ main {
   padding: 20px !important;
   box-shadow: 0 10px 25px -5px rgba(251, 113, 133, 0.08) !important;
 }
-
 .glass-card div {
   font-size: var(--font-size-data) !important;
   font-weight: 900 !important;
   font-family: "Calibri", sans-serif !important;
 }
 
-/* 4. 參數列修正：解決 Loan/Cash 行對齊問題 */
+/* 3. 參數列修正：解決文字不一樣高、位置奇怪的問題 */
 .params-row-tight {
   display: grid !important;
   grid-template-columns: repeat(5, 1fr) !important;
@@ -80,7 +78,6 @@ main {
   margin-bottom: 40px !important;
   overflow: hidden;
 }
-
 .param-item {
   padding: 15px 20px !important;
   display: flex !important;
@@ -88,7 +85,6 @@ main {
   justify-content: center !important;
   border-right: 1px solid #fff1f2 !important;
 }
-
 .param-item label {
   font-size: 0.85rem !important;
   font-weight: 900 !important;
@@ -96,12 +92,12 @@ main {
   margin-bottom: 2px !important;
 }
 
+/* 核心：確保符號與數字底部對齊 */
 .input-wrapper {
   display: flex !important;
-  align-items: baseline !important; /* 強制符號與數字底部對齊 */
+  align-items: baseline !important;
   gap: 4px !important;
 }
-
 .param-item input {
   border: none !important;
   background: transparent !important;
@@ -109,11 +105,10 @@ main {
   font-weight: 900 !important;
   font-family: "Calibri", sans-serif !important;
   color: #1a0005 !important;
-  width: 100% !important;
   outline: none !important;
 }
 
-/* 5. 表格欄位自適應對齊 (鏡像技術核心) */
+/* 4. [重點] 表格欄位全置中與自動寬度對齊 --- */
 .auto-table {
   width: 100% !important;
   border-spacing: 0 10px !important;
@@ -121,18 +116,24 @@ main {
   table-layout: auto !important;
 }
 
-/* 鏡像容器：利用隱形文字撐開整欄寬度 */
+.auto-table th {
+  text-align: center !important; /* 強制標題置中 */
+  padding: 10px 15px !important;
+  color: var(--primary-pink) !important;
+  font-weight: 900 !important;
+  font-size: 1.2rem !important;
+}
+
+/* 鏡像容器技術：自動根據內容撐開寬度 */
 .input-col-wrapper {
   display: inline-grid !important;
   vertical-align: middle;
   grid-template-columns: min-content !important;
-  min-width: 40px; /* 槓桿與%這類短數值需要的最小寬度 */
+  min-width: 40px;
 }
-
 .input-col-wrapper > * {
   grid-area: 1 / 1;
 }
-
 .input-mirror {
   visibility: hidden;
   white-space: pre;
@@ -151,10 +152,7 @@ main {
   width: 100% !important;
 }
 
-.underline-input:focus {
-  border-bottom-color: var(--accent-pink) !important;
-}
-
+/* 表格單元格內容：預設置中 */
 td {
   background: white !important;
   padding: 12px 15px !important;
@@ -162,6 +160,13 @@ td {
   font-size: var(--font-size-table) !important;
   font-weight: 900 !important;
   white-space: nowrap;
+  text-align: center !important;
+}
+
+/* 數值類依然保持靠右顯示，以利閱讀 */
+td.text-right,
+td:has(.text-right) {
+  text-align: right !important;
 }
 
 td:first-child {
@@ -171,41 +176,22 @@ td:last-child {
   border-radius: 0 20px 20px 0 !important;
 }
 
-/* 6. 其他 UI 細節 */
+/* 其他基礎 UI */
 .prefix,
 .suffix {
   font-family: "Calibri", sans-serif !important;
   color: #fecdd3 !important;
   font-weight: 900 !important;
 }
-.accent-text {
-  color: var(--accent-pink) !important;
-}
-.no-border {
-  border-right: none !important;
-}
-
 .btn-pink {
   background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%) !important;
   color: white !important;
-  font-weight: 900 !important;
   border-radius: 16px !important;
+  font-weight: 900 !important;
   border: none !important;
 }
-
-/* 移除 Chrome 數字箭頭 */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
-}
-
-/* 滾動條美化 */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-thumb {
-  background: #fecdd3;
-  border-radius: 10px;
 }
