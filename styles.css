@@ -42,10 +42,12 @@ button {
   grid-template-columns: 0px 1fr;
 }
 .dashboard-container.sidebar-collapsed aside {
+  width: 0px !important;
+  min-width: 0px !important;
   visibility: hidden;
   opacity: 0;
   border: none;
-  pointer-events: none;
+  padding: 0; /* 移除內距防止殘影 */
 }
 
 aside {
@@ -69,7 +71,7 @@ main {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 15px;
-  margin-bottom: 10px; /* 從 25px 縮小至 10px */
+  margin-bottom: ５px; /* 從 25px 縮小至 10px */
 }
 
 .params-row-tight {
@@ -77,11 +79,13 @@ main {
   border: 2px solid #fff1f2;
   border-radius: 20px;
   box-shadow: 0 5px 20px -10px rgba(0, 0, 0, 0.05);
-  margin-top: 5px; /* 額外加入微小間距 */
-  margin-bottom: 20px; /* 縮小下方與表格的間距 */
+  margin-top: 0px; /* 徹底消除與上方卡片的間距 */
+  margin-bottom: 25px;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   overflow: hidden;
+  width: 100%;
+  min-width: 900px;
 }
 .main-scroll-wrapper {
   overflow-x: auto;
@@ -133,10 +137,9 @@ main {
 
 .input-mirror {
   grid-area: 1 / 1;
-  /* 強制隱藏文字內容但保留撐開空間的物理特性 */
   opacity: 0 !important;
-  color: transparent !important;
   visibility: hidden !important;
+  color: transparent !important;
   white-space: pre;
   padding: 0 10px;
   pointer-events: none;
@@ -146,14 +149,14 @@ main {
 .underline-input {
   grid-area: 1 / 1;
   width: 100%;
-  background: transparent !important;
+  background: white !important; /* 給予背景色以遮蓋下方的鏡像文字 */
   border: none;
   border-bottom: 2px solid #fecdd3;
   outline: none;
   text-align: center;
   padding: 0 10px;
   font-weight: 900;
-  z-index: 2; /* 確保輸入框在最上方 */
+  z-index: 5; /* 提升層級，確保在鏡像文字上方 */
   transition: border-color 0.2s;
 }
 
