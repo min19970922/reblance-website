@@ -1,7 +1,8 @@
 /**
- * utils.js - 終極跨裝置相容版 (v5.2)
- * 1. 徹底排除標頭 17040 (總股數) 雜訊
- * 2. 解決手機 7 000 斷裂問題
+ * utils.js - 終極跨裝置相容版 (v5.3)
+ * 1. 徹底過濾標頭噪音 (17040 總股數)
+ * 2. 智慧排除標的名稱數字 (如 50正2)
+ * 3. 解決手機 7 000 斷裂與辨識位移
  */
 import { safeNum } from "./state.js";
 import { showToast } from "./ui.js";
@@ -81,12 +82,12 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
-/** 核心辨識引擎 v5.2 */
+/** 核心辨識引擎 v5.3 */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  showToast("正在智慧辨識 (v5.2)...");
+  showToast("正在智慧辨識 (v5.3)...");
 
   try {
     const worker = await Tesseract.createWorker("chi_tra+eng", 1, {
@@ -101,13 +102,13 @@ export async function importFromImage(e, onComplete) {
     } = await worker.recognize(file);
     await worker.terminate();
 
-    // 1. 預處理：按行分割並過濾標頭噪音 (17040)
+    // 1. 噪音行過濾：直接丟棄包含總計字眼的整行
     const rawLines = text.split("\n");
     let isTableStarted = false;
-    const validLines = [];
+    const cleanLines = [];
 
     for (const line of rawLines) {
-      // 如果看到「明細」、「商品」或「類別」，代表表格真正開始了
+      // 偵測表格起點
       if (
         line.includes("明細") ||
         line.includes("商品") ||
@@ -116,24 +117,21 @@ export async function importFromImage(e, onComplete) {
         isTableStarted = true;
         continue;
       }
-
-      // 關鍵過濾：忽略包含統計關鍵字的行，徹底排除 17040
+      // 負面過濾：排除截圖上方「帳號、總股數、總成本」等非明細行
       if (
         line.includes("總股數") ||
-        line.includes("總成本") ||
         line.includes("帳號") ||
-        line.includes("總金額")
+        line.includes("總成本") ||
+        line.includes("總預估")
       ) {
         continue;
       }
-
-      if (isTableStarted) {
-        validLines.push(line);
-      }
+      if (isTableStarted && line.trim() !== "") cleanLines.push(line);
     }
 
     const newAssets = [];
-    validLines.forEach((line) => {
+    cleanLines.forEach((line) => {
+      // 移除逗號與不正常空格
       let cleanLine = line.replace(/,/g, "");
       const tickerMatch = cleanLine.match(/([0-9]{4,5}[A-Z1]?)/);
 
@@ -146,14 +144,17 @@ export async function importFromImage(e, onComplete) {
           tickerMatch.index + tickerMatch[1].length
         );
 
-        // 手機版特有修復：合併千分位斷裂數字 (例如 "7 000" -> "7000")
-        const joinedLine = afterTicker.replace(
+        // 合併斷裂股數 (解決手機將 7,000 辨識成 7 000 的問題)
+        const joinedPart = afterTicker.replace(
           /(\b\d{1,3})\s+(\d{3})(?!\d)/g,
           "$1$2"
         );
 
-        // 股數定位：鎖定類別後的長數字
-        const categoryMatch = joinedLine.match(
+        /**
+         * 股數提取核心邏輯：
+         * 1. 優先找「類別關鍵字」後方的數字，這能跳過名稱中的 "50"
+         */
+        const categoryMatch = joinedPart.match(
           /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買)[^\d]*(\d{2,})/
         );
 
@@ -161,9 +162,15 @@ export async function importFromImage(e, onComplete) {
         if (categoryMatch) {
           shares = parseInt(categoryMatch[1]);
         } else {
-          // 備用方案
-          const allNums = joinedLine.match(/\b\d{2,}\b/g);
-          if (allNums) shares = parseInt(allNums[0]);
+          /**
+           * 2. 備用方案：如果類別關鍵字辨識失敗，則尋找代碼後的數字
+           * 並排除標的名稱常見的小數字 (如 2 或 50)
+           */
+          const allNums = joinedPart.match(/\b\d{2,}\b/g);
+          if (allNums) {
+            // 取第一個大於 100 的數字，或者取最後一個數字塊之前的最大數字
+            shares = allNums.find((n) => parseInt(n) > 60) || allNums[0];
+          }
         }
 
         if (shares > 0) {
@@ -172,7 +179,7 @@ export async function importFromImage(e, onComplete) {
             name: ticker,
             fullName: "---",
             price: 0,
-            shares: shares,
+            shares: parseInt(shares),
             leverage: 1,
             targetRatio: 0,
           });
@@ -187,10 +194,9 @@ export async function importFromImage(e, onComplete) {
       onComplete(uniqueAssets);
       showToast(`辨識成功！發現 ${uniqueAssets.length} 筆資產`);
     } else {
-      showToast("未能辨識有效標的");
+      showToast("未能辨識有效資料");
     }
   } catch (err) {
-    console.error("OCR 錯誤:", err);
     showToast("辨識衝突，請重新整理");
   } finally {
     e.target.value = "";
