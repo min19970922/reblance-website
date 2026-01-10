@@ -78,15 +78,14 @@ export function importExcel(e, onComplete) {
 }
 
 /**
- * AI 圖片辨識匯入功能 - 終極修復版 (v10.0)
- * 根據診斷結果改用 gemini-2.0-flash 並修正 REST 命名規範
+ * AI 圖片辨識匯入功能 - 診斷適配版
+ * 使用診斷清單中存在的 gemini-flash-latest 避開 404 與 429 錯誤
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
   const showToast = window.showToast || console.log;
-  // 優先從全域或 LocalStorage 取得 Key
   const apiKey =
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
 
@@ -109,15 +108,14 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // --- 核心修正：改用診斷清單中確認存在的 gemini-2.0-flash ---
-    const model = "gemini-2.0-flash";
+    // --- 關鍵修正：使用診斷清單第 20 項存在的別名 ---
+    const model = "gemini-flash-latest";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const promptText = `你是一位專業分析師。請提取圖片中的持股代號(name)與股數(shares)。
     請嚴格只回傳 JSON 格式，不要有任何 Markdown 標籤或解釋。
     範例格式：{"assets": [{"name":"2330","shares":1000}]}`;
 
-    // --- 核心修正：使用底線命名法 (snake_case) 確保相容性 ---
     const payload = {
       contents: [
         {
@@ -142,6 +140,10 @@ export async function importFromImage(e, onComplete) {
 
     if (!response.ok) {
       const errData = await response.json();
+      // 針對 429 錯誤提供友善提示
+      if (response.status === 429) {
+        throw new Error("AI 目前配額已滿，請等待約一分鐘後再試。");
+      }
       throw new Error(
         errData.error?.message || `請求失敗 (${response.status})`
       );
@@ -150,7 +152,7 @@ export async function importFromImage(e, onComplete) {
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // 移除 AI 可能回傳的 Markdown 標籤以防解析當機
+    // 清理 Markdown 標籤以防解析失敗
     text = text
       .replace(/```json/g, "")
       .replace(/```/g, "")
@@ -162,8 +164,8 @@ export async function importFromImage(e, onComplete) {
         const parsedData = JSON.parse(text);
         assets = parsedData.assets || [];
       } catch (e) {
-        console.error("JSON 解析失敗，原始文字:", text);
-        throw new Error("AI 回傳內容無法解析，請再試一次");
+        console.error("JSON 解析失敗:", text);
+        throw new Error("AI 回傳格式不符合 JSON，請稍後再試。");
       }
     }
 
@@ -174,7 +176,6 @@ export async function importFromImage(e, onComplete) {
           name: (a.name || "").toString().toUpperCase().trim(),
           fullName: "---",
           price: 0,
-          // 處理股數中的千分位逗號
           shares: Math.abs(
             parseInt(a.shares.toString().replace(/,/g, "")) || 0
           ),
@@ -186,7 +187,7 @@ export async function importFromImage(e, onComplete) {
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能辨識出有效持股");
+      showToast("AI 未能辨識出有效內容");
     }
   } catch (err) {
     console.error("AI辨識詳細錯誤:", err);
