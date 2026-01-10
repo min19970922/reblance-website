@@ -14,7 +14,7 @@ body {
   overflow-x: auto;
 }
 
-/* 佈局架構 - 移除寬度上限 */
+/* 1. 佈局架構 - 移除寬度上限 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
@@ -34,7 +34,7 @@ aside {
 }
 .sidebar-collapsed aside {
   border-right: none;
-} /* 徹底隱藏摺疊邊緣 */
+}
 main {
   width: 100%;
   padding: 40px;
@@ -42,7 +42,7 @@ main {
   flex: 1;
 }
 
-/* 橫向數據看板 */
+/* 2. 橫向數據看板 */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -61,12 +61,12 @@ main {
   color: #9d174d;
 }
 .glass-card div {
-  font-size: 2.6rem !important;
+  font-size: 2rem !important;
   font-weight: 900;
   margin-top: 5px;
 }
 
-/* 橫向無縫參數列 */
+/* 3. 橫向無縫參數列 */
 .params-row-tight {
   display: flex;
   align-items: stretch;
@@ -125,7 +125,7 @@ main {
   color: var(--accent-pink);
 }
 
-/* 表格 Auto 寬度核心邏輯 */
+/* 4. 表格 Auto 寬度核心邏輯 */
 .auto-table {
   width: 100%;
   border-spacing: 0 10px;
@@ -147,22 +147,22 @@ td:last-child {
   border-radius: 0 20px 20px 0;
 }
 
-/* 輸入框寬度 Auto */
+/* 輸入框寬度 Auto：移除 w-full，讓寬度由文字長度決定 */
 .underline-input {
   background: transparent;
   border-bottom: 3px solid #fecdd3;
   outline: none;
   font-weight: 900;
   font-size: 1.5rem !important;
-  width: auto; /* 取消 w-full，讓其隨文字長度延伸 */
-  min-width: 100px; /* 設定一個最小寬度保證點擊區域 */
+  width: auto;
+  min-width: 110px;
   transition: all 0.3s;
 }
 .underline-input:focus {
   border-bottom-color: var(--accent-pink);
 }
 
-/* 脈動動畫 */
+/* 5. 脈動動畫 */
 @keyframes pulsate-bar {
   0%,
   100% {
