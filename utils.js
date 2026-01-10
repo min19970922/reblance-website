@@ -77,9 +77,6 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
-/**
- * AI 圖片辨識匯入功能 - 穩定版路徑
- */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -89,7 +86,7 @@ export async function importFromImage(e, onComplete) {
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
 
   if (!apiKey || apiKey.length < 10) {
-    showToast("❌ 請先在上方輸入並儲存 API Key");
+    showToast("❌ 請先設定並儲存 API Key");
     e.target.value = "";
     return;
   }
@@ -107,14 +104,15 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // --- 關鍵修正：改用 v1 穩定版與正確的 URL 參數形式 ---
+    // --- 關鍵修正點：路徑必須使用 v1beta ---
     const model = "gemini-1.5-flash";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const promptText = `你是一位專業分析師。請提取圖片中的持股代號(name)與股數(shares)。
     請嚴格只回傳 JSON 格式，不要有任何 Markdown 標籤或解釋文字。
-    範例格式：{"assets": [{"name":"2330","shares":1000}]}`;
+    格式範例：{"assets": [{"name":"2330","shares":1000}]}`;
 
+    // --- 關鍵修正點：REST API 必須使用 snake_case (底線命名) ---
     const payload = {
       contents: [
         {
@@ -160,7 +158,7 @@ export async function importFromImage(e, onComplete) {
         assets = parsedData.assets || [];
       } catch (e) {
         console.error("JSON 解析失敗:", rawJson);
-        throw new Error("AI 回傳格式非純 JSON，請再試一次");
+        throw new Error("AI 回傳格式異常，請再試一次");
       }
     }
 
