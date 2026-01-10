@@ -1,227 +1,141 @@
-/* 1. 頂級字體與變數設定 */
+/* 1. 字體與基礎設定 */
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap");
 
 :root {
   --primary-pink: #fb7185;
-  --secondary-pink: #fff1f2;
   --accent-pink: #e11d48;
-  --sidebar-width: 320px; /* 加寬側邊欄以容納大字 */
-  --base-font-size: 1.5rem; /* 24px 大字基礎 */
+  --sidebar-width: 320px;
 }
 
-/* 2. 基礎佈局優化 */
 body {
   font-family: "Noto Sans TC", sans-serif;
   background-color: #fffafb;
   color: #1a0005;
   margin: 0;
-  /* 移除 overflow: hidden，改為允許自然捲動，防止內容被切掉 */
   overflow-x: auto;
-  overflow-y: overlay;
 }
 
+/* 2. 置中佈局控制 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
   min-height: 100vh;
-  transition: grid-template-columns 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.4s ease;
 }
 
 .dashboard-container.sidebar-collapsed {
   --sidebar-width: 0px;
 }
 
-/* 3. 側邊欄 - 強化視覺對比與空間 */
-aside {
-  width: var(--sidebar-width);
-  overflow-x: hidden;
-  white-space: nowrap;
-  transition: all 0.4s ease;
-  background: white;
-  z-index: 50;
-}
-
-.sidebar-collapsed aside {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* 4. 主要內容區 - 核心寬度控制 */
+/* 限制內容最大寬度並置中 */
 main {
-  /* 設定最小寬度，確保在大字體下內容不會擠壓變形 */
-  min-width: 1400px;
-  padding: 60px 40px;
-  background: #fffafb;
-}
-
-/* 固定開關按鈕位置 */
-.sidebar-toggle-btn {
-  position: fixed;
-  left: 20px;
-  top: 25px;
-  z-index: 100;
-}
-
-/* 5. 大字體輸入框 - 強化易讀性 */
-.underline-input {
-  background: transparent;
-  border-bottom: 4px solid #fecdd3;
-  border-radius: 0;
-  padding: 10px 4px;
-  transition: all 0.2s ease;
-  outline: none;
-  font-weight: 900;
+  max-width: 1650px;
+  margin: 0 auto;
   width: 100%;
-  color: #1a0005;
-  /* 強制 24px 大字體 */
-  font-size: 1.5rem !important;
+  padding: 40px 20px;
 }
 
-.underline-input:focus {
-  border-bottom-color: var(--accent-pink);
-  background: rgba(251, 113, 133, 0.05);
+/* 3. 側邊欄開關按鈕 (精簡化並放在標題旁) */
+#btnToggleSidebar {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  background: white;
+  color: var(--primary-pink);
+  border: 2px solid #fecdd3;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-/* 6. 標的監控表格 - 彈性與不切斷設計 */
+#btnToggleSidebar:hover {
+  background: var(--secondary-pink);
+  border-color: var(--primary-pink);
+}
+
+/* 4. 看板卡片優化 - 大字體、小間距 */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 15px; /* 縮小間距 */
+  margin-bottom: 30px;
+}
+
+.glass-card {
+  background: white;
+  border-radius: 20px;
+  border: 1px solid rgba(251, 113, 133, 0.2);
+  padding: 15px 20px !important; /* 縮小內距 */
+  box-shadow: 0 4px 20px -5px rgba(251, 113, 133, 0.1);
+}
+
+.glass-card span {
+  font-size: 1.1rem !important;
+} /* 標籤字體 */
+.glass-card div {
+  font-size: 2.8rem !important;
+  font-weight: 900;
+} /* 數據大字 */
+
+/* 5. 表格欄位 - 自動寬度、不切斷 */
 table {
-  border-spacing: 0 16px;
+  border-spacing: 0 10px;
   border-collapse: separate;
   width: 100%;
-  margin-top: 20px;
 }
 
 td {
   background: white;
-  padding: 24px 20px;
+  padding: 20px 15px;
   vertical-align: middle;
-  border-bottom: 1px solid #fff0f1;
-  /* 核心修正：不換行且不隱藏，確保文字完整 */
-  white-space: nowrap;
-  font-size: 1.5rem !important;
+  white-space: nowrap; /* 確保文字不被切斷 */
+  font-size: 1.5rem !important; /* 適合老花的大字體 */
 }
 
 td:first-child {
-  border-radius: 24px 0 0 24px;
-  padding-left: 30px;
+  border-radius: 20px 0 0 20px;
 }
 td:last-child {
-  border-radius: 0 24px 24px 0;
-  padding-right: 30px;
+  border-radius: 0 20px 20px 0;
 }
 
-/* 欄位寬度加寬優化 */
-.col-symbol {
-  min-width: 380px;
-}
-.col-leverage {
-  min-width: 120px;
-  text-align: center;
-}
-.col-price {
-  min-width: 300px;
-}
-.col-shares {
-  min-width: 240px;
-}
-.col-nominal {
-  min-width: 300px;
-}
-.col-ratio {
-  min-width: 150px;
-  text-align: center;
-}
-.col-target {
-  min-width: 300px;
-  text-align: center;
-}
+/* 移除硬性 min-width，改由內容撐開 */
+.col-symbol,
+.col-price,
+.col-shares,
+.col-nominal,
 .col-suggest {
-  min-width: 450px;
-  text-align: center;
+  width: auto;
 }
 
-/* 7. 數據卡片美化 */
-.glass-card {
-  background: white;
-  border-radius: 28px;
-  border: 1px solid rgba(251, 113, 133, 0.2);
-  box-shadow: 0 12px 40px -10px rgba(251, 113, 133, 0.15);
-  transition: transform 0.3s ease;
-}
-
-.glass-card:hover {
-  transform: translateY(-5px);
-}
-
-/* 8. 互動元件與動畫 */
-.btn-pink {
-  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
-  color: white;
+/* 6. 輸入框大字體 */
+.underline-input {
+  background: transparent;
+  border-bottom: 3px solid #fecdd3;
+  outline: none;
   font-weight: 900;
-  border-radius: 20px;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  font-size: 1.5rem !important;
+  padding: 4px;
+  color: #1a0005;
 }
 
-.btn-pink:hover {
-  transform: scale(1.05);
-  box-shadow: 0 15px 30px -5px rgba(225, 29, 72, 0.4);
+.underline-input:focus {
+  border-bottom-color: var(--accent-pink);
 }
 
-/* 字體類別 */
+/* 其他輔助 */
 .font-mono-data {
   font-family: "JetBrains Mono", monospace;
   letter-spacing: -1px;
 }
-
-/* 閃爍動畫 (載入中) */
-@keyframes alert-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-.alert-pulse,
-.animate-pulse {
-  animation: alert-blink 1.5s infinite;
-}
-
-/* 同步旋轉動畫 */
-@keyframes spin-fast {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-.fa-spin-fast {
-  animation: spin-fast 0.8s linear infinite;
-}
-
-/* 橫向參數欄捲動優化 */
 .params-row {
   display: flex;
-  gap: 3rem;
+  gap: 2rem;
   align-items: flex-end;
-  padding-bottom: 20px;
+  padding: 20px 0;
   overflow-x: auto;
-}
-
-/* 隱藏捲動軸但保持功能 (美觀簡約) */
-::-webkit-scrollbar {
-  height: 8px;
-  width: 8px;
-}
-::-webkit-scrollbar-track {
-  background: #fff1f2;
-}
-::-webkit-scrollbar-thumb {
-  background: #fecdd3;
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #fb7185;
 }
