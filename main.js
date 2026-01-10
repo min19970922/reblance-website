@@ -1,8 +1,5 @@
 /**
- * main.js - 終極整合修復版
- * 1. 修復了所有 window 全域函式掛載
- * 2. 整合了照片辨識與文字貼上雙模組
- * 3. 解決了因 HTML 元素不存在導致的 null 報錯
+ * main.js - 核心邏輯補完版
  */
 import {
   appState,
@@ -18,17 +15,15 @@ import {
   showToast,
 } from "./ui.js";
 import { syncAllPrices, fetchLivePrice } from "./api.js";
-import {
-  exportExcel,
-  importExcel,
-  parsePastedText,
-  importFromImage,
-} from "./utils.js";
+import { exportExcel, importExcel, importFromImage } from "./utils.js"; // 移除了不存在的 parsePastedText
 
 function init() {
   loadFromStorage();
 
-  // 確保至少有一個帳戶
+  // 修正點：將 UI 函式掛載至 window，解決循環引用問題
+  window.renderMainUI = renderMainUI;
+  window.showToast = showToast;
+
   if (
     !appState.activeId ||
     !appState.accounts.find((a) => a.id === appState.activeId)
@@ -36,16 +31,12 @@ function init() {
     appState.activeId = appState.accounts[0].id;
   }
 
-  // 側邊欄狀態恢復
   if (appState.isSidebarCollapsed) toggleSidebarUI(true);
 
   refreshAll();
   bindGlobalEvents();
 }
 
-/**
- * 統一更新入口
- */
 function refreshAll() {
   const activeAcc = appState.accounts.find((a) => a.id === appState.activeId);
   if (!activeAcc) return;
@@ -53,7 +44,6 @@ function refreshAll() {
   renderAccountList(appState, "switchAccount", "deleteAccount");
   renderMainUI(activeAcc);
 
-  // 計畫名稱點擊重新命名功能
   const titleEl = document.getElementById("activeAccountTitle");
   if (titleEl) {
     titleEl.onclick = () => {
@@ -68,8 +58,75 @@ function refreshAll() {
   }
 }
 
+// --- 新增：全域函式掛載區 (修正輸入無效問題) ---
+
+window.switchAccount = (id) => {
+  appState.activeId = id;
+  saveToStorage();
+  refreshAll();
+};
+
+window.deleteAccount = (id) => {
+  if (appState.accounts.length <= 1) return showToast("至少需保留一個計畫");
+  if (confirm("確定要刪除此計畫嗎？")) {
+    appState.accounts = appState.accounts.filter((a) => a.id !== id);
+    appState.activeId = appState.accounts[0].id;
+    saveToStorage();
+    refreshAll();
+  }
+};
+
+window.updateGlobal = (key, val) => {
+  const acc = appState.accounts.find((a) => a.id === appState.activeId);
+  if (acc) {
+    acc[key] = safeNum(val);
+    saveToStorage();
+    refreshAll(); // 參數改變後重新計算 UI
+  }
+};
+
+window.updateAsset = (id, key, val) => {
+  const acc = appState.accounts.find((a) => a.id === appState.activeId);
+  const asset = acc.assets.find((as) => as.id === id);
+  if (asset) {
+    asset[key] = key === "name" ? val.toUpperCase() : safeNum(val);
+    saveToStorage();
+    // 如果是改代號，自動同步一次價格
+    if (key === "name" && val.length >= 4) {
+      window.fetchLivePrice(id, val);
+    } else {
+      refreshAll();
+    }
+  }
+};
+
+window.moveAsset = (assetId, direction) => {
+  const acc = appState.accounts.find((a) => a.id === appState.activeId);
+  const index = acc.assets.findIndex((a) => a.id === assetId);
+  const newIndex = index + direction;
+  if (newIndex >= 0 && newIndex < acc.assets.length) {
+    [acc.assets[index], acc.assets[newIndex]] = [
+      acc.assets[newIndex],
+      acc.assets[index],
+    ];
+    saveToStorage();
+    refreshAll();
+  }
+};
+
+window.removeAsset = (id) => {
+  const acc = appState.accounts.find((a) => a.id === appState.activeId);
+  acc.assets = acc.assets.filter((a) => a.id !== id);
+  saveToStorage();
+  refreshAll();
+};
+
+window.fetchLivePrice = (id, symbol) => {
+  fetchLivePrice(id, symbol, appState);
+};
+
+// --- 事件綁定 ---
 function bindGlobalEvents() {
-  // 1. 側邊欄切換
   const btnToggle = document.getElementById("btnToggleSidebar");
   if (btnToggle) {
     btnToggle.onclick = () => {
@@ -79,7 +136,6 @@ function bindGlobalEvents() {
     };
   }
 
-  // 2. 新增計畫
   const btnCreate = document.getElementById("btnCreateAccount");
   if (btnCreate) {
     btnCreate.onclick = () => {
@@ -91,13 +147,11 @@ function bindGlobalEvents() {
     };
   }
 
-  // 3. 刪除計畫
   const btnDelete = document.getElementById("btnDeleteAccount");
   if (btnDelete) {
     btnDelete.onclick = () => window.deleteAccount(appState.activeId);
   }
 
-  // 4. 匯出 Excel
   const btnExport = document.getElementById("btnExport");
   if (btnExport) {
     btnExport.onclick = () => {
@@ -106,7 +160,6 @@ function bindGlobalEvents() {
     };
   }
 
-  // 5. 匯入 Excel
   const inputImport = document.getElementById("inputImport");
   if (inputImport) {
     inputImport.onchange = (e) => {
@@ -134,9 +187,6 @@ function bindGlobalEvents() {
     };
   }
 
-  // 移除原有的 btnShowPaste 與 btnConfirmPaste 邏輯
-
-  // 8. 報價同步與新增標的
   document.getElementById("btnSyncAll").onclick = () => syncAllPrices(appState);
   document.getElementById("btnAddAsset").onclick = () => {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
@@ -152,30 +202,5 @@ function bindGlobalEvents() {
     refreshAll();
   };
 }
-window.moveAsset = (assetId, direction) => {
-  const acc = appState.accounts.find((a) => a.id === appState.activeId);
-  const index = acc.assets.findIndex((a) => a.id === assetId);
-  const newIndex = index + direction;
-  if (newIndex >= 0 && newIndex < acc.assets.length) {
-    [acc.assets[index], acc.assets[newIndex]] = [
-      acc.assets[newIndex],
-      acc.assets[index],
-    ];
-    saveToStorage();
-    refreshAll();
-  }
-};
 
-window.removeAsset = (id) => {
-  const acc = appState.accounts.find((a) => a.id === appState.activeId);
-  acc.assets = acc.assets.filter((a) => a.id !== id);
-  saveToStorage();
-  refreshAll();
-};
-
-window.fetchLivePrice = (id, symbol) => {
-  fetchLivePrice(id, symbol, appState);
-};
-
-// 執行初始化
 init();

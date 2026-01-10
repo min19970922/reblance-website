@@ -3,7 +3,7 @@
  * 報價：Yahoo v8 Chart
  * 名稱：Yahoo Search API (抓不到則回傳代號)
  */
-import { renderMainUI, showToast } from "./ui.js";
+
 import { saveToStorage } from "./state.js";
 
 const PROXIES = [
@@ -96,7 +96,7 @@ export async function fetchLivePrice(id, symbol, appState) {
     if (asset) {
       asset.price = result.price;
       saveToStorage();
-      renderMainUI(acc);
+      if (window.renderMainUI) window.renderMainUI(acc);
 
       // 3. 名稱抓取邏輯：抓不到就存入代號
       fetchChineseName(result.finalTicker).then((name) => {

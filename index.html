@@ -18,29 +18,31 @@
   </head>
   <body>
     <div class="dashboard-container" id="mainContainer">
-      <aside class="p-5">
-        <div class="mb-10 text-center pt-8">
-          <h1 class="text-3xl font-black text-rose-500 tracking-tighter">
-            <i class="fas fa-heart mr-2"></i>REBALANCE
-          </h1>
-          <p
-            class="text-[11px] text-rose-400 font-black mt-1 uppercase tracking-[0.3em]"
-          >
-            Precision Control
-          </p>
-        </div>
-        <div class="flex-1 space-y-3" id="accountList"></div>
-        <div class="mt-8 pt-6 border-t">
-          <button
-            id="btnCreateAccount"
-            class="w-full py-4 rounded-xl bg-rose-50 text-rose-700 font-black hover:bg-rose-100 flex items-center justify-center gap-2 text-lg"
-          >
-            <i class="fas fa-plus-circle"></i> 新增計畫
-          </button>
+      <aside>
+        <div class="p-5 flex flex-col h-full">
+          <div class="mb-10 text-center pt-8">
+            <h1 class="text-3xl font-black text-rose-500 tracking-tighter">
+              <i class="fas fa-heart mr-2"></i>REBALANCE
+            </h1>
+            <p
+              class="text-[11px] text-rose-400 font-black mt-1 uppercase tracking-[0.3em]"
+            >
+              Precision Control
+            </p>
+          </div>
+          <div class="flex-1 space-y-3" id="accountList"></div>
+          <div class="mt-8 pt-6 border-t">
+            <button
+              id="btnCreateAccount"
+              class="w-full py-4 rounded-xl bg-rose-50 text-rose-700 font-black hover:bg-rose-100 flex items-center justify-center gap-2 text-lg"
+            >
+              <i class="fas fa-plus-circle"></i> 新增計畫
+            </button>
+          </div>
         </div>
       </aside>
 
-      <main>
+      <main class="bg-[#fffafb] flex flex-col min-h-screen">
         <div class="flex items-center justify-between mb-8">
           <div class="flex items-center gap-6">
             <button
@@ -135,7 +137,6 @@
                 />
               </div>
             </div>
-
             <div class="input-unit">
               <label>現金餘額 (Cash)</label>
               <div class="input-box">
@@ -149,7 +150,6 @@
                 />
               </div>
             </div>
-
             <div class="input-unit-small">
               <label>匯率 (USD/TWD)</label>
               <div class="input-box">
@@ -162,7 +162,6 @@
                 />
               </div>
             </div>
-
             <div class="input-unit-small">
               <label>絕對門檻</label>
               <div class="input-box">
@@ -176,7 +175,6 @@
                 <span class="text-rose-200">%</span>
               </div>
             </div>
-
             <div class="input-unit-small">
               <label>相對門檻</label>
               <div class="input-box">
@@ -193,7 +191,7 @@
           </div>
         </div>
 
-        <div class="mt-6">
+        <div class="mt-6 px-2">
           <div class="flex justify-between items-center mb-6">
             <h3 class="text-3xl font-black text-rose-900">
               <i class="fas fa-layer-group mr-4 text-rose-500"></i>標的實時監控
@@ -242,7 +240,6 @@
     >
       <i class="fas fa-bell text-rose-400"></i> <span id="toastMsg"></span>
     </div>
-
     <script type="module" src="main.js"></script>
   </body>
 </html>

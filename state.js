@@ -39,7 +39,8 @@ export function loadFromStorage() {
     try {
       const parsed = JSON.parse(saved);
       if (parsed && parsed.accounts) {
-        appState = parsed;
+        // 修正點：使用 Object.assign 確保引用不變
+        Object.assign(appState, parsed);
         return true;
       }
     } catch (e) {
