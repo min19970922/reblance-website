@@ -1,6 +1,5 @@
 /**
- * main.js
- * 職責：整合所有模組、初始化應用程式、綁定事件監聽器
+ * main.js - 修復計畫新增與事件綁定
  */
 import {
   appState,
@@ -20,44 +19,33 @@ import {
 import { syncAllPrices, fetchLivePrice } from "./api.js";
 import { exportExcel, importExcel } from "./utils.js";
 
-// --- 1. 初始化應用程式 ---
 function init() {
   loadFromStorage();
-
-  // 確保有預選帳戶
   if (
     !appState.activeId ||
     !appState.accounts.find((a) => a.id === appState.activeId)
   ) {
     appState.activeId = appState.accounts[0].id;
   }
-
-  // 恢復側邊欄狀態
-  if (appState.isSidebarCollapsed) {
-    toggleSidebarUI(true);
-  }
-
+  if (appState.isSidebarCollapsed) toggleSidebarUI(true);
   refreshAll();
   bindGlobalEvents();
 }
 
-// --- 2. 核心刷新函式 ---
 function refreshAll() {
   const activeAcc = appState.accounts.find((a) => a.id === appState.activeId);
   renderAccountList(appState, "switchAccount", "deleteAccount");
   renderMainUI(activeAcc);
 }
 
-// --- 3. 綁定事件監聽器 (取代 HTML 中的 onclick) ---
 function bindGlobalEvents() {
-  // 側邊欄切換
   document.getElementById("btnToggleSidebar").onclick = () => {
     appState.isSidebarCollapsed = !appState.isSidebarCollapsed;
     toggleSidebarUI(appState.isSidebarCollapsed);
     saveToStorage();
   };
 
-  // 新增計畫
+  // 修正：新增計畫綁定
   document.getElementById("btnCreateAccount").onclick = () => {
     const name = prompt("計畫名稱:", "新實戰計畫");
     if (!name) return;
@@ -66,18 +54,15 @@ function bindGlobalEvents() {
     window.switchAccount(newAcc.id);
   };
 
-  // 刪除當前計畫
   document.getElementById("btnDeleteAccount").onclick = () => {
     window.deleteAccount(appState.activeId);
   };
 
-  // 匯出 Excel
   document.getElementById("btnExport").onclick = () => {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     exportExcel(acc);
   };
 
-  // 匯入 Excel
   document.getElementById("inputImport").onchange = (e) => {
     importExcel(e, (newAcc) => {
       appState.accounts.push(newAcc);
@@ -85,12 +70,10 @@ function bindGlobalEvents() {
     });
   };
 
-  // 同步所有報價
   document.getElementById("btnSyncAll").onclick = () => {
     syncAllPrices(appState);
   };
 
-  // 新增資產
   document.getElementById("btnAddAsset").onclick = () => {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     acc.assets.push({
@@ -106,8 +89,7 @@ function bindGlobalEvents() {
   };
 }
 
-// --- 4. 為了配合 ui.js 生成的動態 HTML，將部分函式掛載至 window ---
-
+// 掛載至 window 供動態 HTML 調用
 window.switchAccount = (id) => {
   appState.activeId = id;
   saveToStorage();
@@ -127,7 +109,7 @@ window.deleteAccount = (id) => {
 window.updateGlobal = (field, value) => {
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   acc[field] = safeNum(value);
-  refreshAll(); // 更新計算並存檔
+  refreshAll();
 };
 
 window.updateAsset = (assetId, field, value) => {
@@ -162,5 +144,4 @@ window.fetchLivePrice = (id, symbol) => {
   fetchLivePrice(id, symbol, appState);
 };
 
-// 啟動應用
 init();
