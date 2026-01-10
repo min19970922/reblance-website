@@ -1,4 +1,8 @@
-/* * styles.css - 終極美學大氣版 (v3.3 精準對齊與寬度優化) */
+/* * styles.css - 終極美學大氣版 (v3.8) 
+ * 1. 保留上方卡片 5 欄配置
+ * 2. 修正 Loan/Cash 參數列垂直基準線對齊
+ * 3. 實現代碼/股數整欄自動對齊最寬值 (鏡像技術)
+ */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 
@@ -8,9 +12,10 @@
   --sidebar-width: 320px;
   --bg-soft-pink: #fffafb;
   --font-size-data: 2.2rem;
-  --font-size-table: 1.4rem; /* 稍微縮小表格字體，視覺更精緻 */
+  --font-size-table: 1.4rem;
 }
 
+/* 1. 基礎強制設定 */
 body {
   font-family: "Calibri", "Microsoft JhengHei", sans-serif !important;
   background-color: var(--bg-soft-pink) !important;
@@ -19,7 +24,7 @@ body {
   overflow-x: hidden;
 }
 
-/* --- 佈局架構 --- */
+/* 2. 佈局架構 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
@@ -28,21 +33,20 @@ body {
 .dashboard-container.sidebar-collapsed {
   grid-template-columns: 0px 1fr;
 }
-
 aside {
   width: var(--sidebar-width);
-  background: white !important;
-  border-right: 1px solid #fff1f2 !important;
+  background: white;
+  border-right: 1px solid #fff1f2;
   display: flex;
   flex-direction: column;
 }
-
 main {
   width: 100%;
   padding: 40px;
   box-sizing: border-box;
 }
 
+/* 3. 上方數據摘要卡片 - 保持 5 欄配置不動 */
 .dashboard-grid {
   display: grid !important;
   grid-template-columns: repeat(5, 1fr) !important;
@@ -64,7 +68,7 @@ main {
   font-family: "Calibri", sans-serif !important;
 }
 
-/* --- [修正區] 參數列：精準對齊與高度校準 --- */
+/* 4. 參數列修正：解決 Loan/Cash 行對齊與符號歪斜 */
 .params-row-tight {
   display: grid !important;
   grid-template-columns: repeat(5, 1fr) !important;
@@ -90,22 +94,12 @@ main {
   font-weight: 900 !important;
   color: var(--primary-pink) !important;
   margin-bottom: 2px !important;
-  white-space: nowrap;
 }
 
-/* 核心對齊：符號與數字底部在一條線上 */
 .input-wrapper {
   display: flex !important;
-  align-items: baseline !important;
+  align-items: baseline !important; /* 強制符號與數字底部對齊 */
   gap: 4px !important;
-}
-
-.prefix,
-.suffix {
-  font-size: 1.2rem !important;
-  font-weight: 900 !important;
-  color: #fecdd3 !important;
-  font-family: "Calibri", sans-serif !important;
 }
 
 .param-item input {
@@ -116,25 +110,37 @@ main {
   font-family: "Calibri", sans-serif !important;
   color: #1a0005 !important;
   width: 100% !important;
-  padding: 0 !important;
   outline: none !important;
 }
 
-.accent-text {
-  color: var(--accent-pink) !important;
-}
-.no-border {
-  border-right: none !important;
-}
-
-/* --- [修正區] 表格與輸入欄位自動調整 --- */
+/* 5. 表格監控欄位自適應對齊 (鏡像技術) */
 .auto-table {
   width: 100% !important;
   border-spacing: 0 10px !important;
   border-collapse: separate !important;
+  table-layout: auto !important; /* 核心：自動根據內容分配寬度 */
 }
 
-/* 輸入欄位自適應寬度關鍵 */
+/* 容器：疊加隱形文字來同步整欄寬度 */
+.input-col-wrapper {
+  display: inline-grid !important;
+  vertical-align: middle;
+  grid-template-columns: min-content !important;
+  min-width: 60px;
+}
+
+.input-col-wrapper > * {
+  grid-area: 1 / 1;
+}
+
+.input-mirror {
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+  font-weight: 900;
+  padding: 0 4px;
+}
+
 .underline-input {
   background: transparent !important;
   border: none !important;
@@ -142,17 +148,12 @@ main {
   outline: none !important;
   font-weight: 900 !important;
   font-family: "Calibri", sans-serif !important;
-  font-size: var(--font-size-table) !important;
-  /* 根據文字內容自動調整，設定一個合理的基礎寬度 */
-  min-width: 40px;
-  max-width: 150px;
-  width: auto;
-  transition: border-color 0.3s, transform 0.3s;
+  width: 100% !important;
+  transition: border-color 0.3s;
 }
 
 .underline-input:focus {
   border-bottom-color: var(--accent-pink) !important;
-  transform: translateY(-1px);
 }
 
 td {
@@ -171,16 +172,19 @@ td:last-child {
   border-radius: 0 20px 20px 0 !important;
 }
 
-/* 標題動畫效果 */
-.btn-pink {
-  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%) !important;
-  color: white !important;
+/* 其他基礎樣式 */
+.prefix,
+.suffix {
+  font-family: "Calibri", sans-serif !important;
+  color: #fecdd3 !important;
   font-weight: 900 !important;
-  border-radius: 16px !important;
-  transition: all 0.3s;
 }
-
-/* 移除 Chrome 數字箭頭 */
+.accent-text {
+  color: var(--accent-pink) !important;
+}
+.no-border {
+  border-right: none !important;
+}
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
