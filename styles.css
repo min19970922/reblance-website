@@ -14,11 +14,15 @@
 }
 
 body {
-  font-family: "Noto Sans TC", sans-serif;
+  font-family: "Calibri", "Microsoft JhengHei", sans-serif !important;
   background-color: var(--bg-soft-pink);
   color: #1a0005;
   margin: 0;
   overflow-x: hidden;
+}
+
+.font-mono-data {
+  font-family: "Calibri", sans-serif !important; /* 數據區使用 Calibri */
 }
 
 .dashboard-container {
@@ -104,6 +108,22 @@ main {
   overflow: hidden;
 }
 
+.input-col-wrapper {
+  position: relative;
+  display: inline-grid; /* 使用 Grid 讓鏡像層與輸入框重疊 */
+  vertical-align: middle;
+  justify-items: center;
+  align-items: center;
+}
+
+.input-mirror {
+  grid-area: 1 / 1;
+  visibility: hidden; /* 關鍵：隱藏鏡像文字但保留撐開寬度的能力 */
+  white-space: pre; /* 保留空格寬度 */
+  padding: 0 8px; /* 預留一點間距 */
+  pointer-events: none;
+}
+
 .input-unit,
 .input-unit-small {
   display: flex;
@@ -175,13 +195,20 @@ td {
 }
 
 .underline-input {
-  background: transparent;
+  grid-area: 1 / 1;
+  width: 100%;
+  background: transparent !important;
+  border: none;
   border-bottom: 2px solid #fecdd3;
   outline: none;
+  text-align: center;
+  padding: 0 8px;
   font-weight: 900;
-  width: 100px;
-  text-align: right;
-  font-family: "JetBrains Mono";
+  transition: border-color 0.2s;
+}
+
+.underline-input:focus {
+  border-bottom-color: var(--primary-pink);
 }
 
 .btn-pink {

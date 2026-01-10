@@ -115,10 +115,10 @@ const autoWidthInput = (
   type = "text"
 ) => `
   <div class="input-col-wrapper">
-    <span class="input-mirror ${extraClass}">${value}</span>
+    <span class="input-mirror ${extraClass}">${value || "&nbsp;&nbsp;"}</span>
     <input type="${type}" 
       value="${value}" 
-      oninput="this.previousElementSibling.innerText = this.value"
+      oninput="this.previousElementSibling.innerText = this.value || '&nbsp;&nbsp;'"
       onchange="updateAsset(${assetId},'${field}',this.value)" 
       class="underline-input ${extraClass}">
   </div>
