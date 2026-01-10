@@ -17,7 +17,7 @@ import {
 } from "./ui.js";
 
 import { syncAllPrices, fetchLivePrice } from "./api.js";
-import { exportExcel, importExcel } from "./utils.js";
+import { exportExcel, importExcel, importFromImage } from "./utils.js"; // 加上 importFromImage
 
 function init() {
   loadFromStorage();
@@ -70,6 +70,27 @@ function bindGlobalEvents() {
     });
   };
 
+  document.getElementById("inputCamera").onchange = (e) => {
+    importFromImage(e, (newAssets) => {
+      const acc = appState.accounts.find((a) => a.id === appState.activeId);
+
+      newAssets.forEach((asset) => {
+        // 如果代碼已存在，更新股數；不存在則新增
+        const existing = acc.assets.find((a) => a.name === asset.name);
+        if (existing) {
+          existing.shares = asset.shares;
+        } else {
+          acc.assets.push(asset);
+        }
+      });
+
+      saveToStorage();
+      refreshAll();
+      // 辨識完自動抓一次最新價格與名稱
+      syncAllPrices(appState);
+    });
+  };
+
   document.getElementById("btnSyncAll").onclick = () => {
     syncAllPrices(appState);
   };
@@ -79,7 +100,7 @@ function bindGlobalEvents() {
     acc.assets.push({
       id: Date.now(),
       name: "",
-      fullName: "",
+      fullName: "---", // 初始值改為 "---"
       price: 0,
       shares: 0,
       targetRatio: 0,
@@ -141,7 +162,7 @@ window.removeAsset = (assetId) => {
 };
 
 window.fetchLivePrice = (id, symbol) => {
-  fetchLivePrice(id, symbol, appState);
+  fetchLivePrice(id, symbol, appState); // 確保這裡有傳入 appState
 };
 
 init();

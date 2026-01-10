@@ -89,14 +89,20 @@ main {
 /* 3. 橫向參數控制列 - 防止切斷與置中對齊 */
 .params-row-tight {
   display: flex;
-  flex-wrap: wrap; /* 螢幕不夠寬時自動換行，防止輸入框被壓縮 */
+  flex-wrap: nowrap; /* 1. 改為 nowrap，強制不換行 */
+  overflow-x: auto; /* 2. 開啟橫向滾動，防止在手機螢幕上破版 */
   background: white;
   border: 2px solid #fff1f2;
   border-radius: 24px;
-  overflow: hidden;
-  width: fit-content;
+  width: fit-content; /* 3. 讓容器寬度隨內容撐開 */
+  max-width: 100%; /* 4. 確保不超過螢幕寬度 */
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
   margin-bottom: 40px;
+}
+
+/* 修正最後一個邊框問題 (您在 HTML 有用到 no-border 類別，但 CSS 沒寫) */
+.no-border {
+  border-right: none !important;
 }
 
 .input-unit,

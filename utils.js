@@ -102,3 +102,69 @@ export function importExcel(e, onComplete) {
   };
   reader.readAsArrayBuffer(file);
 }
+
+/**
+ * 處理照片辨識 OCR
+ * @param {Event} e - Input change 事件
+ * @param {Function} onComplete - 辨識成功後的 callback
+ */
+export async function importFromImage(e, onComplete) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  showToast("AI 辨識啟動中...");
+
+  try {
+    // 辨識繁體中文與英文數字
+    const worker = await Tesseract.createWorker("chi_tra+eng");
+    const {
+      data: { text },
+    } = await worker.recognize(file);
+    await worker.terminate();
+
+    console.log("辨識內容:", text);
+
+    const lines = text.split("\n");
+    const newAssets = [];
+
+    // utils.js 建議修正片段
+    lines.forEach((line) => {
+      const codeMatch = line.match(/\b(\d{4,6}[A-Z]?)\b/);
+      if (codeMatch) {
+        const code = codeMatch[1];
+        // 改為：抓取代碼後方第一個出現的、3位數以上的整數 (通常就是股數)
+        const numbers =
+          line.replace(code, "").match(/\d{1,3}(,\d{3})+|\d{3,}/g) || [];
+
+        if (numbers.length > 0) {
+          // 取第一個數字作為股數，通常券商表格股數會在市值前面
+          const shares = parseInt(numbers[0].replace(/,/g, ""));
+
+          if (shares > 0) {
+            newAssets.push({
+              id: Date.now() + Math.random(),
+              name: code,
+              fullName: "辨識成功 (載入中...)",
+              price: 0,
+              shares: shares,
+              leverage: 1,
+              targetRatio: 0,
+            });
+          }
+        }
+      }
+    });
+
+    if (newAssets.length > 0) {
+      onComplete(newAssets);
+      showToast(`成功辨識 ${newAssets.length} 個標的`);
+    } else {
+      showToast("辨識不到有效資料，請確保照片清晰");
+    }
+  } catch (err) {
+    console.error(err);
+    showToast("辨識過程出錯");
+  } finally {
+    e.target.value = "";
+  }
+}
