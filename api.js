@@ -1,34 +1,38 @@
 /**
- * api.js 最終穩定版
- * 職責：處理穩定報價 (v8/v10)，並透過 Yahoo 語系設定嘗試抓取中文名稱
+ * api.js
+ * 職責：使用最穩定的 Yahoo v7 接口，同時抓取報價與中文名稱
  */
 import { renderMainUI, showToast } from "./ui.js";
 import { saveToStorage } from "./state.js";
 
+// 線上環境最穩定的代理組合
 const PROXIES = [
-  "https://corsproxy.io/?",
   "https://api.allorigins.win/get?url=",
+  "https://corsproxy.io/?",
 ];
 
 /**
- * 抓取單一資產報價與名稱
+ * 抓取單一標的的即時報價與中文名稱
  */
 export async function fetchLivePrice(id, symbol, appState) {
   if (!symbol) return false;
+
   const icon = document.getElementById(`assetSync-${id}`);
   if (icon) icon.classList.add("fa-spin-fast", "text-rose-600");
 
   let ticker = symbol.trim().toUpperCase();
-  const cleanTicker = ticker.replace(".TW", "").replace(".TWO", "");
-  const isTaiwan = /^\d{4,6}/.test(cleanTicker);
+  const isTaiwan = /^\d{4,6}/.test(ticker);
 
-  const tryFetchData = async (targetTicker) => {
-    // 使用 v8 接口搭配繁體中文參數，這是目前您環境下最穩定的報價路徑
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d&lang=zh-Hant-TW&region=TW`;
+  const tryFetch = async (targetTicker) => {
+    // 改用 v7/quote 接口，這是目前獲取名稱與價格最穩定的組合
+    const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${targetTicker}&lang=zh-Hant-TW&region=TW`;
 
     for (let proxy of PROXIES) {
       try {
-        const finalUrl = proxy + encodeURIComponent(yahooUrl);
+        const finalUrl = proxy.includes("allorigins")
+          ? proxy + encodeURIComponent(yahooUrl)
+          : proxy + yahooUrl;
+
         const res = await fetch(finalUrl);
         if (!res.ok) continue;
 
@@ -38,52 +42,47 @@ export async function fetchLivePrice(id, symbol, appState) {
           ? JSON.parse(rawData.contents)
           : rawData;
 
-        const result = data.chart?.result?.[0];
-        if (result && result.meta) {
+        // v7 接口的數據結構
+        const result = data.quoteResponse?.result?.[0];
+        if (result) {
           return {
-            price: result.meta.regularMarketPrice || result.meta.previousClose,
-            name:
-              result.meta.shortName ||
-              result.meta.longName ||
-              result.meta.symbol,
+            price: result.regularMarketPrice,
+            // 優先抓取 longName (完整中文名)，抓不到才用 shortName
+            name: result.longName || result.shortName || result.symbol,
           };
         }
       } catch (e) {
+        console.warn(`代理 ${proxy} 請求失敗`);
         continue;
       }
     }
     return null;
   };
 
-  // 1. 執行報價抓取
   let result = null;
   if (isTaiwan && !ticker.includes(".")) {
+    // 自動輪詢上市 (.TW) 與 上櫃 (.TWO)
     result =
-      (await tryFetchData(ticker + ".TW")) ||
-      (await tryFetchData(ticker + ".TWO"));
+      (await tryFetch(ticker + ".TW")) || (await tryFetch(ticker + ".TWO"));
   } else {
-    result = await tryFetchData(ticker);
+    result = await tryFetch(ticker);
   }
 
-  // 2. 處理資料更新
   if (result && result.price) {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     const asset = acc.assets.find((a) => a.id === id);
     if (asset) {
-      // 更新價格
       asset.price = result.price;
 
-      // 名稱邏輯：檢查是否有中文字元
+      // 檢查回傳名稱是否含有中文，避免代碼覆蓋
       const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
-
       if (result.name && hasChinese(result.name)) {
         asset.fullName = result.name;
       } else if (!asset.fullName || asset.fullName === "---") {
-        // 若抓不到中文，且原本是空值，則顯示 Ticker
         asset.fullName = ticker;
       }
 
-      // --- 核心修正：存檔後必須渲染，下方文字才會變 ---
+      // 關鍵：更新資料後立即存檔並重新渲染 UI，確保下方文字同步改變
       saveToStorage();
       renderMainUI(acc);
 
@@ -97,12 +96,12 @@ export async function fetchLivePrice(id, symbol, appState) {
 }
 
 /**
- * 批次同步所有資產
+ * 批次同步所有標的
  */
 export async function syncAllPrices(appState) {
   const mainSync = document.getElementById("syncIcon");
   if (mainSync) mainSync.classList.add("fa-spin-fast");
-  showToast("更新報價中...");
+  showToast("正在獲取最新報價與中文名稱...");
 
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   let successCount = 0;
@@ -111,11 +110,15 @@ export async function syncAllPrices(appState) {
     if (asset.name) {
       const success = await fetchLivePrice(asset.id, asset.name, appState);
       if (success) successCount++;
-      // 增加延遲防止被 Yahoo 封鎖
-      await new Promise((r) => setTimeout(r, 600));
+      // 增加延遲防止被 Yahoo 封鎖 IP
+      await new Promise((r) => setTimeout(r, 800));
     }
   }
 
   if (mainSync) mainSync.classList.remove("fa-spin-fast");
-  showToast(successCount > 0 ? `同步完成 (${successCount} 筆)` : "同步失敗");
+  showToast(
+    successCount > 0
+      ? `成功更新 ${successCount} 筆標的`
+      : "更新失敗，請檢查網路"
+  );
 }
