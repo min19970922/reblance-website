@@ -1,3 +1,6 @@
+/* * styles.css - 終極美學大氣版 (老花友善與防切斷優化)
+ */
+
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap");
 
@@ -5,175 +8,238 @@
   --primary-pink: #fb7185;
   --accent-pink: #e11d48;
   --sidebar-width: 320px;
-}
-body {
-  font-family: "Noto Sans TC", sans-serif;
-  background-color: #fffafb;
-  color: #1a0005;
-  margin: 0;
-  overflow-x: auto;
+  --bg-soft-pink: #fffafb;
+  /* 增加字體尺寸變數，方便統一管理 */
+  --font-size-base: 1.2rem;
+  --font-size-data: 2.2rem;
+  --font-size-table: 1.6rem;
 }
 
-/* 1. 佈局架構 */
+/* 基礎重設 */
+body {
+  font-family: "Noto Sans TC", sans-serif;
+  background-color: var(--bg-soft-pink);
+  color: #1a0005;
+  margin: 0;
+  line-height: 1.5;
+  overflow-x: hidden; /* 防止整體橫向捲動 */
+}
+
+/* 1. 佈局架構 - 側邊欄與主內容 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
   min-height: 100vh;
-  transition: all 0.4s ease;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .dashboard-container.sidebar-collapsed {
-  --sidebar-width: 0px;
+  grid-template-columns: 0px 1fr;
 }
+
 aside {
   width: var(--sidebar-width);
   overflow: hidden;
   white-space: nowrap;
-  transition: all 0.4s ease;
   background: white;
   border-right: 1px solid #fff1f2;
+  display: flex;
+  flex-direction: column;
 }
-.sidebar-collapsed aside {
-  border-right: none;
-}
+
 main {
   width: 100%;
   padding: 40px;
   box-sizing: border-box;
-  flex: 1;
+  overflow-y: auto;
 }
 
-/* 2. 橫向數據看板 - 縮小字體為 2rem */
+/* 2. 數據看板 - 卡片樣式優化 */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 15px;
-}
-.glass-card {
-  background: white;
-  border-radius: 20px;
-  border: 1px solid rgba(251, 113, 133, 0.2);
-  padding: 15px 20px !important;
-  box-shadow: 0 4px 15px -5px rgba(251, 113, 133, 0.1);
-}
-.glass-card span {
-  font-size: 1.2rem !important;
-  font-weight: 900;
-  color: #9d174d;
-}
-.glass-card div {
-  font-size: 2rem !important; /* 數據大字設為 2rem */
-  font-weight: 900;
-  margin-top: 5px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
 }
 
-/* 3. 橫向無縫參數列 - 文字靠左/數值靠右 */
+.glass-card {
+  background: white;
+  border-radius: 24px;
+  border: 1px solid rgba(251, 113, 133, 0.2);
+  padding: 20px !important;
+  box-shadow: 0 10px 25px -5px rgba(251, 113, 133, 0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+.glass-card span {
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: #9d174d;
+  margin-bottom: 8px;
+}
+
+.glass-card div {
+  font-size: var(--font-size-data) !important;
+  font-weight: 900;
+  font-family: "JetBrains Mono", monospace;
+  letter-spacing: -1px;
+}
+
+/* 3. 橫向參數控制列 - 防止切斷與置中對齊 */
 .params-row-tight {
   display: flex;
-  align-items: stretch;
+  flex-wrap: wrap; /* 螢幕不夠寬時自動換行，防止輸入框被壓縮 */
   background: white;
   border: 2px solid #fff1f2;
   border-radius: 24px;
   overflow: hidden;
   width: fit-content;
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+  margin-bottom: 40px;
 }
+
 .input-unit,
 .input-unit-small {
   display: flex;
   flex-direction: column;
-  padding: 15px 30px;
+  padding: 15px 25px;
   border-right: 2px solid #fff1f2;
-  text-align: left; /* 標題文字一律靠左 */
+  min-width: 140px;
 }
-.input-unit {
-  min-width: 280px;
-}
-.input-unit-small {
-  min-width: 160px;
-}
-.no-border {
-  border-right: none !important;
-}
-.params-row-tight label {
-  font-size: 1.1rem;
+
+.input-unit label {
+  font-size: 1rem;
   font-weight: 900;
-  color: #fb7185;
-  margin-bottom: 2px;
-  white-space: nowrap;
+  color: var(--primary-pink);
+  margin-bottom: 4px;
 }
+
 .input-box {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
+
 .input-box span {
   font-size: 1.8rem;
   font-weight: 900;
   color: #fecdd3;
 }
-/* 數值輸入格內容靠右 */
-.input-box input,
-.flat-input {
+
+/* 輸入框的核心設計：大字體且不切斷 */
+.flat-input,
+.input-box input {
   border: none;
   outline: none;
-  font-size: 2.2rem;
+  font-size: var(--font-size-data);
   font-weight: 900;
   font-family: "JetBrains Mono";
   width: 100%;
   background: transparent;
-  text-align: right;
-}
-.accent-text {
-  color: var(--accent-pink);
+  text-align: right; /* 數字靠右最美觀 */
 }
 
-/* 4. 表格 Auto 寬度核心邏輯 */
+/* 4. 資產監控表格 - 防止切斷的核心技術 */
+.flex-1.overflow-x-auto {
+  overflow-x: auto; /* 開啟橫向捲動保護 */
+  padding-bottom: 20px;
+}
+
 .auto-table {
   width: 100%;
-  border-spacing: 0 10px;
+  border-spacing: 0 15px;
   border-collapse: separate;
-  table-layout: auto;
+  table-layout: auto; /* 讓表格根據內容自動撐開 */
+  min-width: 1100px; /* 強制保證表格基礎寬度，避免小螢幕擠壓數字 */
 }
+
+.auto-table th {
+  padding: 0 20px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
 td {
   background: white;
-  padding: 20px;
+  padding: 20px !important;
   vertical-align: middle;
-  white-space: nowrap;
-  font-size: 1.5rem !important;
+  white-space: nowrap; /* 禁止文字換行，防止切斷 */
+  font-size: var(--font-size-table) !important;
   font-weight: 900;
+  transition: transform 0.2s;
 }
+
 td:first-child {
-  border-radius: 20px 0 0 20px;
+  border-radius: 24px 0 0 24px;
 }
 td:last-child {
-  border-radius: 0 20px 20px 0;
+  border-radius: 0 24px 24px 0;
 }
 
-/* 精確欄位寬度控制 */
-.col-leverage,
-.col-target-pct {
-  min-width: 50px;
+/* 針對輸入欄位的最小寬度保護 */
+.col-symbol {
+  min-width: 250px;
 }
-.col-price,
+.col-leverage {
+  min-width: 100px;
+}
+.col-price {
+  min-width: 180px;
+}
 .col-shares {
-  min-width: 110px;
+  min-width: 160px;
+}
+.col-target-pct {
+  min-width: 120px;
 }
 
-/* 輸入框寬度 Auto */
+/* 下底線輸入框設計 */
 .underline-input {
   background: transparent;
   border-bottom: 3px solid #fecdd3;
   outline: none;
   font-weight: 900;
-  font-size: 1.5rem !important;
+  font-size: var(--font-size-table) !important;
   width: 100%;
+  padding: 4px 0;
   transition: all 0.3s;
 }
+
 .underline-input:focus {
   border-bottom-color: var(--accent-pink);
+  transform: translateY(-2px);
 }
 
-/* 5. 脈動動畫 */
+/* 移除數字輸入框的上下箭頭（Spinners）以釋放空間 */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* 5. 互動與美化 */
+.btn-pink {
+  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
+  color: white;
+  font-weight: 900;
+  border-radius: 18px;
+  transition: all 0.3s;
+}
+
+.btn-pink:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -5px rgba(225, 29, 72, 0.4);
+}
+
+.font-mono-data {
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* 脈動動畫 - 用於強調需要注意的數據 */
 @keyframes pulsate-bar {
   0%,
   100% {
@@ -181,21 +247,26 @@ td:last-child {
     transform: scaleY(1);
   }
   50% {
-    opacity: 0.5;
-    transform: scaleY(1.3);
+    opacity: 0.6;
+    transform: scaleY(1.2);
   }
 }
 .pulsate-bar {
-  animation: pulsate-bar 0.8s ease-in-out infinite;
+  animation: pulsate-bar 1s ease-in-out infinite;
 }
 
-.btn-pink {
-  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
-  color: white;
-  font-weight: 900;
-  border-radius: 16px;
+/* 自定義捲動條 - 維持簡約感 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
-.font-mono-data {
-  font-family: "JetBrains Mono", monospace;
-  letter-spacing: -1px;
+::-webkit-scrollbar-track {
+  background: var(--bg-soft-pink);
+}
+::-webkit-scrollbar-thumb {
+  background: #fecdd3;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-pink);
 }
