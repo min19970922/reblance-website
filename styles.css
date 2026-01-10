@@ -71,7 +71,7 @@ main {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 15px;
-  margin-bottom: ５px; /* 從 25px 縮小至 10px */
+  margin-bottom: 5px; /* 從 25px 縮小至 10px */
 }
 
 .params-row-tight {
@@ -138,14 +138,14 @@ main {
 .underline-input {
   grid-area: 1 / 1;
   width: 100%;
-  background: white !important; /* 給予背景色以遮蓋下方的鏡像文字 */
+  background: white !important; /* 必須是 white，才能蓋掉下方的鏡像文字 */
   border: none;
   border-bottom: 2px solid #fecdd3;
   outline: none;
   text-align: center;
   padding: 0 10px;
   font-weight: 900;
-  z-index: 5; /* 提升層級，確保在鏡像文字上方 */
+  z-index: 5; /* 確保它在鏡像層上方 */
   transition: border-color 0.2s;
 }
 

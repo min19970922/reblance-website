@@ -128,7 +128,7 @@ export async function importFromImage(e, onComplete) {
         );
 
         const categoryMatch = afterTicker.match(
-          /(?:現買|擔保品|融資|普通|庫存|現賣|融券)\)?\s*(\d+)/
+          /(?:現買|擔保品|融資|普通|庫存|現賣|融券)[^\d]*(\d{1,})/
         );
 
         let shares = 0;
