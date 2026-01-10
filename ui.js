@@ -1,7 +1,6 @@
 /**
- * ui.js - 終極適配版
- * 1. 移除所有固定寬度限制，確保數據不切斷
- * 2. 強化標題名稱賦值邏輯
+ * ui.js - 完整版
+ * 職責：處理所有介面渲染、標題更新、以及再平衡心理預期顯示邏輯
  */
 import {
   safeNum,
@@ -9,6 +8,7 @@ import {
   getRebalanceSuggestion,
 } from "./state.js";
 
+// 側邊欄切換
 export function toggleSidebarUI(isCollapsed) {
   const container = document.getElementById("mainContainer");
   const icon = document.getElementById("toggleIcon");
@@ -16,8 +16,10 @@ export function toggleSidebarUI(isCollapsed) {
   icon.className = isCollapsed ? "fas fa-bars" : "fas fa-chevron-left";
 }
 
+// 渲染帳戶列表
 export function renderAccountList(appState, onSwitch, onDelete) {
   const list = document.getElementById("accountList");
+  if (!list) return;
   list.innerHTML = "";
   appState.accounts.forEach((acc) => {
     const isActive = acc.id === appState.activeId;
@@ -45,22 +47,26 @@ export function renderAccountList(appState, onSwitch, onDelete) {
   });
 }
 
+// 主介面渲染核心
 export function renderMainUI(acc) {
   if (!acc) return;
 
-  // 更新標題
+  // 1. 強制更新帳戶名稱標題
   const titleEl = document.getElementById("activeAccountTitle");
   if (titleEl) {
     titleEl.innerHTML = `${acc.name} <i class="fas fa-pen text-xl text-rose-200 ml-4"></i>`;
   }
 
+  // 2. 更新橫向參數列數值
   document.getElementById("debtInput").value = acc.totalDebt;
   document.getElementById("cashInput").value = acc.currentCash;
   document.getElementById("usdRateInput").value = acc.usdRate;
   document.getElementById("rebalanceAbsInput").value = acc.rebalanceAbs;
   document.getElementById("rebalanceRelInput").value = acc.rebalanceRel;
 
+  // 3. 渲染資產表格
   const body = document.getElementById("assetBody");
+  if (!body) return;
   body.innerHTML = "";
   const data = calculateAccountData(acc);
   data.assetsCalculated.forEach((asset, index) => {
@@ -76,6 +82,7 @@ export function renderMainUI(acc) {
   updateDashboardUI(data, acc);
 }
 
+// 生成表格行 (Auto 寬度設計)
 function generateAssetRowHTML(asset, index, totalAssets) {
   const hasContent =
     asset.fullName && asset.fullName !== "" && asset.fullName !== "---";
@@ -86,9 +93,8 @@ function generateAssetRowHTML(asset, index, totalAssets) {
       : "text-rose-400"
     : "text-rose-300 animate-pulse";
 
-  // --- 核心修正：移除固定寬度類別 (w-24, min-w 等)，確保 Auto 寬度 ---
   return `
-    <td>
+    <td class="px-4 py-6">
       <div class="flex items-center gap-4">
         <div class="flex flex-col">
           <button onclick="moveAsset(${asset.id},-1)" class="${
@@ -101,19 +107,19 @@ function generateAssetRowHTML(asset, index, totalAssets) {
         <div class="flex flex-col">
           <input type="text" value="${asset.name}" onchange="updateAsset(${
     asset.id
-  },'name',this.value)" class="underline-input uppercase font-black">
+  },'name',this.value)" class="underline-input uppercase font-black w-32">
           <span id="nameLabel-${
             asset.id
-          }" class="text-xl font-black ${nameColor} mt-1">${displayName}</span>
+          }" class="text-xl font-black ${nameColor} mt-1 whitespace-nowrap">${displayName}</span>
         </div>
       </div>
     </td>
-    <td class="text-center">
+    <td class="text-center px-4">
       <input type="number" value="${asset.leverage}" onchange="updateAsset(${
     asset.id
-  },'leverage',this.value)" class="underline-input text-rose-600 font-black">
+  },'leverage',this.value)" class="underline-input text-rose-600 font-black text-center w-20">
     </td>
-    <td>
+    <td class="px-4">
       <div class="flex items-center gap-2">
         <input type="number" value="${asset.price}" onchange="updateAsset(${
     asset.id
@@ -125,29 +131,25 @@ function generateAssetRowHTML(asset, index, totalAssets) {
         </button>
       </div>
     </td>
-    <td>
+    <td class="px-4">
       <input type="number" value="${asset.shares}" onchange="updateAsset(${
     asset.id
   },'shares',this.value)" class="underline-input font-mono-data text-right">
     </td>
     <td id="curVal-${
       asset.id
-    }" class="font-mono-data text-rose-950 font-black text-right"></td>
+    }" class="font-mono-data text-rose-950 font-black text-right px-4"></td>
     <td id="curPct-${
       asset.id
-    }" class="font-mono-data text-indigo-800 text-center font-black"></td>
-    <td class="text-center">
-      <div class="flex items-center justify-end gap-1">
-        <input type="number" value="${
-          asset.targetRatio
-        }" onchange="updateAsset(${
+    }" class="font-mono-data text-indigo-800 text-center font-black px-4"></td>
+    <td class="text-center px-4">
+      <input type="number" value="${asset.targetRatio}" onchange="updateAsset(${
     asset.id
-  },'targetRatio',this.value)" class="underline-input text-rose-900 font-black text-right">%
-      </div>
+  },'targetRatio',this.value)" class="underline-input text-center text-rose-900 font-black w-20">%
     </td>
-    <td id="targetVal-${asset.id}" class="text-center"></td>
-    <td id="sugg-${asset.id}" class="text-center"></td>
-    <td class="text-right">
+    <td id="targetVal-${asset.id}" class="text-center px-6"></td>
+    <td id="sugg-${asset.id}" class="text-center px-6"></td>
+    <td class="text-right px-4">
       <button onclick="removeAsset(${
         asset.id
       })" class="text-rose-100 hover:text-rose-600">
@@ -156,6 +158,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     </td>`;
 }
 
+// 更新單列數據 (心理預期邏輯)
 function updateAssetRowData(asset, acc, netValue) {
   if (netValue <= 0) return;
   const s = getRebalanceSuggestion(asset, acc, netValue);
@@ -166,7 +169,7 @@ function updateAssetRowData(asset, acc, netValue) {
     `curPct-${asset.id}`
   ).innerText = `${s.currentPct.toFixed(1)}%`;
   document.getElementById(`targetVal-${asset.id}`).innerHTML = `
-    <div class="flex flex-col font-black">
+    <div class="flex flex-col font-black items-center">
       <span class="text-2xl text-rose-950 font-mono-data">$${Math.round(
         s.targetNominal
       ).toLocaleString()}</span>
@@ -184,10 +187,10 @@ function updateAssetRowData(asset, acc, netValue) {
   const isBuy = s.diffNominal > 0;
   const suggCell = document.getElementById(`sugg-${asset.id}`);
 
-  // 門檻觸發顯示邏輯
+  // --- 關鍵策略邏輯：未觸發不顯示文字，僅顯示進度條 ---
   if (!s.isTriggered) {
     suggCell.innerHTML = `
-      <div class="flex flex-col items-center min-w-[320px]">
+      <div class="flex flex-col items-center min-w-[280px]">
         <div class="w-full h-4 bg-gray-100 rounded-full mt-2 overflow-hidden border">
           <div class="h-full ${barColor} transition-all duration-700" style="width: ${Math.round(
       s.saturation * 100
@@ -200,7 +203,7 @@ function updateAssetRowData(asset, acc, netValue) {
       </div>`;
   } else {
     suggCell.innerHTML = `
-      <div class="flex flex-col items-center min-w-[320px] scale-105 transition-transform">
+      <div class="flex flex-col items-center min-w-[280px] scale-105 transition-transform">
         <div class="flex items-center gap-4">
           <span class="${
             isBuy ? "text-emerald-500" : "text-rose-700"
@@ -220,6 +223,7 @@ function updateAssetRowData(asset, acc, netValue) {
   }
 }
 
+// 更新看板資料
 function updateDashboardUI(data, acc) {
   document.getElementById("totalNetValue").innerText = `$${Math.round(
     data.netValue
@@ -238,8 +242,10 @@ function updateDashboardUI(data, acc) {
     mRatioEl.innerText = `${Math.round(data.maintenanceRatio)}%`;
 }
 
+// 顯示訊息
 export function showToast(msg) {
   const t = document.getElementById("toast");
+  if (!t) return;
   document.getElementById("toastMsg").innerText = msg;
   t.style.opacity = "1";
   t.style.transform = "translateY(-10px)";
