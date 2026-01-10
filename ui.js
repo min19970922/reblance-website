@@ -1,6 +1,6 @@
 /**
  * ui.js
- * 職責：負責畫面的更新、HTML 生成、以及確保非同步抓取的資料能即時反應
+ * 修正：強化非同步名稱抓取時的顯示狀態與 DOM 結構
  */
 import {
   safeNum,
@@ -8,7 +8,6 @@ import {
   getRebalanceSuggestion,
 } from "./state.js";
 
-// 1. 基礎 UI 狀態管理
 export function toggleSidebarUI(isCollapsed) {
   const container = document.getElementById("mainContainer");
   const icon = document.getElementById("toggleIcon");
@@ -18,11 +17,9 @@ export function toggleSidebarUI(isCollapsed) {
     : "fas fa-chevron-left text-xl";
 }
 
-// 2. 側邊欄計畫列表渲染
 export function renderAccountList(appState, onSwitch, onDelete) {
   const list = document.getElementById("accountList");
   list.innerHTML = "";
-
   appState.accounts.forEach((acc) => {
     const isActive = acc.id === appState.activeId;
     const div = document.createElement("div");
@@ -31,7 +28,6 @@ export function renderAccountList(appState, onSwitch, onDelete) {
         ? "bg-rose-500 text-white shadow-lg scale-105"
         : "bg-white hover:bg-rose-50 text-rose-900 border border-rose-50"
     }`;
-
     div.innerHTML = `
             <div class="flex items-center gap-3 flex-1 overflow-hidden" onclick="${onSwitch}('${
       acc.id
@@ -51,11 +47,8 @@ export function renderAccountList(appState, onSwitch, onDelete) {
   });
 }
 
-// 3. 核心表格渲染邏輯
 export function renderMainUI(acc) {
   if (!acc) return;
-
-  // 更新基本標題與全局輸入框
   const titleEl = document.getElementById("activeAccountTitle");
   if (titleEl)
     titleEl.innerHTML = `${acc.name} <i class="fas fa-pen text-2xl text-rose-300 ml-4"></i>`;
@@ -68,7 +61,6 @@ export function renderMainUI(acc) {
 
   const body = document.getElementById("assetBody");
   body.innerHTML = "";
-
   const data = calculateAccountData(acc);
 
   data.assetsCalculated.forEach((asset, index) => {
@@ -80,21 +72,18 @@ export function renderMainUI(acc) {
       data.assetsCalculated.length
     );
     body.appendChild(row);
-
-    // 更新計算出的數據 (曝險額、佔比、建議)
     updateAssetRowData(asset, acc, data.netValue);
   });
-
   updateDashboardUI(data, acc);
 }
 
-// 4. 生成資產列 HTML (重點：fullName 的顯示)
 function generateAssetRowHTML(asset, index, totalAssets) {
-  // 如果 fullName 還是空的，顯示 "正在抓取名稱..." 以便使用者知道進度
-  const displayName =
-    asset.fullName && asset.fullName !== "---"
-      ? asset.fullName
-      : "正在載入資訊...";
+  // 修正：如果 fullName 存在且含中文則顯示，否則顯示載入中
+  const hasFullName = asset.fullName && /[\u4e00-\u9fa5]/.test(asset.fullName);
+  const displayName = hasFullName ? asset.fullName : "正在載入資訊...";
+  const nameColor = hasFullName
+    ? "text-rose-600"
+    : "text-rose-300 animate-pulse";
 
   return `
         <td class="col-symbol">
@@ -119,7 +108,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
   }, 'name', this.value)" class="underline-input uppercase tracking-tighter text-2xl">
                     <span id="nameLabel-${
                       asset.id
-                    }" class="text-sm font-black text-rose-600 mt-1 px-1">${displayName}</span>
+                    }" class="text-sm font-black ${nameColor} mt-1 px-1">${displayName}</span>
                 </div>
             </div>
         </td>
@@ -176,20 +165,16 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     `;
 }
 
-// 5. 局部更新資產數據
 function updateAssetRowData(asset, acc, netValue) {
   if (netValue <= 0) return;
-
   const sugg = getRebalanceSuggestion(asset, acc, netValue);
   const suggCell = document.getElementById(`sugg-${asset.id}`);
-
   document.getElementById(`curVal-${asset.id}`).innerText = `$${Math.round(
     asset.nominalValue
   ).toLocaleString()}`;
   document.getElementById(
     `curPct-${asset.id}`
   ).innerText = `${sugg.currentPct.toFixed(1)}%`;
-
   document.getElementById(`targetVal-${asset.id}`).innerHTML = `
         <div class="flex flex-col text-sm font-black items-center">
             <span class="text-rose-950 font-mono-data text-xl tracking-tighter">$${Math.round(
@@ -199,7 +184,6 @@ function updateAssetRowData(asset, acc, netValue) {
               sugg.targetBookValue
             ).toLocaleString()}</span>
         </div>`;
-
   const isBuy = sugg.diffNominal > 0;
   suggCell.innerHTML = `
     <div class="flex flex-col items-center">
@@ -221,7 +205,6 @@ function updateAssetRowData(asset, acc, netValue) {
     </div>`;
 }
 
-// 6. 看板數據更新
 function updateDashboardUI(data, acc) {
   document.getElementById("totalNetValue").innerText = `$${Math.round(
     data.netValue
@@ -235,14 +218,11 @@ function updateDashboardUI(data, acc) {
   document.getElementById(
     "targetTotalRatio"
   ).innerText = `${data.targetTotalCombined.toFixed(1)}%`;
-
   const levBadge = document.getElementById("levBadge");
   if (levBadge)
     levBadge.classList.toggle("hidden", data.targetTotalCombined <= 100.1);
-
   const mRatioEl = document.getElementById("maintenanceRatio");
   const mCard = document.getElementById("maintenanceCard");
-
   if (data.maintenanceRatio) {
     mRatioEl.innerText = `${Math.round(data.maintenanceRatio)}%`;
     mCard.className = `glass-card p-6 border-t-8 ${
@@ -258,7 +238,6 @@ function updateDashboardUI(data, acc) {
   }
 }
 
-// 7. Toast 提示
 export function showToast(msg) {
   const t = document.getElementById("toast");
   const msgEl = document.getElementById("toastMsg");

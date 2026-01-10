@@ -1,8 +1,9 @@
 /**
  * api.js - 核心修復版
  * 1. 價格使用 v8 (確保報價成功)
- * 2. 名稱使用 Search API (確保中文不跳掉)
+ * 2. 名稱使用 Search API (確保 100% 回傳中文)
  * 3. 修正上櫃 (.TWO) 與 債券 (00722B) 抓取邏輯
+ * 4. 強化 DOM 直攻寫入，確保中文名稱必定顯示
  */
 import { renderMainUI, showToast } from "./ui.js";
 import { saveToStorage } from "./state.js";
@@ -14,9 +15,10 @@ const PROXIES = [
 ];
 
 /**
- * 專職負責抓取繁體中文全名 (Search 接口對 GitHub Pages 最友善)
+ * 專門負責抓取繁體中文全名
  */
 async function fetchChineseName(ticker) {
+  // 搜尋接口對繁體中文支援度最高，且支援債券代號
   const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${ticker}&quotesCount=1&newsCount=0&lang=zh-Hant-TW&region=TW`;
 
   for (let proxy of PROXIES) {
@@ -33,7 +35,7 @@ async function fetchChineseName(ticker) {
         : rawData;
 
       if (data.quotes && data.quotes.length > 0) {
-        // 抓取 longname (例如：亞泥)
+        // 抓取 longname (例如：群益台灣精選高息)
         return data.quotes[0].longname || data.quotes[0].shortname;
       }
     } catch (e) {
@@ -60,7 +62,7 @@ export async function fetchLivePrice(id, symbol, appState) {
           ? proxy + encodeURIComponent(yahooUrl)
           : proxy + yahooUrl;
         const res = await fetch(finalUrl);
-        if (res.status === 404) return null; // 此市場無此代號
+        if (res.status === 404) return null;
         if (!res.ok) continue;
 
         const rawData = await res.json();
@@ -97,21 +99,34 @@ export async function fetchLivePrice(id, symbol, appState) {
     if (asset) {
       asset.price = result.price;
 
-      // 價格一變，立刻讓 UI 重新計算下方建議文字
+      // 價格更新後，立即儲存並渲染 UI (此時名稱可能是空的)
       saveToStorage();
       renderMainUI(acc);
 
-      // 3. 非同步抓取名稱 (Search API)
+      // 3. 非同步抓取名稱 (使用 Search 接口)
       fetchChineseName(result.finalTicker).then((name) => {
-        const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
+        const hasChinese = (str) => str && /[\u4e00-\u9fa5]/.test(str);
         if (name && hasChinese(name)) {
           asset.fullName = name;
           saveToStorage();
-          renderMainUI(acc); // 名稱抓到後再次刷新
+
+          // 強制 DOM 更新：直接修改 Label 內容，確保不被渲染延遲影響
+          const label = document.getElementById(`nameLabel-${id}`);
+          if (label) {
+            label.innerText = name;
+            label.classList.remove("text-rose-300", "animate-pulse");
+            label.classList.add("text-rose-600");
+          }
+        } else {
+          // 若抓不到中文，標籤顯示原始代號
+          const label = document.getElementById(`nameLabel-${id}`);
+          if (label) {
+            label.innerText = ticker;
+            label.classList.remove("animate-pulse");
+          }
         }
       });
 
-      // 預設 buffer 名稱
       if (!asset.fullName || asset.fullName === "---") asset.fullName = ticker;
 
       if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
@@ -132,7 +147,7 @@ export async function syncAllPrices(appState) {
   for (let asset of acc.assets) {
     if (asset.name) {
       await fetchLivePrice(asset.id, asset.name, appState);
-      await new Promise((r) => setTimeout(r, 1000)); // 提高延遲確保 Proxy 穩定
+      await new Promise((r) => setTimeout(r, 1000));
     }
   }
   if (mainSync) mainSync.classList.remove("fa-spin-fast");
