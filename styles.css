@@ -1,31 +1,32 @@
-/* * styles.css - 終極美學大氣版 (老花友善與防切斷優化)
+/* * styles.css - 終極美學大氣版 (v3.0 柵格對齊與字體優化)
+ * 解決：對齊上方卡片、寬度自動分配、極致字體平衡
  */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap");
 
 :root {
   --primary-pink: #fb7185;
   --accent-pink: #e11d48;
   --sidebar-width: 320px;
   --bg-soft-pink: #fffafb;
-  /* 增加字體尺寸變數，方便統一管理 */
+  /* 字體尺寸變數 - 老花友善 */
   --font-size-base: 1.2rem;
   --font-size-data: 2.2rem;
   --font-size-table: 1.6rem;
 }
 
-/* 基礎重設 */
+/* 1. 基礎重設 */
 body {
-  font-family: "Noto Sans TC", sans-serif;
+  /* 套用中文微軟正黑體 + 英文 Calibri */
+  font-family: "Calibri", "Microsoft JhengHei", sans-serif;
   background-color: var(--bg-soft-pink);
   color: #1a0005;
   margin: 0;
   line-height: 1.5;
-  overflow-x: hidden; /* 防止整體橫向捲動 */
+  overflow-x: hidden;
 }
 
-/* 1. 佈局架構 - 側邊欄與主內容 */
+/* 2. 佈局架構 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
@@ -54,10 +55,11 @@ main {
   overflow-y: auto;
 }
 
-/* 2. 數據看板 - 卡片樣式優化 */
+/* 3. 數據摘要卡片 (頂部 5 格) */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  /* 強制 5 欄以對齊下方參數 */
+  grid-template-columns: repeat(5, 1fr);
   gap: 20px;
   margin-bottom: 30px;
 }
@@ -82,73 +84,88 @@ main {
 .glass-card div {
   font-size: var(--font-size-data) !important;
   font-weight: 900;
-  font-family: "JetBrains Mono", monospace;
+  font-family: "Calibri", sans-serif;
   letter-spacing: -1px;
 }
 
-/* 3. 橫向參數控制列 - 防止切斷與置中對齊 */
+/* 4. 參數列優化方案 (Grid 5 欄位對齊版) */
 .params-row-tight {
-  display: flex;
-  flex-wrap: nowrap; /* 1. 改為 nowrap，強制不換行 */
-  overflow-x: auto; /* 2. 開啟橫向滾動，防止在手機螢幕上破版 */
+  display: grid;
+  grid-template-columns: repeat(5, 1fr); /* 關鍵：平分 5 等份對齊上方 */
   background: white;
   border: 2px solid #fff1f2;
   border-radius: 24px;
-  width: fit-content; /* 3. 讓容器寬度隨內容撐開 */
-  max-width: 100%; /* 4. 確保不超過螢幕寬度 */
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  box-shadow: 0 10px 30px -10px rgba(251, 113, 133, 0.15);
   margin-bottom: 40px;
+  overflow: hidden;
 }
 
-/* 修正最後一個邊框問題 (您在 HTML 有用到 no-border 類別，但 CSS 沒寫) */
+.param-item {
+  padding: 15px 25px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid #fff1f2;
+  transition: background 0.2s;
+}
+
+.param-item:hover {
+  background-color: #fffafb;
+}
+
+.param-item label {
+  font-size: 0.85rem;
+  font-weight: 900;
+  color: var(--primary-pink);
+  margin-bottom: 4px;
+  display: block;
+  white-space: nowrap;
+  letter-spacing: 0.05em;
+}
+
+/* 輸入區域容器：解決不同高、符號歪斜問題 */
+.input-wrapper {
+  display: flex;
+  align-items: baseline; /* 關鍵：所有文字與符號底部對齊 */
+  gap: 4px;
+}
+
+/* 符號樣式 ($ 或 %) */
+.prefix,
+.suffix {
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: #fecdd3;
+  font-family: "Calibri", sans-serif;
+}
+
+.param-item input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 1.8rem;
+  font-weight: 900;
+  font-family: "Calibri", sans-serif;
+  color: #1a0005;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+
+/* 數值強調色 */
+.accent-text {
+  color: var(--accent-pink) !important;
+}
+
 .no-border {
   border-right: none !important;
 }
 
-.input-unit,
-.input-unit-small {
-  display: flex;
-  flex-direction: column;
-  padding: 15px 25px;
-  border-right: 2px solid #fff1f2;
-  min-width: 140px;
-}
-
-.input-unit label {
-  font-size: 1rem;
-  font-weight: 900;
-  color: var(--primary-pink);
-  margin-bottom: 4px;
-}
-
-.input-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.input-box span {
-  font-size: 1.8rem;
-  font-weight: 900;
-  color: #fecdd3;
-}
-
-/* 輸入框的核心設計：大字體且不切斷 */
-.flat-input,
-.input-box input {
-  border: none;
-  outline: none;
-  font-size: var(--font-size-data);
-  font-weight: 900;
-  font-family: "JetBrains Mono";
-  width: 100%;
-  background: transparent;
-  text-align: right; /* 數字靠右最美觀 */
-}
-
-/* 4. 資產監控表格 - 防止切斷的核心技術 */
+/* 5. 資產監控表格 */
 .flex-1.overflow-x-auto {
-  overflow-x: auto; /* 開啟橫向捲動保護 */
+  overflow-x: auto;
   padding-bottom: 20px;
 }
 
@@ -156,23 +173,25 @@ main {
   width: 100%;
   border-spacing: 0 15px;
   border-collapse: separate;
-  table-layout: auto; /* 讓表格根據內容自動撐開 */
-  min-width: 1100px; /* 強制保證表格基礎寬度，避免小螢幕擠壓數字 */
+  table-layout: auto;
+  min-width: 1100px;
 }
 
 .auto-table th {
   padding: 0 20px;
   text-transform: uppercase;
   letter-spacing: 1px;
+  font-family: "Microsoft JhengHei", sans-serif;
 }
 
 td {
   background: white;
   padding: 20px !important;
   vertical-align: middle;
-  white-space: nowrap; /* 禁止文字換行，防止切斷 */
+  white-space: nowrap;
   font-size: var(--font-size-table) !important;
   font-weight: 900;
+  font-family: "Calibri", "Microsoft JhengHei", sans-serif;
   transition: transform 0.2s;
 }
 
@@ -183,29 +202,13 @@ td:last-child {
   border-radius: 0 24px 24px 0;
 }
 
-/* 針對輸入欄位的最小寬度保護 */
-.col-symbol {
-  min-width: 250px;
-}
-.col-leverage {
-  min-width: 100px;
-}
-.col-price {
-  min-width: 180px;
-}
-.col-shares {
-  min-width: 160px;
-}
-.col-target-pct {
-  min-width: 120px;
-}
-
-/* 下底線輸入框設計 */
+/* 下底線輸入框設計 (表格內) */
 .underline-input {
   background: transparent;
   border-bottom: 3px solid #fecdd3;
   outline: none;
   font-weight: 900;
+  font-family: "Calibri", sans-serif;
   font-size: var(--font-size-table) !important;
   width: 100%;
   padding: 4px 0;
@@ -217,17 +220,7 @@ td:last-child {
   transform: translateY(-2px);
 }
 
-/* 移除數字輸入框的上下箭頭（Spinners）以釋放空間 */
-input::-webkit-outer-spin-button,
-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input[type="number"] {
-  -moz-appearance: textfield;
-}
-
-/* 5. 互動與美化 */
+/* 6. UI 按鈕與動畫 */
 .btn-pink {
   background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
   color: white;
@@ -241,27 +234,20 @@ input[type="number"] {
   box-shadow: 0 8px 20px -5px rgba(225, 29, 72, 0.4);
 }
 
+/* 7. 其他雜項修正 */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 .font-mono-data {
-  font-family: "JetBrains Mono", monospace;
+  font-family: "Calibri", sans-serif !important;
 }
 
-/* 脈動動畫 - 用於強調需要注意的數據 */
-@keyframes pulsate-bar {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scaleY(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scaleY(1.2);
-  }
-}
-.pulsate-bar {
-  animation: pulsate-bar 1s ease-in-out infinite;
-}
-
-/* 自定義捲動條 - 維持簡約感 */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

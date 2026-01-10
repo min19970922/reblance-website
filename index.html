@@ -77,7 +77,6 @@
                 id="inputCamera"
                 class="hidden"
                 accept="image/*"
-                capture="environment"
               />
             </label>
             <button
@@ -123,11 +122,11 @@
         </div>
 
         <div class="params-row-tight mb-10">
-          <div class="input-unit">
+          <div class="param-item">
             <label>貸款/負債 (Loan)</label>
-            <div class="input-box">
-              <span>$</span
-              ><input
+            <div class="input-wrapper">
+              <span class="prefix">$</span>
+              <input
                 type="number"
                 id="debtInput"
                 placeholder="0"
@@ -135,11 +134,12 @@
               />
             </div>
           </div>
-          <div class="input-unit">
+
+          <div class="param-item">
             <label>現金餘額 (Cash)</label>
-            <div class="input-box">
-              <span>$</span
-              ><input
+            <div class="input-wrapper">
+              <span class="prefix">$</span>
+              <input
                 type="number"
                 id="cashInput"
                 placeholder="0"
@@ -147,35 +147,46 @@
               />
             </div>
           </div>
-          <div class="input-unit-small">
-            <label>匯率</label>
-            <input
-              type="number"
-              id="usdRateInput"
-              step="0.1"
-              class="flat-input"
-              oninput="updateGlobal('usdRate', this.value)"
-            />
+
+          <div class="param-item">
+            <label>匯率 (USD/TWD)</label>
+            <div class="input-wrapper">
+              <input
+                type="number"
+                id="usdRateInput"
+                step="0.1"
+                class="accent-text"
+                oninput="updateGlobal('usdRate', this.value)"
+              />
+            </div>
           </div>
-          <div class="input-unit-small">
-            <label class="text-rose-600">絕對門檻%</label>
-            <input
-              type="number"
-              id="rebalanceAbsInput"
-              step="0.1"
-              class="flat-input accent-text"
-              oninput="updateGlobal('rebalanceAbs', this.value)"
-            />
+
+          <div class="param-item">
+            <label>絕對門檻</label>
+            <div class="input-wrapper">
+              <input
+                type="number"
+                id="rebalanceAbsInput"
+                step="0.1"
+                class="accent-text"
+                oninput="updateGlobal('rebalanceAbs', this.value)"
+              />
+              <span class="suffix">%</span>
+            </div>
           </div>
-          <div class="input-unit-small no-border">
-            <label class="text-rose-600">相對門檻%</label>
-            <input
-              type="number"
-              id="rebalanceRelInput"
-              step="0.1"
-              class="flat-input accent-text"
-              oninput="updateGlobal('rebalanceRel', this.value)"
-            />
+
+          <div class="param-item no-border">
+            <label>相對門檻</label>
+            <div class="input-wrapper">
+              <input
+                type="number"
+                id="rebalanceRelInput"
+                step="0.1"
+                class="accent-text"
+                oninput="updateGlobal('rebalanceRel', this.value)"
+              />
+              <span class="suffix">%</span>
+            </div>
           </div>
         </div>
 

@@ -104,66 +104,86 @@ export function importExcel(e, onComplete) {
 }
 
 /**
- * 處理照片辨識 OCR
- * @param {Event} e - Input change 事件
- * @param {Function} onComplete - 辨識成功後的 callback
+ * utils.js - 關鍵字錨點辨識版
+ * 模擬標題對應邏輯，精準定位股數欄位
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  showToast("AI 辨識啟動中...");
+  showToast("正在分析表格結構...");
 
   try {
-    // 辨識繁體中文與英文數字
     const worker = await Tesseract.createWorker("chi_tra+eng");
     const {
       data: { text },
     } = await worker.recognize(file);
     await worker.terminate();
 
-    console.log("辨識內容:", text);
+    console.log("辨識原始文字:", text);
 
     const lines = text.split("\n");
     const newAssets = [];
 
-    // utils.js 建議修正片段
+    // 定義台灣券商常見的「類別」關鍵字作為錨點
+    const anchors = ["現買", "現賣", "現貨", "融資", "融券", "擔保品"];
+
     lines.forEach((line) => {
+      // 1. 搜尋股票代碼 (4-6位數字)
       const codeMatch = line.match(/\b(\d{4,6}[A-Z]?)\b/);
+
       if (codeMatch) {
         const code = codeMatch[1];
-        // 改為：抓取代碼後方第一個出現的、3位數以上的整數 (通常就是股數)
-        const numbers =
-          line.replace(code, "").match(/\d{1,3}(,\d{3})+|\d{3,}/g) || [];
+        let shares = 0;
 
-        if (numbers.length > 0) {
-          // 取第一個數字作為股數，通常券商表格股數會在市值前面
-          const shares = parseInt(numbers[0].replace(/,/g, ""));
+        // 2. 尋找錨點關鍵字，定位「股數」應該出現的位置
+        let foundAnchor = false;
+        anchors.forEach((anchor) => {
+          if (line.includes(anchor) && !foundAnchor) {
+            // 抓取錨點之後的文字片段
+            const parts = line.split(anchor);
+            const textAfterAnchor = parts[parts.length - 1];
 
-          if (shares > 0) {
-            newAssets.push({
-              id: Date.now() + Math.random(),
-              name: code,
-              fullName: "辨識成功 (載入中...)",
-              price: 0,
-              shares: shares,
-              leverage: 1,
-              targetRatio: 0,
-            });
+            // 抓取該片段中的第一個數字，這通常就是「股數」
+            const numberMatch = textAfterAnchor.match(/[\d,]+/);
+            if (numberMatch) {
+              shares = parseInt(numberMatch[0].replace(/,/g, ""));
+              foundAnchor = true;
+            }
           }
+        });
+
+        // 3. 防呆機制：如果找不到錨點，則退回使用代碼後的第一個長數字邏輯
+        if (!foundAnchor || shares === 0) {
+          const numbers = line.replace(code, "").match(/[\d,]{2,}/g) || [];
+          if (numbers.length > 0) {
+            shares = parseInt(numbers[0].replace(/,/g, ""));
+          }
+        }
+
+        if (shares > 0) {
+          newAssets.push({
+            id: Date.now() + Math.random(),
+            name: code,
+            fullName: "辨識成功 (載入中...)",
+            price: 0,
+            shares: shares,
+            leverage: 1,
+            targetRatio: 0,
+          });
         }
       }
     });
 
     if (newAssets.length > 0) {
       onComplete(newAssets);
-      showToast(`成功辨識 ${newAssets.length} 個標的`);
+      showToast(`成功對應匯入 ${newAssets.length} 筆資產`);
     } else {
-      showToast("辨識不到有效資料，請確保照片清晰");
+      showToast("無法對應標題欄位，請確認照片清晰度");
     }
   } catch (err) {
-    console.error(err);
-    showToast("辨識過程出錯");
+    console.error("OCR Error:", err);
+    showToast("辨識過程發生錯誤");
   } finally {
     e.target.value = "";
   }

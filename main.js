@@ -36,6 +36,21 @@ function refreshAll() {
   const activeAcc = appState.accounts.find((a) => a.id === appState.activeId);
   renderAccountList(appState, "switchAccount", "deleteAccount");
   renderMainUI(activeAcc);
+
+  // 每次渲染後更新標題點擊事件
+  const titleEl = document.getElementById("activeAccountTitle");
+  if (titleEl) {
+    titleEl.onclick = () => {
+      const acc = appState.accounts.find((a) => a.id === appState.activeId);
+      const newName = prompt("請輸入新的計畫名稱:", acc.name);
+      if (newName && newName.trim() !== "") {
+        acc.name = newName.trim();
+        saveToStorage();
+        refreshAll();
+        showToast("名稱已更新");
+      }
+    };
+  }
 }
 
 function bindGlobalEvents() {
