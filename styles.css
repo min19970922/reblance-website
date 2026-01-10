@@ -1,0 +1,186 @@
+/* 1. 基礎變數與字體匯入 */
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&display=swap");
+
+:root {
+  --primary-pink: #fb7185;
+  --secondary-pink: #fff1f2;
+  --accent-pink: #e11d48;
+  --sidebar-width: 280px;
+}
+
+/* 2. 主版面配置 (Layout) */
+body {
+  font-family: "Noto Sans TC", sans-serif;
+  background-color: #fffafb;
+  color: #1a0005;
+  margin: 0;
+  overflow: hidden;
+}
+
+.dashboard-container {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  min-height: 100vh;
+  transition: grid-template-columns 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dashboard-container.sidebar-collapsed {
+  --sidebar-width: 0px;
+}
+
+aside {
+  width: var(--sidebar-width);
+  overflow-x: hidden;
+  white-space: nowrap;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 1;
+}
+
+.sidebar-collapsed aside {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 3. 玻璃擬態卡片與輸入框 (UI Components) */
+.glass-card {
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(251, 113, 133, 0.2);
+  box-shadow: 0 8px 30px -10px rgba(251, 113, 133, 0.15);
+}
+
+.underline-input {
+  background: transparent;
+  border-bottom: 3px solid #fecdd3;
+  border-radius: 0;
+  padding: 4px 4px;
+  transition: all 0.2s ease;
+  outline: none;
+  font-weight: 800;
+  width: 100%;
+  color: #1a0005;
+  font-size: 1.25rem;
+}
+
+.underline-input:focus {
+  border-bottom-color: var(--accent-pink);
+  background: rgba(251, 113, 133, 0.05);
+}
+
+/* 4. 表格與欄位優化 (Data Table) */
+table {
+  border-spacing: 0 8px;
+  border-collapse: separate;
+  width: 100%;
+}
+
+td {
+  background: white;
+  padding: 16px 20px;
+  vertical-align: middle;
+  border-bottom: 1px solid #fff0f1;
+}
+
+td:first-child {
+  border-radius: 16px 0 0 16px;
+}
+td:last-child {
+  border-radius: 0 16px 16px 0;
+}
+
+/* 欄位寬度控制 */
+.col-symbol {
+  min-width: 260px;
+}
+.col-leverage {
+  min-width: 90px;
+}
+.col-price {
+  min-width: 240px;
+}
+.col-shares {
+  min-width: 180px;
+}
+.col-nominal {
+  min-width: 260px;
+}
+.col-ratio {
+  min-width: 120px;
+}
+.col-target {
+  min-width: 220px;
+}
+.col-suggest {
+  min-width: 300px;
+}
+
+/* 5. 互動與動畫效果 (Interactive & Animation) */
+.btn-pink {
+  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
+  color: white;
+  font-weight: 900;
+  transition: all 0.3s;
+}
+
+.btn-pink:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -5px rgba(225, 29, 72, 0.4);
+}
+
+.alert-pulse {
+  animation: alert-blink 1.2s infinite;
+}
+
+@keyframes alert-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes spin-fast {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fa-spin-fast {
+  animation: spin-fast 0.8s linear infinite;
+}
+
+/* 再平衡偏離條 */
+.deviation-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.deviation-bar-fill {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+/* 6. 其他輔助類別 */
+.font-mono-data {
+  font-family: "JetBrains Mono", monospace;
+}
+
+.params-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2.5rem;
+  align-items: flex-end;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+}
