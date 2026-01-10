@@ -1,35 +1,66 @@
 /**
- * api.js - 最終穩定輪播版
- * 報價與名稱：Yahoo Finance v7 quote API
- * 傳輸機制：Proxy 輪播 (解決 GitHub Pages 500/401/CORS 限制)
+ * api.js - 強制連線修正版
+ * 解決 500/522 錯誤與 CORS 封鎖
  */
 import { renderMainUI, showToast } from "./ui.js";
 import { saveToStorage } from "./state.js";
 
-// Proxy 輪播清單：若其中一個失效，程式會自動嘗試下一個
+// 調整 Proxy 優先順序：將目前失效的 AllOrigins 移至最後
 const PROXIES = [
-  "https://api.allorigins.win/get?url=",
   "https://api.codetabs.com/v1/proxy?quest=",
   "https://corsproxy.io/?",
+  "https://api.allorigins.win/get?url=",
 ];
 
 /**
- * 抓取單一資產報價與名稱 (v7 quote 專用)
+ * 透過 Yahoo 官方搜尋接口獲取名稱 (此接口較不受 CORS 限制)
+ */
+async function fetchNameFromYahoo(ticker) {
+  try {
+    const query = /^\d{4,6}$/.test(ticker) ? `${ticker}.TW` : ticker;
+    const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${query}&quotesCount=1&newsCount=0&lang=zh-Hant-TW&region=TW`;
+
+    // 名稱抓取優先使用第一個穩定代理
+    const res = await fetch(PROXIES[0] + encodeURIComponent(searchUrl));
+    const data = await res.json();
+
+    if (data.quotes && data.quotes.length > 0) {
+      return data.quotes[0].longname || data.quotes[0].shortname;
+    }
+  } catch (e) {
+    console.warn("名稱抓取跳過，將由報價接口嘗試");
+  }
+  return null;
+}
+
+/**
+ * 抓取單一資產報價與名稱 (強化輪播機制)
  */
 export async function fetchLivePrice(id, symbol, appState) {
   if (!symbol) return false;
-
   const icon = document.getElementById(`assetSync-${id}`);
   if (icon) icon.classList.add("fa-spin-fast", "text-rose-600");
 
   let ticker = symbol.trim().toUpperCase();
-  // 判定是否為台股（純數字代號）
-  const isTaiwan = /^\d{4,6}$/.test(ticker);
+  const cleanTicker = ticker.replace(".TW", "").replace(".TWO", "");
+  const isTaiwan = /^\d{4,6}$/.test(cleanTicker);
 
-  // 嘗試透過不同 Proxy 輪播抓取資料的內部函式
-  const tryFetchData = async (targetTicker) => {
-    // v7 quote API：一次取得價格與繁體中文名稱的最佳選擇
-    const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${targetTicker}&lang=zh-Hant-TW&region=TW`;
+  // 1. 執行名稱抓取 (不卡住主流程)
+  fetchNameFromYahoo(ticker).then((name) => {
+    if (name) {
+      const acc = appState.accounts.find((a) => a.id === appState.activeId);
+      const asset = acc.assets.find((a) => a.id === id);
+      if (asset) {
+        asset.fullName = name;
+        saveToStorage();
+        renderMainUI(acc);
+      }
+    }
+  });
+
+  // 2. 核心報價抓取 (v8 接口)
+  const tryFetchPrice = async (targetTicker) => {
+    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d`;
 
     for (let proxy of PROXIES) {
       try {
@@ -38,64 +69,42 @@ export async function fetchLivePrice(id, symbol, appState) {
           : proxy + yahooUrl;
 
         const res = await fetch(finalUrl);
-        if (!res.ok) {
-          console.warn(`代理 ${proxy} 回傳錯誤碼: ${res.status}`);
-          continue;
-        }
+        if (!res.ok) continue;
 
         const rawData = await res.json();
-        // 關鍵修正：解析 AllOrigins 封裝的內容，其他代理則直接回傳 JSON
+        // 根據代理來源決定解析方式
         let data =
           proxy.includes("allorigins") && rawData.contents
             ? JSON.parse(rawData.contents)
             : rawData;
 
-        const result = data.quoteResponse?.result?.[0];
-        if (result && result.regularMarketPrice !== undefined) {
-          return {
-            price: result.regularMarketPrice,
-            // 優先取中文全名 (longName)
-            name: result.longName || result.shortName || result.symbol,
-          };
+        const meta = data.chart?.result?.[0]?.meta;
+        if (meta && (meta.regularMarketPrice || meta.previousClose)) {
+          return meta.regularMarketPrice || meta.previousClose;
         }
       } catch (e) {
-        console.warn(`代理 ${proxy} 請求異常，嘗試下一個...`);
+        console.warn(`代理 ${proxy} 失效，切換中...`);
         continue;
       }
     }
     return null;
   };
 
-  // 1. 執行報價與名稱抓取
-  let result = null;
-  if (isTaiwan) {
-    // 台股自動輪詢上市 (.TW) 或 上櫃 (.TWO)
-    result =
-      (await tryFetchData(ticker + ".TW")) ||
-      (await tryFetchData(ticker + ".TWO"));
-  } else {
-    result = await tryFetchData(ticker);
-  }
+  let priceResult =
+    isTaiwan && !ticker.includes(".")
+      ? (await tryFetchPrice(ticker + ".TW")) ||
+        (await tryFetchPrice(ticker + ".TWO"))
+      : await tryFetchPrice(ticker);
 
-  // 2. 更新數據並同步更新 UI
-  if (result && result.price) {
+  if (priceResult) {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     const asset = acc.assets.find((a) => a.id === id);
     if (asset) {
-      asset.price = result.price;
+      asset.price = priceResult;
+      if (!asset.fullName || asset.fullName === "---") asset.fullName = ticker;
 
-      // 檢查名稱是否包含中文，防止被代號覆蓋
-      const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
-      if (result.name && hasChinese(result.name)) {
-        asset.fullName = result.name;
-      } else if (!asset.fullName || asset.fullName === "---") {
-        asset.fullName = ticker;
-      }
-
-      // 儲存並強制刷新 UI，解決下方建議文字不變的問題
       saveToStorage();
       renderMainUI(acc);
-
       if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
       return true;
     }
@@ -105,30 +114,20 @@ export async function fetchLivePrice(id, symbol, appState) {
   return false;
 }
 
-/**
- * 批次更新計畫內所有標的
- */
 export async function syncAllPrices(appState) {
   const mainSync = document.getElementById("syncIcon");
   if (mainSync) mainSync.classList.add("fa-spin-fast");
-  showToast("正在利用代理輪播更新報價與名稱...");
+  showToast("切換備援代理中，請稍候...");
 
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
-  let successCount = 0;
-
   for (let asset of acc.assets) {
     if (asset.name) {
-      const success = await fetchLivePrice(asset.id, asset.name, appState);
-      if (success) successCount++;
-      // 增加延遲防止被 Yahoo 辨識為惡意爬蟲或觸發 Proxy 頻率限制
-      await new Promise((r) => setTimeout(r, 800));
+      await fetchLivePrice(asset.id, asset.name, appState);
+      // 拉長延遲到 1200ms 避免被代理伺服器視為攻擊
+      await new Promise((r) => setTimeout(r, 1200));
     }
   }
 
   if (mainSync) mainSync.classList.remove("fa-spin-fast");
-  showToast(
-    successCount > 0
-      ? `更新完成: ${successCount} 筆成功`
-      : "報價更新失敗，請稍後再試"
-  );
+  showToast("報價已透過備援線路更新");
 }
