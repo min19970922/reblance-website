@@ -14,7 +14,7 @@ body {
   overflow-x: auto;
 }
 
-/* 2. 置中佈局控制 (取消 1600 限制) */
+/* 1. 佈局架構 - 取消寬度限制 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
@@ -32,74 +32,21 @@ aside {
   background: white;
   border-right: 1px solid #fff1f2;
 }
+.sidebar-collapsed aside {
+  border-right: none;
+} /* 解決摺疊邊緣露出問題 */
 main {
   width: 100%;
   padding: 40px;
   box-sizing: border-box;
-}
-
-/* 3. 無縫參數列樣式 */
-.params-row-tight {
-  display: flex;
-  align-items: stretch;
-  background: white;
-  border: 2px solid #fff1f2;
-  border-radius: 20px;
-  overflow: hidden;
-}
-.input-group,
-.input-group-small {
-  display: flex;
-  flex-direction: column;
-  padding: 15px 20px;
-  border-right: 2px solid #fff1f2;
-}
-.input-group {
-  flex: 2;
-}
-.input-group-small {
   flex: 1;
 }
-.input-group-small:last-child {
-  border-right: none;
-}
-.params-row-tight label {
-  font-size: 1.1rem;
-  font-weight: 900;
-  color: #fb7185;
-  margin-bottom: 5px;
-}
-.input-wrapper {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-}
-.input-wrapper span {
-  font-size: 1.8rem;
-  font-weight: 900;
-  color: #fecdd3;
-}
-.params-row-tight input {
-  border: none;
-  outline: none;
-  font-size: 2.2rem;
-  font-weight: 900;
-  font-family: "JetBrains Mono";
-  width: 100%;
-}
-.center-input {
-  text-align: center;
-}
-.accent-border {
-  color: var(--accent-pink);
-}
 
-/* 4. 看板卡片 */
+/* 2. 橫向數據看板 */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 15px;
-  margin-bottom: 25px;
 }
 .glass-card {
   background: white;
@@ -114,12 +61,70 @@ main {
   color: #9d174d;
 }
 .glass-card div {
-  font-size: 2.6rem !important;
+  font-size: 2.8rem !important;
   font-weight: 900;
   margin-top: 5px;
 }
 
-/* 5. 寬度 Auto 表格 */
+/* 3. 橫向緊湊參數列 */
+.params-row-horizontal {
+  display: flex;
+  align-items: stretch;
+  background: white;
+  border: 2px solid #fff1f2;
+  border-radius: 20px;
+  overflow: hidden;
+  width: fit-content;
+}
+.input-unit,
+.input-unit-small {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 25px;
+  border-right: 2px solid #fff1f2;
+}
+.input-unit {
+  min-width: 250px;
+}
+.input-unit-small {
+  min-width: 150px;
+  text-align: center;
+}
+.no-border {
+  border-right: none !important;
+}
+.params-row-horizontal label {
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: #fb7185;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+.input-box {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.input-box span {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #fecdd3;
+}
+.input-box input,
+.flat-input {
+  border: none;
+  outline: none;
+  font-size: 2.2rem;
+  font-weight: 900;
+  font-family: "JetBrains Mono";
+  width: 100%;
+  background: transparent;
+}
+.accent-text {
+  color: var(--accent-pink);
+}
+
+/* 4. 表格 Auto 寬度 */
 .auto-table {
   width: 100%;
   border-spacing: 0 10px;
@@ -128,19 +133,20 @@ main {
 }
 td {
   background: white;
-  padding: 18px 20px;
+  padding: 20px;
   vertical-align: middle;
   white-space: nowrap;
   font-size: 1.5rem !important;
   font-weight: 900;
 }
 td:first-child {
-  border-radius: 18px 0 0 18px;
+  border-radius: 20px 0 0 20px;
 }
 td:last-child {
-  border-radius: 0 18px 18px 0;
+  border-radius: 0 20px 20px 0;
 }
 
+/* 輸入框寬度 Auto */
 .underline-input {
   background: transparent;
   border-bottom: 3px solid #fecdd3;
@@ -148,24 +154,26 @@ td:last-child {
   font-weight: 900;
   font-size: 1.5rem !important;
   width: 100%;
+  min-width: 80px;
 }
 .underline-input:focus {
   border-bottom-color: var(--accent-pink);
 }
 
-/* 6. 進度條脈動動畫 */
-@keyframes pulse-bar {
+/* 5. 脈動動畫邏輯 */
+@keyframes pulsate-bar {
   0%,
   100% {
     opacity: 1;
+    transform: scaleY(1);
   }
   50% {
-    opacity: 0.6;
-    transform: scaleY(1.2);
+    opacity: 0.5;
+    transform: scaleY(1.4);
   }
 }
 .pulsate-bar {
-  animation: pulse-bar 1s infinite;
+  animation: pulsate-bar 0.8s ease-in-out infinite;
 }
 
 .btn-pink {
@@ -173,23 +181,6 @@ td:last-child {
   color: white;
   font-weight: 900;
   border-radius: 16px;
-}
-#btnToggleSidebar {
-  all: unset;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 50px;
-  height: 50px;
-  background: white;
-  border: 2px solid #fff1f2;
-  border-radius: 15px;
-  cursor: pointer;
-  color: var(--primary-pink);
-  transition: 0.2s;
-}
-#btnToggleSidebar:hover {
-  background: #fff1f2;
 }
 .font-mono-data {
   font-family: "JetBrains Mono", monospace;
