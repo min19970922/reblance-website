@@ -194,9 +194,13 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     </td>`;
 }
 
+/* ui.js 修正片段 */
+
 function updateAssetRowData(asset, acc, netValue) {
   if (netValue <= 0) return;
   const s = getRebalanceSuggestion(asset, acc, netValue);
+
+  // 更新目前市值與比例 (省略部分代碼)
   document.getElementById(`curVal-${asset.id}`).innerText = `$${Math.round(
     asset.nominalValue
   ).toLocaleString()}`;
@@ -204,6 +208,7 @@ function updateAssetRowData(asset, acc, netValue) {
     `curPct-${asset.id}`
   ).innerText = `${s.currentPct.toFixed(1)}%`;
 
+  // 更新目標數值
   document.getElementById(`targetVal-${asset.id}`).innerHTML = `
     <div class="flex flex-col font-black">
       <span class="text-xl text-rose-950 font-mono-data">$${Math.round(
@@ -222,8 +227,9 @@ function updateAssetRowData(asset, acc, netValue) {
   const suggCell = document.getElementById(`sugg-${asset.id}`);
 
   if (!s.isTriggered) {
+    // 未觸發狀態 (顯示進度條)
     suggCell.innerHTML = `
-      <div class="flex flex-col items-center min-w-[150px]">
+      <div class="flex flex-col items-center min-w-[180px]">
         <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden border">
           <div class="h-full ${barColor} transition-all duration-700" style="width: ${Math.round(
       s.saturation * 100
@@ -234,15 +240,20 @@ function updateAssetRowData(asset, acc, netValue) {
         )}%</span>
       </div>`;
   } else {
+    // 已觸發狀態 (顯示金額與股數)
     suggCell.innerHTML = `
-      <div class="flex flex-col items-center min-w-[150px] scale-105">
-        <div class="flex items-baseline gap-2">
+      <div class="flex flex-col items-center min-w-[180px] scale-105">
+        <div class="flex flex-col items-center">
           <span class="${
             isBuy ? "text-emerald-500" : "text-rose-700"
-          } font-black text-lg">${isBuy ? "加碼" : "減持"}</span>
-          <span class="text-rose-950 font-black text-lg">${Math.abs(
-            s.diffShares
-          ).toLocaleString()} 股</span>
+          } font-black text-lg">
+            ${isBuy ? "加碼" : "減持"} $${Math.abs(
+      Math.round(s.diffNominal)
+    ).toLocaleString()}
+          </span>
+          <span class="text-rose-950 font-black text-sm">
+            約 ${Math.abs(s.diffShares).toLocaleString()} 股
+          </span>
         </div>
         <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden border mt-1">
            <div class="h-full ${barColor} shadow-inner" style="width: 100%"></div>
@@ -250,7 +261,6 @@ function updateAssetRowData(asset, acc, netValue) {
       </div>`;
   }
 }
-
 function updateDashboardUI(data, acc) {
   document.getElementById("totalNetValue").innerText = `$${Math.round(
     data.netValue

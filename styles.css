@@ -1,4 +1,4 @@
-/* styles.css - 終極對齊與不換行版 */
+/* styles.css - 修正版 */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap");
@@ -13,7 +13,6 @@
   --font-size-table: 1.2rem;
 }
 
-/* 基礎設定 */
 body {
   font-family: "Noto Sans TC", sans-serif;
   background-color: var(--bg-soft-pink);
@@ -29,11 +28,16 @@ body {
   transition: all 0.3s ease;
 }
 
+/* 修正殘影：縮回時完全隱藏 aside */
 .dashboard-container.sidebar-collapsed {
   grid-template-columns: 0px 1fr;
 }
+.dashboard-container.sidebar-collapsed aside {
+  visibility: hidden;
+  opacity: 0;
+  border: none;
+}
 
-/* 側邊欄 */
 aside {
   width: var(--sidebar-width);
   background: white;
@@ -42,6 +46,7 @@ aside {
   flex-direction: column;
   z-index: 10;
   overflow: hidden;
+  transition: all 0.3s ease;
 }
 
 main {
@@ -50,25 +55,21 @@ main {
   overflow-y: auto;
 }
 
-/* --- 核心對齊佈局：強制 5 欄等寬 --- */
-
 .dashboard-grid,
 .params-row-tight {
   display: grid;
-  grid-template-columns: repeat(5, 1fr); /* 強制 5 欄等分 */
+  grid-template-columns: repeat(5, 1fr);
   gap: 15px;
   width: 100%;
-  min-width: 900px; /* 確保在小螢幕上也不會擠壓變形，而是產生橫向捲軸 */
+  min-width: 900px;
 }
 
-/* 為了在大容器中支持橫向捲軸 */
 .main-scroll-wrapper {
   overflow-x: auto;
   width: 100%;
   padding-bottom: 10px;
 }
 
-/* 數據卡片 */
 .glass-card {
   background: white;
   border-radius: 20px;
@@ -92,12 +93,11 @@ main {
   letter-spacing: -1px;
 }
 
-/* 參數控制列樣式 */
 .params-row-tight {
   background: white;
   border: 2px solid #fff1f2;
   border-radius: 20px;
-  gap: 0; /* 內部使用邊框分割 */
+  gap: 0;
   box-shadow: 0 5px 20px -10px rgba(0, 0, 0, 0.05);
   margin-top: 20px;
   margin-bottom: 30px;
@@ -113,7 +113,8 @@ main {
   background: white;
 }
 
-.input-unit:last-child {
+.input-unit:last-child,
+.input-unit-small:last-child {
   border-right: none;
 }
 
@@ -150,7 +151,6 @@ main {
   color: #1a0005;
 }
 
-/* 表格與其餘樣式 */
 .auto-table {
   width: 100%;
   border-collapse: collapse;
@@ -204,7 +204,6 @@ td {
   transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
 }
 
-/* 捲軸美化 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
