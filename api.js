@@ -44,9 +44,9 @@ export async function fetchLivePrice(id, symbol, appState) {
         const meta = data.chart?.result?.[0]?.meta;
         if (meta && (meta.regularMarketPrice || meta.previousClose)) {
           return {
-            price: parseFloat(meta.regularMarketPrice || meta.previousClose),
-            // Yahoo v8 API 中文通常存在於 shortName
-            name: meta.shortName || meta.longName || meta.symbol,
+            price: meta.regularMarketPrice || meta.previousClose,
+            // 如果 API 有給 longName 優先使用，因為 longName 通常是完整中文公司名
+            name: meta.longName || meta.shortName || meta.symbol,
           };
         }
       } catch (e) {
@@ -73,10 +73,12 @@ export async function fetchLivePrice(id, symbol, appState) {
 
       // 中文名稱鎖定邏輯
       const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
+
       if (result.name && hasChinese(result.name)) {
-        asset.fullName = result.name;
+        asset.fullName = result.name; // 只有抓到中文才更新
       } else if (!asset.fullName || asset.fullName === "---") {
-        asset.fullName = ticker;
+        // 如果完全沒名稱才顯示代碼，否則保留舊的名稱
+        asset.fullName = asset.fullName || ticker;
       }
 
       renderMainUI(acc); // 確保 UI 重新渲染

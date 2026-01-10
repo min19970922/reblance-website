@@ -137,7 +137,7 @@ export function calculateAccountData(acc) {
 // 6. 再平衡判斷邏輯
 export function getRebalanceSuggestion(asset, acc, netValue) {
   const factor = safeNum(asset.leverage, 1);
-  const currentPct = (asset.nominalValue / netValue) * 100;
+  const currentPct = netValue > 0 ? (asset.nominalValue / netValue) * 100 : 0;
   const targetPct = safeNum(asset.targetRatio);
   const targetNominal = netValue * (targetPct / 100);
   const targetBookValue = targetNominal / factor;

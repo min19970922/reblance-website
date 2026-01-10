@@ -71,22 +71,22 @@ export function renderMainUI(acc) {
   // 取得 state.js 的運算結果
   const data = calculateAccountData(acc);
 
-  acc.assets.forEach((asset, index) => {
+  data.assetsCalculated.forEach((asset, index) => {
     const row = document.createElement("tr");
     row.className = "group";
-
-    // 這裡封裝了複雜的資產列 HTML
-    row.innerHTML = generateAssetRowHTML(asset, index, acc.assets.length);
+    row.innerHTML = generateAssetRowHTML(
+      asset,
+      index,
+      data.assetsCalculated.length
+    );
     body.appendChild(row);
 
-    // 即時填入算好的數據
+    // 此時傳入的 asset 物件已經包含 nominalValue 和 priceTwd
     updateAssetRowData(asset, acc, data.netValue);
   });
 
-  // 更新頂部看板與頁尾統計
   updateDashboardUI(data, acc);
 }
-
 // 4. 輔助：生成資產列 HTML
 function generateAssetRowHTML(asset, index, totalAssets) {
   return `
