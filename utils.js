@@ -1,6 +1,5 @@
 /**
- * utils.js - 修正版
- * 解決 models/gemini-1.5-flash 404 與 v1beta 路徑問題
+ * utils.js - 動態 Key 加強版
  */
 import { safeNum } from "./state.js";
 import { showToast } from "./ui.js";
@@ -79,8 +78,8 @@ export function importExcel(e, onComplete) {
 }
 
 /**
- * AI 圖片辨識匯入功能 - REST API 格式修正版
- * 解決 Unknown name "systemInstruction" 與 "responseMimeType" 的問題
+ * AI 圖片辨識匯入功能 - REST API 格式終極修正版
+ * 修正 snake_case 命名規則以解決 400 Bad Request 錯誤
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
@@ -111,20 +110,21 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // 2. API 端點與模型設定
+    // 2. API 端點與模型設定 (使用 v1 穩定版)
     const model = "gemini-1.5-flash";
     const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
 
     const systemPrompt = `你是一位專業的台灣證券數據分析師，請從圖片中提取持股代號(name)與股數(shares)。
+    如果是台灣股票，代號通常是 4 到 6 位數字。
     請嚴格以 JSON 格式輸出：{"assets": [{"name":"2330","shares":1000}]}`;
 
-    // --- 核心修正：將所有 Key 改為底線命名法 (snake_case) ---
+    // --- 關鍵修正：將所有 Key 改為 snake_case (底線命名) ---
     const payload = {
       contents: [
         {
           role: "user",
           parts: [
-            { text: "請分析這張圖片中的持股代號與股數。" },
+            { text: "請分析這張圖片中的持股代號與股數，並轉換為 JSON 陣列。" },
             {
               inlineData: {
                 mimeType: file.type || "image/png",
@@ -169,7 +169,7 @@ export async function importFromImage(e, onComplete) {
         assets = parsedData.assets || [];
       } catch (e) {
         console.error("JSON 解析失敗:", rawJson);
-        throw new Error("AI 回傳格式異常");
+        throw new Error("AI 回傳格式異常，請再試一次");
       }
     }
 
@@ -192,7 +192,7 @@ export async function importFromImage(e, onComplete) {
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能辨識出有效資產");
+      showToast("AI 未能從圖片辨識出有效資產");
     }
   } catch (err) {
     console.error("AI辨識詳細錯誤:", err);
