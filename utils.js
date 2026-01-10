@@ -115,22 +115,20 @@ export async function importFromImage(e, onComplete) {
         line.includes("總股數") ||
         line.includes("總市值") ||
         line.includes("帳號") ||
-        line.includes("總成本") ||
-        line.includes("未實現")
+        line.includes("總成本")
       ) {
         continue;
       }
 
-      // 2. 偵測表格起點 (但不跳過包含代碼的行)
+      // 2. 偵測表格起點 (修正：不再因「明細」二字就跳過整行數據)
       if (
         !isTableStarted &&
-        (line.includes("明細") ||
-          line.includes("商品") ||
-          line.includes("類別"))
+        (line.includes("商品") ||
+          line.includes("類別") ||
+          line.includes("股數"))
       ) {
         isTableStarted = true;
-        // 如果這一行沒有數字(代表是純標頭)，才跳過
-        if (!/\d/.test(line)) continue;
+        if (!/\d/.test(line)) continue; // 只有純文字標頭才跳過
       }
 
       if (isTableStarted) {
@@ -140,27 +138,29 @@ export async function importFromImage(e, onComplete) {
 
         if (tickerMatch) {
           let ticker = tickerMatch[1].toUpperCase();
+          // L/1 校正：處理 00631L 被誤辨識為 006311 的情況
           if (ticker.length === 6 && ticker.endsWith("1"))
             ticker = ticker.slice(0, -1) + "L";
 
           const afterTicker = cleanLine.substring(
             tickerMatch.index + tickerMatch[1].length
           );
-          // 手機版斷裂合併 (如 7 000)
+          // 手機版斷裂合併 (如 7 000 合併為 7000)
           const joinedPart = afterTicker.replace(
             /(\b\d{1,3})\s+(\d{3})(?!\d)/g,
             "$1$2"
           );
 
-          // 股數定位：鎖定類別後的長數字，避開名稱內的 50 正 2
+          // 股數定位：鎖定類別後的長數字，跳過名稱中的數字 (如 50 正 2)
           const categoryMatch = joinedPart.match(
-            /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買|賣)[^\d]*(\d{2,})/
+            /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買)[^\d]*(\d{2,})/
           );
 
           let shares = 0;
           if (categoryMatch) {
             shares = parseInt(categoryMatch[1]);
           } else {
+            // 備用方案：抓取該行除了標的代號外的首個兩位數以上整數
             const allNums = joinedPart.match(/\b\d{2,}\b/g);
             if (allNums) shares = parseInt(allNums[0]);
           }
