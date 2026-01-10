@@ -1,42 +1,40 @@
 /**
- * api.js
- * 職責：使用穩定報價接口，並自動抓取 GitHub 社群維護的標的清單來帶入中文名稱
+ * api.js - 線上環境終極穩定版
+ * 解決 CORS 阻擋、401 錯誤與中文名稱消失問題
  */
 import { renderMainUI, showToast } from "./ui.js";
 import { saveToStorage } from "./state.js";
 
-// 全域快取，避免重複抓取清單
-let globalStockMap = null;
+// 全域名稱地圖快取
+let stockNameMap = null;
 
 /**
- * 核心功能：從 GitHub 抓取最新的台股代碼對照表
- * 來源：finmind (或其他社群維護的開放資料)
+ * 核心：自動抓取 GitHub 社群維護的台股清單 (無 CORS 限制)
  */
-async function loadRemoteStockList() {
-  if (globalStockMap) return globalStockMap;
+async function loadTaiwanStockNames() {
+  if (stockNameMap) return stockNameMap;
   try {
-    // 使用一個公開且穩定的台股清單 JSON (GitHub 來源不會有 CORS 限制)
     const res = await fetch(
       "https://raw.githubusercontent.com/AsunSama/taiwan-stock-list/master/stock_list.json"
     );
     if (res.ok) {
       const list = await res.json();
-      // 將陣列轉為 Map 方便查表： { "2330": "台積電" }
-      globalStockMap = {};
+      stockNameMap = {};
       list.forEach((item) => {
-        globalStockMap[item.code] = item.name;
+        stockNameMap[item.code] = item.name;
       });
-      return globalStockMap;
+      return stockNameMap;
     }
   } catch (e) {
-    console.warn("無法載入遠端名稱清單，切換至備援模式");
+    console.warn("無法加載遠端名稱清單");
   }
   return {};
 }
 
+// 代理列表：僅保留 GitHub Pages 上較穩定的來源
 const PROXIES = [
   "https://api.allorigins.win/get?url=",
-  "https://corsproxy.io/?",
+  "https://api.codetabs.com/v1/proxy?quest=",
 ];
 
 export async function fetchLivePrice(id, symbol, appState) {
@@ -46,10 +44,12 @@ export async function fetchLivePrice(id, symbol, appState) {
 
   let ticker = symbol.trim().toUpperCase();
   const cleanTicker = ticker.replace(".TW", "").replace(".TWO", "");
-  const isTaiwan = /^\d{4,6}[A-Z]?$/.test(cleanTicker);
+  const isTaiwan = /^\d{4,6}/.test(cleanTicker);
 
   const tryFetchPrice = async (targetTicker) => {
+    // 報價回歸 v8 chart，這是目前最穩定的報價接口
     const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d`;
+
     for (let proxy of PROXIES) {
       try {
         const finalUrl = proxy.includes("allorigins")
@@ -59,11 +59,11 @@ export async function fetchLivePrice(id, symbol, appState) {
         const res = await fetch(finalUrl);
         if (!res.ok) continue;
 
-        const json = await res.json();
-        // 修正：AllOrigins 必須解析 contents 欄位
+        const rawData = await res.json();
+        // 關鍵：處理 AllOrigins 的 JSONP 解析
         let data = proxy.includes("allorigins")
-          ? JSON.parse(json.contents)
-          : json;
+          ? JSON.parse(rawData.contents)
+          : rawData;
 
         const meta = data.chart?.result?.[0]?.meta;
         if (meta?.regularMarketPrice) {
@@ -76,34 +76,30 @@ export async function fetchLivePrice(id, symbol, appState) {
     return null;
   };
 
-  // 1. 同步執行：抓取報價
-  let result = null;
-  if (isTaiwan && !ticker.includes(".")) {
-    result =
-      (await tryFetchPrice(ticker + ".TW")) ||
-      (await tryFetchPrice(ticker + ".TWO"));
-  } else {
-    result = await tryFetchPrice(ticker);
+  // 1. 抓取報價
+  let result =
+    isTaiwan && !ticker.includes(".")
+      ? (await tryFetchPrice(ticker + ".TW")) ||
+        (await tryFetchPrice(ticker + ".TWO"))
+      : await tryFetchPrice(ticker);
+
+  // 2. 自動帶入中文名稱 (GitHub 來源)
+  if (isTaiwan) {
+    const nameMap = await loadTaiwanStockNames();
+    if (nameMap[cleanTicker]) {
+      const acc = appState.accounts.find((a) => a.id === appState.activeId);
+      const asset = acc.assets.find((a) => a.id === id);
+      if (asset) asset.fullName = nameMap[cleanTicker];
+    }
   }
 
-  // 2. 自動名稱查表 (GitHub 來源)
-  const nameMap = await loadRemoteStockList();
-
-  // 3. 處理更新
+  // 3. 更新與渲染
   if (result) {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     const asset = acc.assets.find((a) => a.id === id);
     if (asset) {
       asset.price = result.price;
-
-      // 優先從 GitHub 載入的清單中尋找名稱
-      if (nameMap[cleanTicker]) {
-        asset.fullName = nameMap[cleanTicker];
-      }
-      // 備援：如果原本沒有名稱才顯示代碼
-      else if (!asset.fullName || asset.fullName === "---") {
-        asset.fullName = ticker;
-      }
+      if (!asset.fullName || asset.fullName === "---") asset.fullName = ticker;
 
       saveToStorage();
       renderMainUI(acc);
@@ -118,16 +114,16 @@ export async function fetchLivePrice(id, symbol, appState) {
 
 export async function syncAllPrices(appState) {
   const mainSync = document.getElementById("syncIcon");
-  if (mainSync) mainSync.classList.add("fa-spin-fast");
-  showToast("同步中，正在抓取最新標的清單...");
+  mainSync?.classList.add("fa-spin-fast");
+  showToast("同步中...");
 
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   for (let asset of acc.assets) {
     if (asset.name) {
       await fetchLivePrice(asset.id, asset.name, appState);
-      await new Promise((r) => setTimeout(r, 450));
+      await new Promise((r) => setTimeout(r, 600));
     }
   }
-  if (mainSync) mainSync.classList.remove("fa-spin-fast");
+  mainSync?.classList.remove("fa-spin-fast");
   showToast("報價與名稱已同步");
 }
