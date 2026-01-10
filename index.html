@@ -1,846 +1,1240 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>投資再平衡助手 | 槓桿實戰與質押監控版</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>投資再平衡助手 | 專業槓桿實戰監控</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&display=swap');
+      @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap");
+      @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&display=swap");
 
-        :root {
-            --primary-pink: #fb7185;
-            --secondary-pink: #fff1f2;
-            --accent-pink: #e11d48;
-            --sidebar-width: 320px;
+      :root {
+        --primary-pink: #fb7185;
+        --secondary-pink: #fff1f2;
+        --accent-pink: #e11d48;
+        --sidebar-width: 280px;
+      }
+
+      body {
+        font-family: "Noto Sans TC", sans-serif;
+        background-color: #fffafb;
+        color: #1a0005;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      .dashboard-container {
+        display: grid;
+        grid-template-columns: var(--sidebar-width) 1fr;
+        min-height: 100vh;
+        transition: grid-template-columns 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .dashboard-container.sidebar-collapsed {
+        --sidebar-width: 0px;
+      }
+
+      aside {
+        width: var(--sidebar-width);
+        overflow-x: hidden;
+        white-space: nowrap;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        opacity: 1;
+      }
+
+      .sidebar-collapsed aside {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .underline-input {
+        background: transparent;
+        border-bottom: 3px solid #fecdd3;
+        border-radius: 0;
+        padding: 4px 4px;
+        transition: all 0.2s ease;
+        outline: none;
+        font-weight: 800;
+        width: 100%;
+        color: #1a0005;
+        font-size: 1.25rem;
+      }
+
+      .underline-input:focus {
+        border-bottom-color: var(--accent-pink);
+        background: rgba(251, 113, 133, 0.05);
+      }
+
+      .font-mono-data {
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .glass-card {
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        border: 1px solid rgba(251, 113, 133, 0.2);
+        box-shadow: 0 8px 30px -10px rgba(251, 113, 133, 0.15);
+      }
+
+      table {
+        border-spacing: 0 8px;
+        border-collapse: separate;
+        width: 100%;
+      }
+
+      td {
+        background: white;
+        padding: 16px 20px;
+        vertical-align: middle;
+        border-bottom: 1px solid #fff0f1;
+      }
+
+      td:first-child {
+        border-radius: 16px 0 0 16px;
+      }
+      td:last-child {
+        border-radius: 0 16px 16px 0;
+      }
+
+      /* 欄位寬度優化：保證數字不被切斷 */
+      .col-symbol {
+        min-width: 260px;
+      }
+      .col-leverage {
+        min-width: 90px;
+      }
+      .col-price {
+        min-width: 240px;
+      }
+      .col-shares {
+        min-width: 180px;
+      }
+      .col-nominal {
+        min-width: 260px;
+      }
+      .col-ratio {
+        min-width: 120px;
+      }
+      .col-target {
+        min-width: 220px;
+      }
+      .col-suggest {
+        min-width: 300px;
+      }
+
+      .btn-pink {
+        background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
+        color: white;
+        font-weight: 900;
+        transition: all 0.3s;
+      }
+
+      .btn-pink:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px -5px rgba(225, 29, 72, 0.4);
+      }
+
+      .text-rebalance-big {
+        font-size: 1.5rem;
+        font-weight: 900;
+        line-height: 1.1;
+      }
+
+      .sidebar-toggle-btn {
+        position: absolute;
+        left: 12px;
+        top: 20px;
+        z-index: 100;
+      }
+
+      .move-btn {
+        padding: 2px 8px;
+        color: #fb7185;
+        font-size: 1.2rem;
+      }
+
+      .deviation-bar-bg {
+        width: 100%;
+        height: 8px;
+        background: #f1f5f9;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-top: 8px;
+      }
+      .deviation-bar-fill {
+        height: 100%;
+        transition: width 0.4s ease;
+      }
+
+      .badge-lev {
+        background: #31000a;
+        color: #fb7185;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .alert-pulse {
+        animation: alert-blink 1.2s infinite;
+      }
+      @keyframes alert-blink {
+        0%,
+        100% {
+          opacity: 1;
         }
-
-        body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #fffafb;
-            color: #4c0519;
-            margin: 0;
-            overflow: hidden;
+        50% {
+          opacity: 0.7;
         }
+      }
 
-        .dashboard-container {
-            display: grid;
-            grid-template-columns: var(--sidebar-width) 1fr;
-            min-height: 100vh;
-            transition: grid-template-columns 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      @keyframes spin-fast {
+        from {
+          transform: rotate(0deg);
         }
-
-        .dashboard-container.sidebar-collapsed {
-            --sidebar-width: 0px;
+        to {
+          transform: rotate(360deg);
         }
+      }
+      .fa-spin-fast {
+        animation: spin-fast 0.8s linear infinite;
+      }
 
-        aside {
-            width: var(--sidebar-width);
-            overflow-x: hidden;
-            white-space: nowrap;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            opacity: 1;
-        }
+      label {
+        font-size: 15px;
+        font-weight: 900;
+        color: #e11d48;
+        margin-bottom: 6px;
+        display: block;
+        white-space: nowrap;
+      }
+      th {
+        font-size: 14px;
+        font-weight: 900;
+        color: #e11d48;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        padding-bottom: 8px;
+      }
 
-        .sidebar-collapsed aside {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        .underline-input {
-            background: transparent;
-            border-bottom: 2px solid #fecdd3;
-            border-radius: 0;
-            padding: 6px 2px;
-            transition: all 0.3s ease;
-            outline: none;
-            font-weight: 700;
-            width: 100%;
-            color: #4c0519;
-        }
-
-        .underline-input:focus {
-            border-bottom-color: var(--accent-pink);
-            background: rgba(251, 113, 133, 0.03);
-        }
-
-        .font-mono-data {
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .glass-card {
-            background: rgba(255, 255, 255, 0.7);
-            backdrop-filter: blur(10px);
-            border-radius: 24px;
-            border: 1px solid rgba(251, 113, 133, 0.1);
-            box-shadow: 0 4px 20px -5px rgba(251, 113, 133, 0.05);
-        }
-
-        table {
-            border-spacing: 0 8px;
-            border-collapse: separate;
-        }
-
-        td {
-            background: white;
-            padding: 14px 16px;
-            white-space: nowrap;
-            border-bottom: 1px solid #fff5f6;
-        }
-
-        td:first-child {
-            border-radius: 16px 0 0 16px;
-        }
-
-        td:last-child {
-            border-radius: 0 16px 16px 0;
-        }
-
-        .btn-pink {
-            background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
-            color: white;
-            font-weight: 800;
-            transition: all 0.3s;
-        }
-
-        .btn-pink:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 10px 15px -3px rgba(225, 29, 72, 0.2);
-        }
-
-        .text-rebalance-big {
-            font-size: 1.45rem;
-            font-weight: 900;
-        }
-
-        .sidebar-toggle-btn {
-            position: absolute;
-            left: 10px;
-            top: 20px;
-            z-index: 100;
-            transition: all 0.4s;
-        }
-
-        .move-btn {
-            padding: 2px 6px;
-            color: #fecdd3;
-            transition: all 0.2s;
-        }
-
-        .move-btn:hover {
-            color: var(--primary-pink);
-        }
-
-        .deviation-bar-bg {
-            width: 100%;
-            height: 6px;
-            background: #f1f5f9;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-top: 8px;
-        }
-
-        .deviation-bar-fill {
-            height: 100%;
-            transition: width 0.4s ease-out;
-        }
-
-        .badge-lev {
-            background: #4c0519;
-            color: #fb7185;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 900;
-            letter-spacing: 0.05em;
-        }
-
-        .alert-pulse {
-            animation: alert-blink 1s infinite;
-        }
-
-        @keyframes alert-blink {
-            0% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.5;
-            }
-
-            100% {
-                opacity: 1;
-            }
-        }
-
-        @keyframes spin-fast {
-            from {
-                transform: rotate(0deg);
-            }
-
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        .fa-spin-fast {
-            animation: spin-fast 0.8s linear infinite;
-        }
+      /* 強制一行顯示參數區 */
+      .params-row {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 2.5rem;
+        align-items: flex-end;
+        overflow-x: auto;
+        padding-bottom: 1rem;
+      }
     </style>
-</head>
+  </head>
 
-<body>
-
+  <body>
     <div class="dashboard-container" id="mainContainer">
-        <!-- 側邊欄 -->
-        <aside class="bg-white border-r border-rose-50 flex flex-col p-6 overflow-y-auto relative">
-            <div class="mb-10 text-center pt-10">
-                <h1 class="text-3xl font-black text-rose-500 tracking-tighter">
-                    <i class="fas fa-heart mr-2"></i>REBALANCE
-                </h1>
-                <p class="text-[10px] text-rose-400 font-bold mt-1 uppercase tracking-[0.2em]">Leverage & Pledge Pro</p>
-            </div>
+      <aside
+        class="bg-white border-r border-rose-100 flex flex-col p-5 overflow-y-auto relative"
+      >
+        <div class="mb-10 text-center pt-8">
+          <h1 class="text-3xl font-black text-rose-500 tracking-tighter">
+            <i class="fas fa-heart mr-2"></i>REBALANCE
+          </h1>
+          <p
+            class="text-[11px] text-rose-400 font-black mt-1 uppercase tracking-[0.3em]"
+          >
+            Precision Control
+          </p>
+        </div>
 
-            <div class="flex-1 space-y-3" id="accountList"></div>
+        <div class="flex-1 space-y-3" id="accountList"></div>
 
-            <div class="mt-10 pt-6 border-t border-rose-50">
-                <button onclick="createNewAccount()"
-                    class="w-full py-4 rounded-2xl bg-rose-50 text-rose-600 font-black hover:bg-rose-100 transition-all flex items-center justify-center gap-2">
-                    <i class="fas fa-plus-circle"></i> 新增投資組合
-                </button>
-            </div>
-        </aside>
+        <div class="mt-8 pt-6 border-t border-rose-100">
+          <button
+            onclick="createNewAccount()"
+            class="w-full py-4 rounded-xl bg-rose-50 text-rose-700 font-black hover:bg-rose-100 transition-all flex items-center justify-center gap-2 text-lg"
+          >
+            <i class="fas fa-plus-circle"></i> 新增計畫
+          </button>
+        </div>
+      </aside>
 
-        <!-- 主面板 -->
-        <main class="flex flex-col h-screen overflow-y-auto p-10 relative bg-[#fffafb]">
+      <main
+        class="flex flex-col h-screen overflow-y-auto p-10 relative bg-[#fffafb]"
+      >
+        <button
+          onclick="toggleSidebar()"
+          class="sidebar-toggle-btn p-3 bg-white text-rose-600 hover:text-rose-800 rounded-xl shadow-md border border-rose-100 transition-all"
+        >
+          <i id="toggleIcon" class="fas fa-chevron-left text-xl"></i>
+        </button>
 
-            <button onclick="toggleSidebar()"
-                class="sidebar-toggle-btn p-3 bg-white text-rose-500 hover:text-rose-700 rounded-xl shadow-sm border border-rose-50 transition-all">
-                <i id="toggleIcon" class="fas fa-chevron-left text-xl"></i>
+        <div class="flex items-center justify-between mb-8 pl-14">
+          <div>
+            <h2
+              id="activeAccountTitle"
+              class="text-5xl font-black text-rose-900 flex items-center gap-4 cursor-pointer hover:text-rose-600 transition-colors"
+              onclick="renameCurrentAccount()"
+            >
+              載入中...
+            </h2>
+            <p class="text-rose-500 font-black mt-2 text-xl tracking-wide">
+              信貸質押實戰監控終端
+            </p>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <button
+              onclick="exportExcel()"
+              class="px-6 py-3 bg-white border border-emerald-200 text-emerald-700 font-black rounded-xl hover:bg-emerald-50 transition-all flex items-center gap-2 shadow-sm"
+            >
+              <i class="fas fa-file-export"></i> 匯出
             </button>
+            <label
+              class="px-6 py-3 bg-white border border-amber-200 text-amber-700 font-black rounded-xl hover:bg-amber-50 cursor-pointer transition-all flex items-center gap-2 shadow-sm"
+            >
+              <i class="fas fa-file-import"></i> 匯入
+              <input
+                type="file"
+                class="hidden"
+                accept=".xlsx"
+                onchange="importExcel(event)"
+              />
+            </label>
+            <button
+              onclick="deleteCurrentAccount()"
+              class="p-3 text-rose-200 hover:text-rose-600 transition-all"
+            >
+              <i class="fas fa-trash-alt text-3xl"></i>
+            </button>
+          </div>
+        </div>
 
-            <div class="flex items-center justify-between mb-8 pl-12">
-                <div>
-                    <h2 id="activeAccountTitle"
-                        class="text-4xl font-black text-rose-900 flex items-center gap-4 cursor-pointer hover:text-rose-500 transition-colors"
-                        onclick="renameCurrentAccount()">
-                        載入中...
-                    </h2>
-
-                </div>
-
-                <div class="flex items-center gap-4">
-                    <button onclick="exportExcel()"
-                        class="px-6 py-3 bg-emerald-50 text-emerald-700 font-black rounded-xl hover:bg-emerald-100 transition-all flex items-center gap-2 text-sm shadow-sm">
-                        <i class="fas fa-file-export"></i> 匯出報表
-                    </button>
-                    <label
-                        class="px-6 py-3 bg-amber-50 text-amber-700 font-black rounded-xl hover:bg-amber-100 cursor-pointer transition-all flex items-center gap-2 text-sm shadow-sm">
-                        <i class="fas fa-file-import"></i> 匯入數據
-                        <input type="file" class="hidden" accept=".xlsx" onchange="importExcel(event)">
-                    </label>
-                    <button onclick="deleteCurrentAccount()"
-                        class="p-3 text-rose-300 hover:text-rose-600 transition-all">
-                        <i class="fas fa-trash-alt text-2xl"></i>
-                    </button>
-                </div>
+        <!-- 數據看板 -->
+        <div class="grid grid-cols-5 gap-6 mb-10 pl-14">
+          <div class="glass-card p-6 border-t-[6px] border-t-rose-500">
+            <span
+              class="text-xs font-black text-rose-600 uppercase tracking-widest"
+              >帳戶淨值</span
+            >
+            <div
+              id="totalNetValue"
+              class="text-3xl font-black text-rose-950 font-mono-data mt-2 tracking-tighter"
+            >
+              $0
             </div>
-
-            <!-- 頂部數據看板 -->
-            <div class="grid grid-cols-5 gap-4 mb-10 pl-12">
-                <div class="glass-card p-5 border-t-4 border-t-rose-400">
-                    <span class="text-[12px] font-black text-rose-500 uppercase tracking-widest">帳戶淨值 (Equity)</span>
-                    <div id="totalNetValue"
-                        class="text-2xl font-black text-rose-900 font-mono-data mt-2 tracking-tighter">$0</div>
-                </div>
-                <div class="glass-card p-5 border-t-4 border-t-pink-400">
-                    <span class="text-[12px] font-black text-pink-600 uppercase tracking-widest">總名目曝險</span>
-                    <div id="totalExposure"
-                        class="text-2xl font-black text-pink-900 font-mono-data mt-2 tracking-tighter">$0</div>
-                </div>
-                <div class="glass-card p-5 border-t-4 border-t-amber-400">
-                    <span class="text-[12px] font-black text-amber-600 uppercase tracking-widest">當前實質槓桿</span>
-                    <div id="leverageDisplay" class="text-2xl font-black text-amber-700 font-mono-data mt-2">1.00x</div>
-                </div>
-                <div class="glass-card p-5 border-t-4 border-t-rose-600 relative">
-                    <span
-                        class="text-[12px] font-black text-rose-700 uppercase tracking-widest flex items-center gap-2">
-                        理想預算總和
-                        <span id="levBadge" class="badge-lev hidden">結構槓桿</span>
-                    </span>
-                    <div id="targetTotalRatio" class="text-2xl font-black text-rose-900 font-mono-data mt-2">0%</div>
-                </div>
-                <div class="glass-card p-5 border-t-4 border-t-indigo-400" id="maintenanceCard">
-                    <span class="text-[12px] font-black text-indigo-600 uppercase tracking-widest">質押維持率</span>
-                    <div id="maintenanceRatio" class="text-2xl font-black text-indigo-900 font-mono-data mt-2">N/A</div>
-                </div>
+          </div>
+          <div class="glass-card p-6 border-t-[6px] border-t-pink-500">
+            <span
+              class="text-xs font-black text-pink-700 uppercase tracking-widest"
+              >總曝險額</span
+            >
+            <div
+              id="totalExposure"
+              class="text-3xl font-black text-pink-950 font-mono-data mt-2 tracking-tighter"
+            >
+              $0
             </div>
-
-            <!-- 全球參數 (拆分現金與負債，修復 USD 輸入格) -->
-            <div class="px-12 mb-10">
-                <div class="flex flex-wrap items-start gap-10 py-8 border-y border-rose-100">
-                    <div class="w-52">
-                        <label class="block text-[14px] font-black text-rose-600 uppercase tracking-widest mb-3">貸款/負債
-                            (Loan)</label>
-                        <div class="relative">
-                            <span
-                                class="absolute left-0 top-1/2 -translate-y-1/2 text-rose-400 font-bold text-xl">$</span>
-                            <input type="number" id="debtInput" oninput="updateGlobal('totalDebt', this.value)"
-                                class="underline-input pl-8 font-mono-data text-2xl font-bold" placeholder="700000">
-                        </div>
-                    </div>
-                    <div class="w-52">
-                        <label class="block text-[14px] font-black text-rose-500 uppercase tracking-widest mb-3">可用現金
-                            (Cash)</label>
-                        <div class="relative">
-                            <span
-                                class="absolute left-0 top-1/2 -translate-y-1/2 text-rose-400 font-bold text-xl">$</span>
-                            <input type="number" id="cashInput" oninput="updateGlobal('currentCash', this.value)"
-                                class="underline-input pl-8 font-mono-data text-2xl font-bold" placeholder="0">
-                        </div>
-                    </div>
-                    <div class="w-24">
-                        <label class="block text-[14px] font-black text-rose-500 uppercase tracking-widest mb-3">現金
-                            %</label>
-                        <input type="number" id="cashRatioInput" oninput="updateGlobal('cashRatio', this.value)"
-                            class="underline-input font-mono-data text-2xl font-bold text-center" value="0">
-                    </div>
-                    <div class="w-28">
-                        <label
-                            class="block text-[14px] font-black text-rose-500 uppercase tracking-widest mb-3">美金匯率</label>
-                        <input type="number" id="usdRateInput" oninput="updateGlobal('usdRate', this.value)"
-                            class="underline-input font-mono-data text-2xl font-bold text-center" step="0.1"
-                            value="32.5">
-                    </div>
-
-                    <div class="h-16 w-px bg-rose-100 hidden lg:block"></div>
-
-                    <div class="flex gap-8">
-                        <div class="w-36">
-                            <label
-                                class="block text-[14px] font-black text-rose-600 uppercase tracking-widest mb-3">絕對偏離
-                                %</label>
-                            <input type="number" id="rebalanceAbsInput"
-                                oninput="updateGlobal('rebalanceAbs', this.value)"
-                                class="underline-input font-mono-data text-2xl font-bold text-center border-rose-300"
-                                value="5">
-                        </div>
-                        <div class="w-36">
-                            <label
-                                class="block text-[14px] font-black text-rose-600 uppercase tracking-widest mb-3">相對偏離
-                                %</label>
-                            <input type="number" id="rebalanceRelInput"
-                                oninput="updateGlobal('rebalanceRel', this.value)"
-                                class="underline-input font-mono-data text-2xl font-bold text-center border-rose-300"
-                                value="25">
-                        </div>
-                    </div>
-                </div>
+          </div>
+          <div class="glass-card p-6 border-t-[6px] border-t-amber-500">
+            <span
+              class="text-xs font-black text-amber-700 uppercase tracking-widest"
+              >實質槓桿</span
+            >
+            <div
+              id="leverageDisplay"
+              class="text-4xl font-black text-amber-800 font-mono-data mt-2"
+            >
+              1.00x
             </div>
-
-            <!-- 資產表格 -->
-            <div class="flex-1 px-12">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-2xl font-black text-rose-900 tracking-tight"><i
-                            class="fas fa-layer-group mr-3"></i>標的監控與再平衡</h3>
-
-                    <div class="flex items-center gap-4">
-                        <button onclick="syncAllPrices()"
-                            class="px-8 py-3 bg-white border-2 border-rose-100 text-rose-600 font-black rounded-xl hover:bg-rose-50 transition-all flex items-center gap-3 shadow-sm text-sm">
-                            <i id="syncIcon" class="fas fa-sync-alt"></i> 更新即時報價
-                        </button>
-                        <button onclick="addAsset()"
-                            class="px-10 py-3 btn-pink rounded-xl shadow-md flex items-center gap-2 text-sm">
-                            <i class="fas fa-plus"></i> 新增投資標的
-                        </button>
-                    </div>
-                </div>
-
-                <table class="w-full">
-                    <thead>
-                        <tr class="text-rose-500 text-[13px] font-black uppercase tracking-[0.15em] text-left">
-                            <th class="px-4 py-2 w-48 text-rose-700">排序 / 代號</th>
-                            <th class="px-4 py-2 w-28 text-center">槓桿因子</th>
-                            <th class="px-4 py-2 w-40">目前單價</th>
-                            <th class="px-4 py-2 w-40">持有股數</th>
-                            <th class="px-4 py-2">目前名目曝險</th>
-                            <th class="px-4 py-2 w-32 text-center text-rose-700">目標比例</th>
-                            <th class="px-4 py-2">理想曝險 / 預計投入</th>
-                            <th class="px-4 py-2 text-center">風險策略建議</th>
-                            <th class="px-4 py-2"></th>
-                        </tr>
-                    </thead>
-                    <tbody id="assetBody"></tbody>
-                    <tfoot>
-                        <tr class="font-bold">
-                            <td colspan="4"
-                                class="text-right text-rose-400 uppercase text-[12px] font-black tracking-widest pr-10">
-                                資金調節預算 (Budget Adjustment)</td>
-                            <td id="footerCurrentCash" class="font-mono-data text-2xl text-rose-900 tracking-tighter">$0
-                            </td>
-                            <td class="text-center text-xl" id="footerCashRatio">0%</td>
-                            <td id="footerTargetCash" class="font-mono-data text-2xl text-rose-500 tracking-tighter">$0
-                            </td>
-                            <td id="footerCashSugg" class="text-center"></td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
-                </table>
+          </div>
+          <div class="glass-card p-6 border-t-[6px] border-t-rose-600">
+            <span
+              class="text-xs font-black text-rose-800 uppercase tracking-widest flex items-center gap-2"
+            >
+              預算總計 <span id="levBadge" class="badge-lev hidden">LEV</span>
+            </span>
+            <div
+              id="targetTotalRatio"
+              class="text-4xl font-black text-rose-950 font-mono-data mt-2"
+            >
+              0.0%
             </div>
+          </div>
+          <div
+            class="glass-card p-6 border-t-[6px] border-t-indigo-600"
+            id="maintenanceCard"
+          >
+            <span
+              class="text-xs font-black text-indigo-700 uppercase tracking-widest"
+              >質押維持率</span
+            >
+            <div
+              id="maintenanceRatio"
+              class="text-4xl font-black text-indigo-900 font-mono-data mt-2"
+            >
+              N/A
+            </div>
+          </div>
+        </div>
 
-            <div class="h-24"></div>
-        </main>
+        <!-- 全球參數區 (優化為一行) -->
+        <div class="px-14 mb-10">
+          <div class="params-row py-8 border-y border-rose-100">
+            <div class="min-w-[200px] flex-1">
+              <label>貸款/負債 (Loan)</label>
+              <div class="relative">
+                <span
+                  class="absolute left-0 bottom-1 text-rose-400 font-black text-2xl"
+                  >$</span
+                >
+                <input
+                  type="number"
+                  id="debtInput"
+                  oninput="updateGlobal('totalDebt', this.value)"
+                  class="underline-input pl-6 font-mono-data text-3xl"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div class="min-w-[200px] flex-1">
+              <label>現金餘額 (Cash)</label>
+              <div class="relative">
+                <span
+                  class="absolute left-0 bottom-1 text-rose-400 font-black text-2xl"
+                  >$</span
+                >
+                <input
+                  type="number"
+                  id="cashInput"
+                  oninput="updateGlobal('currentCash', this.value)"
+                  class="underline-input pl-6 font-mono-data text-3xl"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div class="w-28">
+              <label>美金匯率</label>
+              <input
+                type="number"
+                id="usdRateInput"
+                oninput="updateGlobal('usdRate', this.value)"
+                class="underline-input font-mono-data text-3xl text-center"
+                step="0.1"
+                value="32.5"
+              />
+            </div>
+            <div class="h-12 w-px bg-rose-100 mx-2"></div>
+            <div class="w-32">
+              <label class="text-center">絕對門檻 %</label>
+              <input
+                type="number"
+                id="rebalanceAbsInput"
+                oninput="updateGlobal('rebalanceAbs', this.value)"
+                class="underline-input font-mono-data text-3xl text-center border-rose-200"
+                step="0.1"
+                value="5"
+              />
+            </div>
+            <div class="w-32">
+              <label class="text-center">相對門檻 %</label>
+              <input
+                type="number"
+                id="rebalanceRelInput"
+                oninput="updateGlobal('rebalanceRel', this.value)"
+                class="underline-input font-mono-data text-3xl text-center border-rose-200"
+                step="0.1"
+                value="25"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- 資產表格 -->
+        <div class="flex-1 px-14">
+          <div class="flex justify-between items-center mb-8">
+            <h3 class="text-3xl font-black text-rose-900 tracking-tight">
+              <i class="fas fa-layer-group mr-4 text-rose-500"></i>標的實時監控
+            </h3>
+            <div class="flex items-center gap-4">
+              <button
+                onclick="syncAllPrices()"
+                class="px-8 py-4 bg-white border-2 border-rose-300 text-rose-700 font-black rounded-2xl hover:bg-rose-50 transition-all flex items-center gap-3 shadow-sm"
+              >
+                <i id="syncIcon" class="fas fa-sync-alt"></i> 更新報價
+              </button>
+              <button
+                onclick="addAsset()"
+                class="px-10 py-4 btn-pink rounded-2xl shadow-xl flex items-center gap-3"
+              >
+                <i class="fas fa-plus"></i> 新增標的
+              </button>
+            </div>
+          </div>
+
+          <table class="w-full">
+            <thead>
+              <tr class="text-left">
+                <th class="px-2 col-symbol">標的 / 名稱</th>
+                <th class="px-2 col-leverage text-center">槓桿</th>
+                <th class="px-2 col-price">目前單價</th>
+                <th class="px-2 col-shares">持有股數</th>
+                <th class="px-2 col-nominal">名目曝險</th>
+                <th class="px-2 col-ratio text-center text-indigo-700">
+                  目前%
+                </th>
+                <th class="px-2 col-ratio text-center text-rose-800">目標%</th>
+                <th class="px-2 col-target text-center">理想配置</th>
+                <th class="px-2 col-suggest text-center">再平衡建議</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="assetBody"></tbody>
+            <tfoot>
+              <tr class="font-black">
+                <td
+                  colspan="4"
+                  class="text-right text-rose-400 uppercase text-sm font-black tracking-widest pr-10 italic"
+                >
+                  Budget Flow Management
+                </td>
+                <td
+                  id="footerCurrentCash"
+                  class="font-mono-data text-2xl text-rose-950 tracking-tighter"
+                >
+                  $0
+                </td>
+                <td
+                  class="text-center text-xl text-indigo-800"
+                  id="footerCurrentCashRatio"
+                >
+                  0.0%
+                </td>
+                <td
+                  class="text-center text-xl text-rose-800"
+                  id="footerCashRatio"
+                >
+                  0.0%
+                </td>
+                <td
+                  id="footerTargetCash"
+                  class="font-mono-data text-2xl text-rose-800 tracking-tighter text-center"
+                >
+                  $0
+                </td>
+                <td id="footerCashSugg" class="text-center"></td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="h-24"></div>
+      </main>
     </div>
 
-    <div id="toast"
-        class="fixed bottom-10 right-10 px-8 py-4 bg-rose-900 text-white rounded-2xl shadow-2xl opacity-0 transition-all z-50 pointer-events-none flex items-center gap-3 font-bold text-lg">
-        <i class="fas fa-bell text-rose-200"></i> <span id="toastMsg"></span>
+    <div
+      id="toast"
+      class="fixed bottom-10 right-10 px-10 py-5 bg-rose-950 text-white rounded-2xl shadow-2xl opacity-0 transition-all z-50 pointer-events-none flex items-center gap-4 font-black text-xl"
+    >
+      <i class="fas fa-bell text-rose-400"></i> <span id="toastMsg"></span>
     </div>
 
     <script>
-        const STORAGE_KEY = 'INVEST_PRO_REBALANCE_EXPOSURE_V12';
+      const STORAGE_KEY = "INVEST_REBAL_V19_TW_FIX";
 
-        let appState = {
-            activeId: 'acc_default',
-            isSidebarCollapsed: false,
-            accounts: [
-                {
-                    id: 'acc_default',
-                    name: '主帳戶',
-                    currentCash: 0,
-                    totalDebt: 700000,
-                    cashRatio: 0,
-                    usdRate: 32.5,
-                    rebalanceAbs: 5,
-                    rebalanceRel: 25,
-                    assets: [
-                        { id: 1, name: '2330', price: 1000, shares: 1000, targetRatio: 80, leverage: 1 }
-                    ]
-                }
-            ]
+      let appState = {
+        activeId: "acc_default",
+        isSidebarCollapsed: false,
+        accounts: [
+          {
+            id: "acc_default",
+            name: "實戰配置",
+            currentCash: 0,
+            totalDebt: 500000,
+            cashRatio: 0,
+            usdRate: 32.5,
+            rebalanceAbs: 5,
+            rebalanceRel: 25,
+            assets: [
+              {
+                id: 1,
+                name: "2330",
+                fullName: "台積電",
+                price: 1000,
+                shares: 100,
+                targetRatio: 40,
+                leverage: 1,
+              },
+              {
+                id: 2,
+                name: "0050",
+                fullName: "元大台灣50",
+                price: 180,
+                shares: 1000,
+                targetRatio: 30,
+                leverage: 1,
+              },
+            ],
+          },
+        ],
+      };
+
+      function safeNum(val, def = 0) {
+        const n = parseFloat(val);
+        return isNaN(n) ? def : n;
+      }
+
+      function init() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed && parsed.accounts) appState = parsed;
+          } catch (e) {}
+        }
+        if (
+          !appState.activeId ||
+          !appState.accounts.find((a) => a.id === appState.activeId)
+        ) {
+          appState.activeId = appState.accounts[0].id;
+        }
+        if (appState.isSidebarCollapsed) {
+          document
+            .getElementById("mainContainer")
+            .classList.add("sidebar-collapsed");
+          document.getElementById("toggleIcon").className =
+            "fas fa-bars text-xl";
+        }
+        renderAccountList();
+        renderMainUI();
+      }
+
+      function save() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      }
+
+      function toggleSidebar() {
+        const container = document.getElementById("mainContainer");
+        const icon = document.getElementById("toggleIcon");
+        appState.isSidebarCollapsed = !appState.isSidebarCollapsed;
+        container.classList.toggle(
+          "sidebar-collapsed",
+          appState.isSidebarCollapsed
+        );
+        icon.className = appState.isSidebarCollapsed
+          ? "fas fa-bars text-xl"
+          : "fas fa-chevron-left text-xl";
+        save();
+      }
+
+      function renderAccountList() {
+        const list = document.getElementById("accountList");
+        list.innerHTML = "";
+        appState.accounts.forEach((acc) => {
+          const isActive = acc.id === appState.activeId;
+          const div = document.createElement("div");
+          div.className = `group flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all ${
+            isActive
+              ? "bg-rose-500 text-white shadow-lg scale-105"
+              : "bg-white hover:bg-rose-50 text-rose-900 border border-rose-50"
+          }`;
+          div.innerHTML = `
+            <div class="flex items-center gap-3 flex-1 overflow-hidden" onclick="switchAccount('${
+              acc.id
+            }')">
+              <i class="fas fa-wallet ${
+                isActive ? "text-rose-200" : "text-rose-300"
+              } text-xl"></i>
+              <span class="font-black text-lg truncate">${acc.name}</span>
+            </div>
+            <button onclick="event.stopPropagation(); deleteAccount('${
+              acc.id
+            }')" class="opacity-0 group-hover:opacity-100 p-1 text-rose-200 hover:text-white transition-all">
+              <i class="fas fa-trash-alt text-lg"></i>
+            </button>
+          `;
+          list.appendChild(div);
+        });
+      }
+
+      function renderMainUI() {
+        const acc = appState.accounts.find((a) => a.id === appState.activeId);
+        if (!acc) return;
+
+        document.getElementById(
+          "activeAccountTitle"
+        ).innerHTML = `${acc.name} <i class="fas fa-pen text-2xl text-rose-300 ml-4"></i>`;
+        document.getElementById("debtInput").value = acc.totalDebt;
+        document.getElementById("cashInput").value = acc.currentCash;
+        document.getElementById("usdRateInput").value = acc.usdRate;
+        document.getElementById("rebalanceAbsInput").value = acc.rebalanceAbs;
+        document.getElementById("rebalanceRelInput").value = acc.rebalanceRel;
+
+        const body = document.getElementById("assetBody");
+        body.innerHTML = "";
+
+        acc.assets.forEach((asset, index) => {
+          const row = document.createElement("tr");
+          row.className = "group";
+          row.innerHTML = `
+            <td class="col-symbol">
+              <div class="flex items-center gap-4">
+                <div class="flex flex-col">
+                  <button onclick="moveAsset(${
+                    asset.id
+                  }, -1)" class="move-btn ${
+            index === 0 ? "invisible" : ""
+          }"><i class="fas fa-caret-up"></i></button>
+                  <button onclick="moveAsset(${asset.id}, 1)" class="move-btn ${
+            index === acc.assets.length - 1 ? "invisible" : ""
+          }"><i class="fas fa-caret-down"></i></button>
+                </div>
+                <div class="flex flex-col flex-1">
+                  <input type="text" value="${
+                    asset.name
+                  }" onchange="updateAsset(${asset.id}, 'name', this.value)" 
+                    class="underline-input uppercase tracking-tighter text-2xl" placeholder="CODE">
+                  <span class="text-sm font-black text-rose-600 mt-1 px-1 whitespace-normal">${
+                    asset.fullName || "---"
+                  }</span>
+                </div>
+              </div>
+            </td>
+            <td class="col-leverage">
+              <input type="number" value="${
+                asset.leverage
+              }" onchange="updateAsset(${asset.id}, 'leverage', this.value)" 
+                  class="underline-input text-center text-rose-600 font-black text-2xl" step="0.1">
+            </td>
+            <td class="col-price">
+              <div class="flex items-center gap-2">
+                <input type="number" value="${
+                  asset.price
+                }" onchange="updateAsset(${asset.id}, 'price', this.value)" 
+                  class="underline-input font-mono-data font-bold text-2xl overflow-visible" placeholder="0.00">
+                <button onclick="fetchLivePrice(${asset.id}, '${
+            asset.name
+          }')" class="text-rose-300 hover:text-rose-500 p-1">
+                  <i id="assetSync-${
+                    asset.id
+                  }" class="fas fa-sync-alt text-xl"></i>
+                </button>
+              </div>
+            </td>
+            <td class="col-shares">
+              <input type="number" value="${
+                asset.shares
+              }" onchange="updateAsset(${asset.id}, 'shares', this.value)" 
+                class="underline-input font-mono-data font-bold text-2xl" placeholder="0">
+            </td>
+            <td id="curVal-${
+              asset.id
+            }" class="col-nominal font-mono-data text-rose-950 font-black text-2xl tracking-tighter">$0</td>
+            <td id="curPct-${
+              asset.id
+            }" class="col-ratio font-mono-data text-indigo-800 font-black text-2xl text-center">0.0%</td>
+            <td class="col-ratio">
+               <div class="flex items-center justify-center gap-1">
+                 <input type="number" value="${
+                   asset.targetRatio
+                 }" onchange="updateAsset(${
+            asset.id
+          }, 'targetRatio', this.value)" 
+                  class="underline-input text-center text-rose-900 font-black text-2xl" step="0.1" placeholder="0">
+                 <span class="text-rose-300 font-black text-lg">%</span>
+               </div>
+            </td>
+            <td id="targetVal-${asset.id}" class="col-target text-center"></td>
+            <td id="sugg-${asset.id}" class="col-suggest text-center"></td>
+            <td class="text-right">
+              <button onclick="removeAsset(${
+                asset.id
+              })" class="p-2 text-rose-100 hover:text-rose-500 transition-all">
+                <i class="fas fa-trash-alt text-2xl"></i>
+              </button>
+            </td>
+          `;
+          body.appendChild(row);
+        });
+        calculate();
+      }
+
+      function moveAsset(id, direction) {
+        const acc = appState.accounts.find((a) => a.id === appState.activeId);
+        const index = acc.assets.findIndex((a) => a.id === id);
+        if (index === -1) return;
+        const newIndex = index + direction;
+        if (newIndex < 0 || newIndex >= acc.assets.length) return;
+        const temp = acc.assets[index];
+        acc.assets[index] = acc.assets[newIndex];
+        acc.assets[newIndex] = temp;
+        save();
+        renderMainUI();
+      }
+
+      function calculate() {
+        const acc = appState.accounts.find((a) => a.id === appState.activeId);
+        if (!acc) return;
+
+        let totalNominalExposure = 0;
+        let totalAssetBookValue = 0;
+
+        acc.assets.forEach((asset) => {
+          const isTW = /^\d{4,6}[A-Z]?$/.test(asset.name.trim().toUpperCase());
+          const priceTwd = isTW
+            ? safeNum(asset.price)
+            : safeNum(asset.price) * safeNum(acc.usdRate);
+          const bookValue = priceTwd * safeNum(asset.shares);
+          const nominalValue = bookValue * safeNum(asset.leverage, 1);
+          totalAssetBookValue += bookValue;
+          totalNominalExposure += nominalValue;
+          document.getElementById(
+            `curVal-${asset.id}`
+          ).innerText = `$${Math.round(nominalValue).toLocaleString()}`;
+        });
+
+        const netValue =
+          totalAssetBookValue +
+          safeNum(acc.currentCash) -
+          safeNum(acc.totalDebt);
+        const totalLeverage =
+          netValue > 0 ? totalNominalExposure / netValue : 0;
+        const targetAssetRatioSum = acc.assets.reduce(
+          (s, a) => s + safeNum(a.targetRatio),
+          0
+        );
+        const targetTotalCombined =
+          targetAssetRatioSum + safeNum(acc.cashRatio);
+
+        document.getElementById("totalNetValue").innerText = `$${Math.round(
+          netValue
+        ).toLocaleString()}`;
+        document.getElementById("totalExposure").innerText = `$${Math.round(
+          totalNominalExposure
+        ).toLocaleString()}`;
+        document.getElementById(
+          "leverageDisplay"
+        ).innerText = `${totalLeverage.toFixed(2)}x`;
+        document.getElementById(
+          "targetTotalRatio"
+        ).innerText = `${targetTotalCombined.toFixed(1)}%`;
+
+        const maintenanceRatioEl = document.getElementById("maintenanceRatio");
+        const maintenanceCard = document.getElementById("maintenanceCard");
+        if (safeNum(acc.totalDebt) > 0) {
+          const ratio = (totalAssetBookValue / safeNum(acc.totalDebt)) * 100;
+          maintenanceRatioEl.innerText = `${Math.round(ratio)}%`;
+          if (ratio < 140)
+            maintenanceCard.className =
+              "glass-card p-6 border-t-8 border-t-rose-600 bg-rose-50 alert-pulse";
+          else if (ratio < 166)
+            maintenanceCard.className =
+              "glass-card p-6 border-t-8 border-t-amber-500 bg-amber-50";
+          else
+            maintenanceCard.className =
+              "glass-card p-6 border-t-8 border-t-indigo-600";
+        } else {
+          maintenanceRatioEl.innerText = "N/A";
+          maintenanceCard.className =
+            "glass-card p-6 border-t-8 border-t-gray-300 opacity-60";
+        }
+
+        document
+          .getElementById("levBadge")
+          .classList.toggle("hidden", targetTotalCombined <= 100.1);
+
+        if (netValue <= 0) {
+          acc.assets.forEach(
+            (as) =>
+              (document.getElementById(
+                `sugg-${as.id}`
+              ).innerHTML = `<span class="text-rose-600 font-black">⚠️ 淨值為負</span>`)
+          );
+          return;
+        }
+
+        acc.assets.forEach((asset) => {
+          const isTW = /^\d{4,6}[A-Z]?$/.test(asset.name.trim().toUpperCase());
+          const priceTwd = isTW
+            ? safeNum(asset.price)
+            : safeNum(asset.price) * safeNum(acc.usdRate);
+          const factor = safeNum(asset.leverage, 1);
+          const currentNominal = priceTwd * safeNum(asset.shares) * factor;
+          const currentPct = (currentNominal / netValue) * 100;
+          const targetPct = safeNum(asset.targetRatio);
+          const targetNominal = netValue * (targetPct / 100);
+          const targetBookValue = targetNominal / factor;
+
+          document.getElementById(
+            `curPct-${asset.id}`
+          ).innerText = `${currentPct.toFixed(1)}%`;
+          document.getElementById(`targetVal-${asset.id}`).innerHTML = `
+            <div class="flex flex-col text-sm font-black items-center">
+              <span class="text-rose-950 font-mono-data text-xl tracking-tighter">$${Math.round(
+                targetNominal
+              ).toLocaleString()}</span>
+              <span class="text-rose-400 uppercase tracking-widest mt-1 text-[10px]">預算: $${Math.round(
+                targetBookValue
+              ).toLocaleString()}</span>
+            </div>`;
+
+          const absDiff = Math.abs(currentPct - targetPct);
+          const relDiff = targetPct !== 0 ? absDiff / targetPct : 0;
+          const thresholdAbs = safeNum(acc.rebalanceAbs, 5);
+          const thresholdRel = safeNum(acc.rebalanceRel, 25) / 100;
+          const isTriggered = absDiff > thresholdAbs || relDiff > thresholdRel;
+
+          const suggCell = document.getElementById(`sugg-${asset.id}`);
+          if (!isTriggered) {
+            const progress = Math.min(
+              100,
+              Math.max(
+                (absDiff / thresholdAbs) * 100,
+                (relDiff / thresholdRel) * 100
+              )
+            );
+            const color =
+              progress > 80 ? "#f43f5e" : progress > 50 ? "#fb923c" : "#fb7185";
+            suggCell.innerHTML = `
+              <div class="flex flex-col items-center justify-center w-full px-4">
+                <div class="flex justify-between w-full text-[10px] font-black uppercase text-rose-400 tracking-widest">
+                  <span>OK</span><span>${Math.round(progress)}%</span>
+                </div>
+                <div class="deviation-bar-bg"><div class="deviation-bar-fill" style="width: ${progress}%; background-color: ${color}"></div></div>
+              </div>`;
+          } else {
+            const diffNominal = targetNominal - currentNominal;
+            const diffCashImpact = diffNominal / factor;
+            const diffSharesRaw =
+              priceTwd * factor > 0 ? diffNominal / (priceTwd * factor) : 0;
+            const isBuy = diffNominal > 0;
+            const actionText = isBuy ? "加碼" : "減持";
+            const finalShares = Math.abs(Math.round(diffSharesRaw));
+
+            suggCell.innerHTML = `
+              <div class="flex flex-col items-center">
+                <div class="flex items-center gap-3">
+                  <span class="${
+                    isBuy ? "text-emerald-500" : "text-rose-700"
+                  } text-rebalance-big tracking-tighter">${actionText} $${Math.abs(
+              Math.round(diffNominal)
+            ).toLocaleString()}</span>
+                  <span class="text-rose-900 text-rebalance-big border-l-2 border-rose-100 pl-3 tracking-tighter">${finalShares.toLocaleString()} 股</span>
+                </div>
+                <div class="text-[10px] font-black text-rose-400 uppercase tracking-widest mt-1">Cash Impact: $${Math.abs(
+                  Math.round(diffCashImpact)
+                ).toLocaleString()}</div>
+              </div>`;
+          }
+        });
+
+        const currentCashPct = (safeNum(acc.currentCash) / netValue) * 100;
+        document.getElementById("footerCurrentCash").innerText = `$${Math.round(
+          safeNum(acc.currentCash)
+        ).toLocaleString()}`;
+        document.getElementById(
+          "footerCurrentCashRatio"
+        ).innerText = `${currentCashPct.toFixed(1)}%`;
+        document.getElementById("footerCashRatio").innerText = `${safeNum(
+          acc.cashRatio
+        ).toFixed(1)}%`;
+        const targetCashVal = netValue * (safeNum(acc.cashRatio) / 100);
+        document.getElementById("footerTargetCash").innerText = `$${Math.round(
+          targetCashVal
+        ).toLocaleString()}`;
+        const cashDiff = targetCashVal - safeNum(acc.currentCash);
+        const cashSugg = document.getElementById("footerCashSugg");
+        if (Math.abs(cashDiff) < 100)
+          cashSugg.innerHTML = `<span class="text-rose-300 font-black italic">Balanced</span>`;
+        else {
+          const isDeposit = cashDiff > 0;
+          cashSugg.innerHTML = `<span class="${
+            isDeposit ? "text-emerald-500" : "text-rose-700"
+          } text-2xl font-black tracking-tighter">${
+            isDeposit ? "補足" : "可提"
+          } $${Math.abs(Math.round(cashDiff)).toLocaleString()}</span>`;
+        }
+        save();
+      }
+
+      // --- 核心報價系統：修正 CORS 與 中文名稱問題 ---
+      async function fetchLivePrice(id, symbol) {
+        if (!symbol) return false;
+        const icon = document.getElementById(`assetSync-${id}`);
+        if (icon) icon.classList.add("fa-spin-fast", "text-rose-600");
+
+        let ticker = symbol.trim().toUpperCase();
+        const isTaiwan = /^\d{4,6}[A-Z]?$/.test(ticker);
+
+        // 更新目前較穩定的代理伺服器
+        const proxies = [
+          "https://cors-anywhere.herokuapp.com/", // 注意：此代理可能需要手動點擊其官網啟用臨時存取
+          "https://api.allorigins.win/get?url=", // 加上 /get 使用其 JSONP 模式繞過
+          "https://corsproxy.io/?",
+        ];
+
+        const tryFetch = async (targetTicker) => {
+          for (let proxy of proxies) {
+            try {
+              const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d&lang=zh-Hant-TW&region=TW`;
+
+              // 根據代理特性調整 URL 組合方式
+              let finalUrl = proxy.includes("allorigins")
+                ? proxy + encodeURIComponent(yahooUrl)
+                : proxy + yahooUrl;
+
+              const res = await fetch(finalUrl);
+              if (!res.ok) continue;
+
+              let data;
+              if (proxy.includes("allorigins")) {
+                const json = await res.json();
+                data = JSON.parse(json.contents); // Allorigins JSONP 模式需解析 contents
+              } else {
+                data = await res.json();
+              }
+
+              const meta = data.chart?.result?.[0]?.meta;
+              if (meta && (meta.regularMarketPrice || meta.previousClose)) {
+                return {
+                  price: meta.regularMarketPrice || meta.previousClose,
+                  // 嘗試抓取中文名稱
+                  name: meta.shortName || meta.longName || meta.symbol,
+                };
+              }
+            } catch (e) {
+              console.warn("嘗試代理失敗:", proxy);
+              continue;
+            }
+          }
+          return null;
         };
 
-        function safeNum(val, def = 0) {
-            const n = parseFloat(val);
-            return isNaN(n) ? def : n;
+        let result = null;
+        if (isTaiwan && !ticker.includes(".")) {
+          result = await tryFetch(ticker + ".TW");
+          if (!result) result = await tryFetch(ticker + ".TWO");
+        } else {
+          result = await tryFetch(ticker);
         }
 
-        function init() {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    if (parsed && parsed.accounts) appState = parsed;
-                } catch (e) { }
-            }
-            if (!appState.activeId || !appState.accounts.find(a => a.id === appState.activeId)) {
-                appState.activeId = appState.accounts[0].id;
+        if (result) {
+          const acc = appState.accounts.find((a) => a.id === appState.activeId);
+          const asset = acc.assets.find((a) => a.id === id);
+          if (asset && result.price) {
+            asset.price = result.price;
+
+            // 中文處理邏輯
+            const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
+            if (hasChinese(result.name)) {
+              asset.fullName = result.name;
+            } else if (!asset.fullName || asset.fullName === "---") {
+              asset.fullName = ticker;
             }
 
-            appState.accounts.forEach(acc => {
-                if (acc.rebalanceAbs === undefined) acc.rebalanceAbs = 5;
-                if (acc.rebalanceRel === undefined) acc.rebalanceRel = 25;
-                if (acc.totalDebt === undefined) acc.totalDebt = 0;
-            });
-
-            if (appState.isSidebarCollapsed) {
-                document.getElementById('mainContainer').classList.add('sidebar-collapsed');
-                document.getElementById('toggleIcon').className = 'fas fa-bars text-xl';
-            }
-            renderAccountList();
             renderMainUI();
+            if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
+            return true;
+          }
         }
 
-        function save() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+        if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
+        return false;
+      }
+
+      async function syncAllPrices() {
+        const mainSync = document.getElementById("syncIcon");
+        if (mainSync) mainSync.classList.add("fa-spin-fast");
+        showToast("正在聯繫資料庫...");
+
+        const acc = appState.accounts.find((a) => a.id === appState.activeId);
+        let successCount = 0;
+
+        for (let asset of acc.assets) {
+          if (asset.name) {
+            const success = await fetchLivePrice(asset.id, asset.name);
+            if (success) successCount++;
+            await new Promise((r) => setTimeout(r, 1200)); // 拉長間隔至 1.2 秒防止被封鎖
+          }
         }
 
-        function toggleSidebar() {
-            const container = document.getElementById('mainContainer');
-            const icon = document.getElementById('toggleIcon');
-            appState.isSidebarCollapsed = !appState.isSidebarCollapsed;
-            container.classList.toggle('sidebar-collapsed', appState.isSidebarCollapsed);
-            icon.className = appState.isSidebarCollapsed ? 'fas fa-bars text-xl' : 'fas fa-chevron-left text-xl';
-            save();
-        }
+        if (mainSync) mainSync.classList.remove("fa-spin-fast");
+        showToast(
+          successCount > 0
+            ? `同步成功 ${successCount} 筆`
+            : "連線逾時，請檢查代理狀態"
+        );
+      }
 
-        function renderAccountList() {
-            const list = document.getElementById('accountList');
-            list.innerHTML = '';
-            appState.accounts.forEach(acc => {
-                const isActive = acc.id === appState.activeId;
-                const div = document.createElement('div');
-                div.className = `group flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all ${isActive ? 'bg-rose-500 text-white shadow-md scale-105' : 'bg-white hover:bg-rose-50 text-rose-900 border border-rose-50'}`;
-                div.innerHTML = `
-          <div class="flex items-center gap-3 flex-1 overflow-hidden" onclick="switchAccount('${acc.id}')">
-            <i class="fas fa-wallet ${isActive ? 'text-rose-200' : 'text-rose-300'} text-lg"></i>
-            <span class="font-black text-lg truncate tracking-tight">${acc.name}</span>
-          </div>
-          <button onclick="event.stopPropagation(); deleteAccount('${acc.id}')" class="opacity-0 group-hover:opacity-100 p-2 text-rose-200 hover:text-white transition-all">
-            <i class="fas fa-trash-alt"></i>
-          </button>
-        `;
-                list.appendChild(div);
+      function updateGlobal(f, v) {
+        const acc = appState.accounts.find((a) => a.id === appState.activeId);
+        acc[f] = safeNum(v);
+        calculate();
+      }
+      function updateAsset(id, f, v) {
+        const acc = appState.accounts.find((a) => a.id === appState.activeId);
+        const asset = acc.assets.find((as) => as.id === id);
+        asset[f] = f === "name" ? v.toUpperCase() : safeNum(v);
+        calculate();
+      }
+      function addAsset() {
+        const acc = appState.accounts.find((a) => a.id === appState.activeId);
+        acc.assets.push({
+          id: Date.now(),
+          name: "",
+          fullName: "",
+          price: 0,
+          shares: 0,
+          targetRatio: 0,
+          leverage: 1,
+        });
+        renderMainUI();
+      }
+      function removeAsset(id) {
+        const acc = appState.accounts.find((a) => a.id === appState.activeId);
+        acc.assets = acc.assets.filter((as) => as.id !== id);
+        renderMainUI();
+      }
+      function switchAccount(id) {
+        appState.activeId = id;
+        save();
+        renderAccountList();
+        renderMainUI();
+      }
+      function createNewAccount() {
+        const name = prompt("計畫名稱:", "新實戰計畫");
+        if (!name) return;
+        const id = "acc_" + Date.now();
+        appState.accounts.push({
+          id,
+          name,
+          currentCash: 0,
+          totalDebt: 500000,
+          cashRatio: 0,
+          usdRate: 32.5,
+          rebalanceAbs: 5,
+          rebalanceRel: 25,
+          assets: [],
+        });
+        switchAccount(id);
+      }
+      function deleteAccount(id) {
+        if (appState.accounts.length <= 1)
+          return showToast("不可刪除最後一個帳戶");
+        if (confirm("確定刪除此計畫？")) {
+          appState.accounts = appState.accounts.filter((a) => a.id !== id);
+          if (appState.activeId === id)
+            appState.activeId = appState.accounts[0].id;
+          save();
+          renderAccountList();
+          renderMainUI();
+        }
+      }
+      function deleteCurrentAccount() {
+        deleteAccount(appState.activeId);
+      }
+      function renameCurrentAccount() {
+        const acc = appState.accounts.find((a) => a.id === appState.activeId);
+        const newName = prompt("重新命名:", acc.name);
+        if (newName) {
+          acc.name = newName;
+          save();
+          renderAccountList();
+          renderMainUI();
+        }
+      }
+
+      function exportExcel() {
+        const acc = appState.accounts.find((a) => a.id === appState.activeId);
+        const data = [
+          ["計畫名稱", acc.name],
+          ["美金匯率", acc.usdRate],
+          ["可用現金", acc.currentCash],
+          ["負債總額", acc.totalDebt],
+          ["絕對門檻", acc.rebalanceAbs],
+          ["相對門檻", acc.rebalanceRel],
+          [],
+          ["代號", "標的全稱", "目前單價", "持有股數", "槓桿倍數", "目標權重%"],
+        ];
+        acc.assets.forEach((a) =>
+          data.push([
+            a.name,
+            a.fullName || "",
+            a.price,
+            a.shares,
+            a.leverage,
+            a.targetRatio,
+          ])
+        );
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Portfolio");
+        XLSX.writeFile(wb, `${acc.name}_財務快照.xlsx`);
+      }
+
+      function importExcel(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const ab = evt.target.result;
+            const wb = XLSX.read(ab, { type: "array" });
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
+              header: 1,
             });
-        }
-
-        function renderMainUI() {
-            const acc = appState.accounts.find(a => a.id === appState.activeId);
-            if (!acc) return;
-
-            document.getElementById('activeAccountTitle').innerHTML = `${acc.name} <i class="fas fa-pen text-sm text-rose-400"></i>`;
-            document.getElementById('debtInput').value = acc.totalDebt;
-            document.getElementById('cashInput').value = acc.currentCash;
-            document.getElementById('cashRatioInput').value = acc.cashRatio;
-            document.getElementById('usdRateInput').value = acc.usdRate;
-            document.getElementById('rebalanceAbsInput').value = acc.rebalanceAbs;
-            document.getElementById('rebalanceRelInput').value = acc.rebalanceRel;
-
-            const body = document.getElementById('assetBody');
-            body.innerHTML = '';
-
-            acc.assets.forEach((asset, index) => {
-                const row = document.createElement('tr');
-                row.className = 'asset-row group';
-                row.innerHTML = `
-          <td>
-            <div class="flex items-center gap-1">
-              <div class="flex flex-col">
-                <button onclick="moveAsset(${asset.id}, -1)" class="move-btn ${index === 0 ? 'invisible' : ''}"><i class="fas fa-caret-up"></i></button>
-                <button onclick="moveAsset(${asset.id}, 1)" class="move-btn ${index === acc.assets.length - 1 ? 'invisible' : ''}"><i class="fas fa-caret-down"></i></button>
-              </div>
-              <input type="text" value="${asset.name}" onchange="updateAsset(${asset.id}, 'name', this.value)" 
-                class="underline-input uppercase text-2xl text-rose-900 tracking-tighter" placeholder="代號">
-            </div>
-          </td>
-          <td>
-            <input type="number" value="${asset.leverage}" onchange="updateAsset(${asset.id}, 'leverage', this.value)" 
-                class="underline-input text-center text-rose-600 font-black text-xl" step="0.1">
-          </td>
-          <td>
-            <div class="flex items-center gap-1">
-              <input type="number" value="${asset.price}" onchange="updateAsset(${asset.id}, 'price', this.value)" 
-                class="underline-input font-mono-data font-bold text-xl" placeholder="0.00">
-              <button onclick="fetchLivePrice(${asset.id}, '${asset.name}')" class="text-rose-400 hover:text-rose-600 p-1">
-                <i id="assetSync-${asset.id}" class="fas fa-sync-alt text-lg"></i>
-              </button>
-            </div>
-          </td>
-          <td>
-            <input type="number" value="${asset.shares}" onchange="updateAsset(${asset.id}, 'shares', this.value)" 
-              class="underline-input font-mono-data font-bold text-xl" placeholder="0">
-          </td>
-          <td id="curVal-${asset.id}" class="font-mono-data text-rose-900 font-black text-xl tracking-tighter">$0</td>
-          <td>
-             <div class="flex items-center justify-center gap-1">
-               <input type="number" value="${asset.targetRatio}" onchange="updateAsset(${asset.id}, 'targetRatio', this.value)" 
-                class="underline-input text-center text-rose-700 font-black text-xl" placeholder="0">
-               <span class="text-rose-400 font-black text-base">%</span>
-             </div>
-          </td>
-          <td id="targetVal-${asset.id}"></td>
-          <td id="sugg-${asset.id}" class="text-center"></td>
-          <td class="text-right">
-            <button onclick="removeAsset(${asset.id})" class="p-2 text-rose-100 hover:text-rose-600 transition-all text-xl">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-          </td>
-        `;
-                body.appendChild(row);
-            });
-
-            calculate();
-        }
-
-        function moveAsset(id, direction) {
-            const acc = appState.accounts.find(a => a.id === appState.activeId);
-            const index = acc.assets.findIndex(a => a.id === id);
-            if (index === -1) return;
-            const newIndex = index + direction;
-            if (newIndex < 0 || newIndex >= acc.assets.length) return;
-            const temp = acc.assets[index];
-            acc.assets[index] = acc.assets[newIndex];
-            acc.assets[newIndex] = temp;
-            save(); renderMainUI();
-        }
-
-        function calculate() {
-            const acc = appState.accounts.find(a => a.id === appState.activeId);
-            if (!acc) return;
-
-            let totalNominalExposure = 0;
-            let totalAssetBookValue = 0;
-
-            acc.assets.forEach(asset => {
-                const isTW = /^\d{4,6}[A-Z]?$/.test(asset.name.trim().toUpperCase());
-                const priceTwd = isTW ? safeNum(asset.price) : (safeNum(asset.price) * safeNum(acc.usdRate));
-                const bookValue = priceTwd * safeNum(asset.shares);
-                const nominalValue = bookValue * safeNum(asset.leverage, 1);
-
-                totalAssetBookValue += bookValue;
-                totalNominalExposure += nominalValue;
-                document.getElementById(`curVal-${asset.id}`).innerText = `$${Math.round(nominalValue).toLocaleString()}`;
-            });
-
-            // 淨值 = 資產 + 現金 - 貸款
-            const netValue = totalAssetBookValue + safeNum(acc.currentCash) - safeNum(acc.totalDebt);
-            const totalLeverage = netValue > 0 ? (totalNominalExposure / netValue) : 0;
-            const targetAssetRatioSum = acc.assets.reduce((s, a) => s + safeNum(a.targetRatio), 0);
-            const targetTotalCombined = targetAssetRatioSum + safeNum(acc.cashRatio);
-
-            document.getElementById('totalNetValue').innerText = `$${Math.round(netValue).toLocaleString()}`;
-            document.getElementById('totalExposure').innerText = `$${Math.round(totalNominalExposure).toLocaleString()}`;
-            document.getElementById('leverageDisplay').innerText = `${totalLeverage.toFixed(2)}x`;
-            document.getElementById('targetTotalRatio').innerText = `${Math.round(targetTotalCombined)}%`;
-
-            // 維持率監控
-            const maintenanceRatioEl = document.getElementById('maintenanceRatio');
-            const maintenanceCard = document.getElementById('maintenanceCard');
-            const debtValue = safeNum(acc.totalDebt);
-
-            if (debtValue > 0) {
-                const ratio = (totalAssetBookValue / debtValue) * 100;
-                maintenanceRatioEl.innerText = `${Math.round(ratio)}%`;
-                if (ratio < 140) {
-                    maintenanceCard.className = "glass-card p-5 border-t-4 border-t-rose-600 bg-rose-50 alert-pulse";
-                    maintenanceRatioEl.className = "text-2xl font-black text-rose-700 mt-2";
-                } else if (ratio < 166) {
-                    maintenanceCard.className = "glass-card p-5 border-t-4 border-t-amber-500 bg-amber-50";
-                    maintenanceRatioEl.className = "text-2xl font-black text-amber-700 mt-2";
-                } else {
-                    maintenanceCard.className = "glass-card p-5 border-t-4 border-t-indigo-400";
-                    maintenanceRatioEl.className = "text-2xl font-black text-indigo-900 mt-2";
-                }
-            } else {
-                maintenanceRatioEl.innerText = "無貸款";
-                maintenanceCard.className = "glass-card p-5 border-t-4 border-t-gray-300 opacity-60";
-            }
-
-            const levBadge = document.getElementById('levBadge');
-            levBadge.classList.toggle('hidden', targetTotalCombined <= 100.1);
-
-            if (netValue <= 0) {
-                acc.assets.forEach(asset => {
-                    document.getElementById(`sugg-${asset.id}`).innerHTML = `<span class="text-rose-600 font-black text-xs">⚠️ 淨值為負，請入金</span>`;
-                });
-                return;
-            }
-
-            acc.assets.forEach(asset => {
-                const isTW = /^\d{4,6}[A-Z]?$/.test(asset.name.trim().toUpperCase());
-                const priceTwd = isTW ? safeNum(asset.price) : (safeNum(asset.price) * safeNum(acc.usdRate));
-                const factor = safeNum(asset.leverage, 1);
-                const currentNominal = (priceTwd * safeNum(asset.shares)) * factor;
-                const currentPct = (currentNominal / netValue * 100);
-                const targetPct = safeNum(asset.targetRatio);
-                const targetNominal = netValue * (targetPct / 100);
-                const targetBookValue = targetNominal / factor;
-
-                document.getElementById(`targetVal-${asset.id}`).innerHTML = `
-          <div class="flex flex-col text-[11px] font-black">
-            <span class="text-rose-900 font-mono-data text-lg tracking-tighter">$${Math.round(targetNominal).toLocaleString()}</span>
-            <span class="text-rose-400 uppercase tracking-widest">理想投入: $${Math.round(targetBookValue).toLocaleString()}</span>
-          </div>
-        `;
-
-                const absDiff = Math.abs(currentPct - targetPct);
-                const relDiff = targetPct !== 0 ? (absDiff / targetPct) : 0;
-                const thresholdAbs = safeNum(acc.rebalanceAbs, 5);
-                const thresholdRel = safeNum(acc.rebalanceRel, 25) / 100;
-                const isTriggered = absDiff > thresholdAbs || relDiff > thresholdRel;
-
-                const suggCell = document.getElementById(`sugg-${asset.id}`);
-                if (!isTriggered) {
-                    const progress = Math.min(100, Math.max((absDiff / thresholdAbs) * 100, (relDiff / thresholdRel) * 100));
-                    const color = progress > 80 ? '#f43f5e' : (progress > 50 ? '#fb923c' : '#fb7185');
-                    suggCell.innerHTML = `
-            <div class="flex flex-col items-center justify-center w-full px-4">
-              <div class="flex justify-between w-full text-[11px] font-black uppercase text-rose-500 tracking-widest">
-                <span>策略監測</span><span>${Math.round(progress)}%</span>
-              </div>
-              <div class="deviation-bar-bg"><div class="deviation-bar-fill" style="width: ${progress}%; background-color: ${color}"></div></div>
-            </div>`;
-                } else {
-                    const diffNominal = targetNominal - currentNominal;
-                    const diffCashImpact = diffNominal / factor;
-                    const diffSharesRaw = (priceTwd * factor) > 0 ? (diffNominal / (priceTwd * factor)) : 0;
-                    let actionText = ""; let finalShares = 0; let isBuy = diffNominal > 0;
-
-                    if (!isBuy && Math.abs(diffSharesRaw) >= (asset.shares * 0.99)) { actionText = "全清"; finalShares = asset.shares; }
-                    else { actionText = isBuy ? "買進" : "賣出"; finalShares = Math.abs(Math.round(diffSharesRaw)); }
-
-                    suggCell.innerHTML = `
-            <div class="flex flex-col items-center">
-              <div class="flex items-center gap-3">
-                <span class="${isBuy ? 'text-emerald-500' : 'text-rose-600'} text-rebalance-big tracking-tighter">${actionText} $${Math.abs(Math.round(diffNominal)).toLocaleString()}</span>
-                <span class="text-rose-500 text-rebalance-big border-l-2 border-rose-100 pl-3 tracking-tighter">${finalShares.toLocaleString()} 股</span>
-              </div>
-              <div class="text-[11px] font-bold text-rose-400 uppercase tracking-widest mt-1">需動支資金: $${Math.abs(Math.round(diffCashImpact)).toLocaleString()}</div>
-            </div>`;
-                }
-            });
-
-            const targetCashVal = netValue * (safeNum(acc.cashRatio) / 100);
-            const cashDiff = targetCashVal - safeNum(acc.currentCash);
-            document.getElementById('footerCurrentCash').innerText = `$${Math.round(safeNum(acc.currentCash)).toLocaleString()}`;
-            document.getElementById('footerCashRatio').innerText = `${safeNum(acc.cashRatio)}%`;
-            document.getElementById('footerTargetCash').innerText = `$${Math.round(targetCashVal).toLocaleString()}`;
-
-            const cashSugg = document.getElementById('footerCashSugg');
-            if (Math.abs(cashDiff) < 100) cashSugg.innerHTML = `<span class="text-rose-200 font-black italic text-xl">Balanced</span>`;
-            else {
-                const isDeposit = cashDiff > 0;
-                cashSugg.innerHTML = `<span class="${isDeposit ? 'text-emerald-500' : 'text-rose-600'} text-2xl font-black tracking-tighter">${isDeposit ? '還需' : '可提'} $${Math.abs(Math.round(cashDiff)).toLocaleString()}</span>`;
-            }
-            save();
-        }
-
-        async function fetchLivePrice(id, symbol) {
-            if (!symbol) return;
-            const icon = document.getElementById(`assetSync-${id}`);
-            if (icon) icon.classList.add('fa-spin-fast', 'text-rose-600');
-            let ticker = symbol.trim().toUpperCase();
-            if (!ticker.includes('.') && /^\d{4,6}[A-Z]?$/.test(ticker)) ticker += ".TW";
-            const proxies = ['https://corsproxy.io/?', 'https://api.allorigins.win/raw?url='];
-            let priceFound = false;
-            for (let proxy of proxies) {
-                try {
-                    const url = encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`);
-                    const res = await fetch(proxy + url);
-                    if (!res.ok) continue;
-                    const data = await res.json();
-                    const meta = data.chart?.result?.[0]?.meta;
-                    const price = meta?.regularMarketPrice || meta?.previousClose;
-                    if (price) {
-                        const acc = appState.accounts.find(a => a.id === appState.activeId);
-                        const asset = acc.assets.find(a => a.id === id);
-                        if (asset) { asset.price = price; priceFound = true; break; }
-                    }
-                } catch (e) { }
-            }
-            if (priceFound) renderMainUI(); else showToast(`${ticker} 更新失敗`);
-            if (icon) icon.classList.remove('fa-spin-fast', 'text-rose-600');
-            return priceFound;
-        }
-
-        async function syncAllPrices() {
-            const mainSync = document.getElementById('syncIcon');
-            mainSync.classList.add('fa-spin-fast');
-            showToast("正在更新即時報價...");
-            const acc = appState.accounts.find(a => a.id === appState.activeId);
-            for (let asset of acc.assets) {
-                if (asset.name) {
-                    await fetchLivePrice(asset.id, asset.name);
-                    await new Promise(r => setTimeout(r, 450));
-                }
-            }
-            mainSync.classList.remove('fa-spin-fast');
-            showToast("報價已同步");
-        }
-
-        function updateGlobal(field, val) {
-            const acc = appState.accounts.find(a => a.id === appState.activeId);
-            acc[field] = safeNum(val);
-            calculate();
-        }
-
-        function updateAsset(id, field, val) {
-            const acc = appState.accounts.find(a => a.id === appState.activeId);
-            const asset = acc.assets.find(as => as.id === id);
-            asset[field] = field === 'name' ? val.toUpperCase() : safeNum(val);
-            calculate();
-        }
-
-        function addAsset() {
-            const acc = appState.accounts.find(a => a.id === appState.activeId);
-            acc.assets.push({ id: Date.now(), name: '', price: 0, shares: 0, targetRatio: 0, leverage: 1 });
-            renderMainUI();
-        }
-
-        function removeAsset(id) {
-            if (!confirm("確定刪除此標的？")) return;
-            const acc = appState.accounts.find(a => a.id === appState.activeId);
-            acc.assets = acc.assets.filter(as => as.id !== id);
-            renderMainUI();
-        }
-
-        function switchAccount(id) { appState.activeId = id; save(); renderAccountList(); renderMainUI(); }
-
-        function createNewAccount() {
-            const name = prompt("帳戶名稱:", "新帳戶");
-            if (!name) return;
-            const id = 'acc_' + Date.now();
-            appState.accounts.push({ id, name, currentCash: 0, totalDebt: 700000, cashRatio: 0, usdRate: 32.5, rebalanceAbs: 5, rebalanceRel: 25, assets: [] });
-            switchAccount(id);
-        }
-
-        function deleteAccount(id) {
-            if (appState.accounts.length <= 1) return showToast("必須保留至少一個帳戶");
-            if (!confirm("確定刪除？")) return;
-            appState.accounts = appState.accounts.filter(a => a.id !== id);
-            if (appState.activeId === id) appState.activeId = appState.accounts[0].id;
-            save(); renderAccountList(); renderMainUI();
-        }
-
-        function deleteCurrentAccount() { deleteAccount(appState.activeId); }
-
-        function renameCurrentAccount() {
-            const acc = appState.accounts.find(a => a.id === appState.activeId);
-            const newName = prompt("重新命名:", acc.name);
-            if (newName) { acc.name = newName; save(); renderAccountList(); renderMainUI(); }
-        }
-
-        function exportExcel() {
-            const acc = appState.accounts.find(a => a.id === appState.activeId);
-            const data = [["項目", acc.name], ["匯率", acc.usdRate], ["可用現金", acc.currentCash], ["負債貸款", acc.totalDebt], ["Abs", acc.rebalanceAbs], ["Rel", acc.rebalanceRel], [], ["代號", "單價", "股數", "槓桿", "目標%"]];
-            acc.assets.forEach(a => data.push([a.name, a.price, a.shares, a.leverage, a.targetRatio]));
-            const ws = XLSX.utils.aoa_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Portfolio");
-            XLSX.writeFile(wb, `${acc.name}_Tracker.xlsx`);
-        }
-
-        function importExcel(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                try {
-                    const ab = evt.target.result;
-                    const wb = XLSX.read(ab, { type: 'array' });
-                    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
-                    const newAcc = {
-                        id: 'acc_' + Date.now(), name: rows[0][1].toString(), usdRate: safeNum(rows[1][1], 32.5),
-                        currentCash: safeNum(rows[2][1]), totalDebt: safeNum(rows[3][1]), rebalanceAbs: safeNum(rows[4][1], 5), rebalanceRel: safeNum(rows[5][1], 25),
-                        cashRatio: 0, assets: []
-                    };
-                    for (let i = 7; i < rows.length; i++) {
-                        const r = rows[i];
-                        if (r && r[0]) {
-                            newAcc.assets.push({ id: Date.now() + i, name: r[0].toString(), price: safeNum(r[1]), shares: safeNum(r[2]), leverage: safeNum(r[3], 1), targetRatio: safeNum(r[4]) });
-                        }
-                    }
-                    appState.accounts.push(newAcc); switchAccount(newAcc.id);
-                } catch (err) { showToast("格式錯誤"); }
-                finally { e.target.value = ''; }
+            const newAcc = {
+              id: "acc_" + Date.now(),
+              name: rows[0][1].toString(),
+              usdRate: safeNum(rows[1][1], 32.5),
+              currentCash: safeNum(rows[2][1]),
+              totalDebt: safeNum(rows[3][1]),
+              rebalanceAbs: safeNum(rows[4][1], 5),
+              rebalanceRel: safeNum(rows[5][1], 25),
+              cashRatio: 0,
+              assets: [],
             };
-            reader.readAsArrayBuffer(file);
-        }
+            for (let i = 7; i < rows.length; i++) {
+              const r = rows[i];
+              if (r && r[0])
+                newAcc.assets.push({
+                  id: Date.now() + i,
+                  name: r[0].toString(),
+                  fullName: r[1] || "",
+                  price: safeNum(r[2]),
+                  shares: safeNum(r[3]),
+                  leverage: safeNum(r[4], 1),
+                  targetRatio: safeNum(r[5]),
+                });
+            }
+            appState.accounts.push(newAcc);
+            switchAccount(newAcc.id);
+          } catch (err) {
+            showToast("Excel 解析失敗");
+          } finally {
+            e.target.value = "";
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
 
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            document.getElementById('toastMsg').innerText = msg;
-            t.style.opacity = '1'; t.style.transform = 'translateY(-20px)';
-            setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(0)'; }, 3000);
-        }
-
-        window.onload = init;
+      function showToast(msg) {
+        const t = document.getElementById("toast");
+        document.getElementById("toastMsg").innerText = msg;
+        t.style.opacity = "1";
+        t.style.transform = "translateY(-10px)";
+        setTimeout(() => {
+          t.style.opacity = "0";
+          t.style.transform = "translateY(0)";
+        }, 2500);
+      }
+      window.onload = init;
     </script>
-</body>
-
+  </body>
 </html>
