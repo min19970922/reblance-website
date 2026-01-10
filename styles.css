@@ -1,5 +1,5 @@
-/* * styles.css - 終極美學大氣版 (v3.0 柵格對齊與字體優化)
- * 解決：對齊上方卡片、寬度自動分配、極致字體平衡
+/* * styles.css - 終極美學大氣版 (v3.2 強制權重與對齊修復版)
+ * 職責：解決對齊、權重覆蓋、與字體平衡問題
  */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
@@ -9,18 +9,17 @@
   --accent-pink: #e11d48;
   --sidebar-width: 320px;
   --bg-soft-pink: #fffafb;
-  /* 字體尺寸變數 - 老花友善 */
+  /* 字體尺寸 - 老花友善 */
   --font-size-base: 1.2rem;
   --font-size-data: 2.2rem;
   --font-size-table: 1.6rem;
 }
 
-/* 1. 基礎重設 */
+/* 1. 基礎重設與強制字體 */
 body {
-  /* 套用中文微軟正黑體 + 英文 Calibri */
-  font-family: "Calibri", "Microsoft JhengHei", sans-serif;
-  background-color: var(--bg-soft-pink);
-  color: #1a0005;
+  font-family: "Calibri", "Microsoft JhengHei", sans-serif !important;
+  background-color: var(--bg-soft-pink) !important;
+  color: #1a0005 !important;
   margin: 0;
   line-height: 1.5;
   overflow-x: hidden;
@@ -42,8 +41,8 @@ aside {
   width: var(--sidebar-width);
   overflow: hidden;
   white-space: nowrap;
-  background: white;
-  border-right: 1px solid #fff1f2;
+  background: white !important;
+  border-right: 1px solid #fff1f2 !important;
   display: flex;
   flex-direction: column;
 }
@@ -57,104 +56,101 @@ main {
 
 /* 3. 數據摘要卡片 (頂部 5 格) */
 .dashboard-grid {
-  display: grid;
-  /* 強制 5 欄以對齊下方參數 */
-  grid-template-columns: repeat(5, 1fr);
+  display: grid !important;
+  grid-template-columns: repeat(5, 1fr) !important;
   gap: 20px;
   margin-bottom: 30px;
 }
 
 .glass-card {
-  background: white;
-  border-radius: 24px;
-  border: 1px solid rgba(251, 113, 133, 0.2);
+  background: white !important;
+  border-radius: 24px !important;
+  border: 1px solid rgba(251, 113, 133, 0.2) !important;
   padding: 20px !important;
-  box-shadow: 0 10px 25px -5px rgba(251, 113, 133, 0.08);
+  box-shadow: 0 10px 25px -5px rgba(251, 113, 133, 0.08) !important;
   display: flex;
   flex-direction: column;
 }
 
 .glass-card span {
-  font-size: 1.1rem;
-  font-weight: 900;
-  color: #9d174d;
+  font-size: 1.1rem !important;
+  font-weight: 900 !important;
+  color: #9d174d !important;
   margin-bottom: 8px;
 }
 
 .glass-card div {
   font-size: var(--font-size-data) !important;
-  font-weight: 900;
-  font-family: "Calibri", sans-serif;
+  font-weight: 900 !important;
+  font-family: "Calibri", sans-serif !important;
   letter-spacing: -1px;
 }
 
-/* 4. 參數列優化方案 (Grid 5 欄位對齊版) */
+/* 4. 參數列優化方案 (修復文字位置與高度) */
 .params-row-tight {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr); /* 關鍵：平分 5 等份對齊上方 */
-  background: white;
-  border: 2px solid #fff1f2;
-  border-radius: 24px;
-  width: 100%;
-  box-shadow: 0 10px 30px -10px rgba(251, 113, 133, 0.15);
-  margin-bottom: 40px;
+  display: grid !important;
+  grid-template-columns: repeat(5, 1fr) !important; /* 完美對齊上方卡片 */
+  background: white !important;
+  border: 2px solid #fff1f2 !important;
+  border-radius: 24px !important;
+  width: 100% !important;
+  box-shadow: 0 10px 30px -10px rgba(251, 113, 133, 0.15) !important;
+  margin-bottom: 40px !important;
   overflow: hidden;
 }
 
 .param-item {
-  padding: 15px 25px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  border-right: 1px solid #fff1f2;
+  padding: 15px 25px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  border-right: 1px solid #fff1f2 !important;
   transition: background 0.2s;
 }
 
 .param-item:hover {
-  background-color: #fffafb;
+  background-color: #fffafb !important;
 }
 
 .param-item label {
-  font-size: 0.85rem;
-  font-weight: 900;
-  color: var(--primary-pink);
-  margin-bottom: 4px;
+  font-size: 0.85rem !important;
+  font-weight: 900 !important;
+  color: var(--primary-pink) !important;
+  margin-bottom: 4px !important;
   display: block;
   white-space: nowrap;
   letter-spacing: 0.05em;
 }
 
-/* 輸入區域容器：解決不同高、符號歪斜問題 */
+/* 關鍵修復：解決符號與數字不同高的問題 */
 .input-wrapper {
-  display: flex;
-  align-items: baseline; /* 關鍵：所有文字與符號底部對齊 */
-  gap: 4px;
+  display: flex !important;
+  align-items: baseline !important; /* 強制所有元素底部對齊 */
+  gap: 4px !important;
 }
 
-/* 符號樣式 ($ 或 %) */
 .prefix,
 .suffix {
-  font-size: 1.3rem;
-  font-weight: 900;
-  color: #fecdd3;
-  font-family: "Calibri", sans-serif;
+  font-size: 1.3rem !important;
+  font-weight: 900 !important;
+  color: #fecdd3 !important; /* 淡淡的粉紅襯托 */
+  font-family: "Calibri", sans-serif !important;
 }
 
 .param-item input {
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 1.8rem;
-  font-weight: 900;
-  font-family: "Calibri", sans-serif;
-  color: #1a0005;
-  width: 100%;
-  padding: 0;
-  margin: 0;
-  text-align: left;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  font-size: 1.8rem !important;
+  font-weight: 900 !important;
+  font-family: "Calibri", sans-serif !important;
+  color: #1a0005 !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  text-align: left !important;
 }
 
-/* 數值強調色 */
 .accent-text {
   color: var(--accent-pink) !important;
 }
@@ -164,101 +160,72 @@ main {
 }
 
 /* 5. 資產監控表格 */
-.flex-1.overflow-x-auto {
-  overflow-x: auto;
-  padding-bottom: 20px;
-}
-
 .auto-table {
-  width: 100%;
-  border-spacing: 0 15px;
-  border-collapse: separate;
-  table-layout: auto;
-  min-width: 1100px;
+  width: 100% !important;
+  border-spacing: 0 15px !important;
+  border-collapse: separate !important;
+  table-layout: auto !important;
 }
 
 .auto-table th {
-  padding: 0 20px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-family: "Microsoft JhengHei", sans-serif;
+  padding: 0 20px !important;
+  font-weight: 900 !important;
+  color: var(--primary-pink) !important;
+  font-family: "Microsoft JhengHei", sans-serif !important;
 }
 
 td {
-  background: white;
+  background: white !important;
   padding: 20px !important;
-  vertical-align: middle;
-  white-space: nowrap;
+  vertical-align: middle !important;
   font-size: var(--font-size-table) !important;
-  font-weight: 900;
-  font-family: "Calibri", "Microsoft JhengHei", sans-serif;
-  transition: transform 0.2s;
+  font-weight: 900 !important;
+  font-family: "Calibri", "Microsoft JhengHei", sans-serif !important;
 }
 
 td:first-child {
-  border-radius: 24px 0 0 24px;
+  border-radius: 24px 0 0 24px !important;
 }
 td:last-child {
-  border-radius: 0 24px 24px 0;
+  border-radius: 0 24px 24px 0 !important;
 }
 
-/* 下底線輸入框設計 (表格內) */
+/* 下底線輸入框 */
 .underline-input {
-  background: transparent;
-  border-bottom: 3px solid #fecdd3;
-  outline: none;
-  font-weight: 900;
-  font-family: "Calibri", sans-serif;
-  font-size: var(--font-size-table) !important;
-  width: 100%;
-  padding: 4px 0;
-  transition: all 0.3s;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 3px solid #fecdd3 !important;
+  outline: none !important;
+  font-weight: 900 !important;
+  font-family: "Calibri", sans-serif !important;
 }
 
-.underline-input:focus {
-  border-bottom-color: var(--accent-pink);
-  transform: translateY(-2px);
-}
-
-/* 6. UI 按鈕與動畫 */
+/* 6. UI 按鈕 */
 .btn-pink {
-  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
-  color: white;
-  font-weight: 900;
-  border-radius: 18px;
-  transition: all 0.3s;
+  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%) !important;
+  color: white !important;
+  font-weight: 900 !important;
+  border-radius: 18px !important;
+  border: none !important;
 }
 
-.btn-pink:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px -5px rgba(225, 29, 72, 0.4);
-}
-
-/* 7. 其他雜項修正 */
+/* 7. 雜項修復 */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
-}
-input[type="number"] {
-  -moz-appearance: textfield;
 }
 
 .font-mono-data {
   font-family: "Calibri", sans-serif !important;
 }
 
+/* 滾動條 */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-::-webkit-scrollbar-track {
-  background: var(--bg-soft-pink);
-}
 ::-webkit-scrollbar-thumb {
   background: #fecdd3;
   border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--primary-pink);
 }
