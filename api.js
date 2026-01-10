@@ -4,7 +4,7 @@
 import { renderMainUI, showToast } from "./ui.js";
 import { saveToStorage } from "./state.js";
 
-// 移除失效的 corsproxy.io，使用 allorigins 作為主要代理
+// 移除失效的 corsproxy.io，使用目前較穩定的代理服務
 const PROXIES = [
   "https://api.allorigins.win/get?url=",
   "https://thingproxy.freeboard.io/fetch/",
@@ -19,7 +19,7 @@ export async function fetchLivePrice(id, symbol, appState) {
   const isTaiwan = /^\d{4,6}/.test(ticker);
 
   const tryFetch = async (targetTicker) => {
-    // 確保使用 v10 API 並包含 modules=price 以取得中文全名
+    // 使用 v10 quoteSummary 介面並強制帶入台灣語系參數
     const yahooUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${targetTicker}?modules=price&lang=zh-Hant-TW&region=TW`;
 
     for (let proxy of PROXIES) {
@@ -29,21 +29,21 @@ export async function fetchLivePrice(id, symbol, appState) {
         if (!res.ok) continue;
 
         const rawData = await res.json();
-        // 解析 AllOrigins 的 JSON 封裝結構
+        // 關鍵：解析 AllOrigins 的 JSON 封裝內容
         let data = proxy.includes("allorigins")
           ? JSON.parse(rawData.contents)
           : rawData;
 
+        // 針對 v10 API 的中文名稱路徑進行精準擷取
         const priceObj = data.quoteSummary?.result?.[0]?.price;
         if (
           priceObj &&
           (priceObj.regularMarketPrice || priceObj.regularMarketPreviousClose)
         ) {
           return {
-            // 抓取原始數值，避免型別錯誤
             price:
               priceObj.regularMarketPrice?.raw || priceObj.regularMarketPrice,
-            // 優先擷取繁體中文全名 (longName)
+            // 優先擷取繁體中文名稱 (longName)
             name: priceObj.longName || priceObj.shortName || priceObj.symbol,
           };
         }
@@ -65,19 +65,22 @@ export async function fetchLivePrice(id, symbol, appState) {
     const asset = acc.assets.find((a) => a.id === id);
     if (asset) {
       asset.price = result.price;
+
       const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
-      // 僅在 API 回傳包含中文時更新 fullName
+      // 如果 API 回傳包含中文名稱則更新，否則保留原有無名稱顯示代號
       if (result.name && hasChinese(result.name)) {
         asset.fullName = result.name;
       } else if (!asset.fullName || asset.fullName === "---") {
         asset.fullName = ticker;
       }
+
       saveToStorage();
       renderMainUI(acc);
       if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
       return true;
     }
   }
+
   if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
   return false;
 }
@@ -85,7 +88,7 @@ export async function fetchLivePrice(id, symbol, appState) {
 export async function syncAllPrices(appState) {
   const mainSync = document.getElementById("syncIcon");
   if (mainSync) mainSync.classList.add("fa-spin-fast");
-  showToast("更新報價中...");
+  showToast("更新報價中，請稍候...");
 
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   for (let asset of acc.assets) {
@@ -96,5 +99,5 @@ export async function syncAllPrices(appState) {
     }
   }
   if (mainSync) mainSync.classList.remove("fa-spin-fast");
-  showToast("更新完成");
+  showToast("報價已同步完成");
 }

@@ -1,16 +1,14 @@
 /**
- * state.js (V20 最終修正版)
- * 職責：管理資料結構、本地儲存以及所有投資核心計算邏輯
+ * state.js (V21 最終修正版)
  */
-
-// 1. 更新版本號以強制清除舊版 LocalStorage 的 500,000 負債紀錄
-export const STORAGE_KEY = "INVEST_REBAL_V20_CLEAN_FIX";
+// 更新版本號為 V21，這會強制清除瀏覽器中舊有的 500,000 負債紀錄
+export const STORAGE_KEY = "INVEST_REBAL_V21_CLEAN_FINAL";
 
 export const initialAccountTemplate = (name = "新實戰計畫") => ({
   id: "acc_" + Date.now(),
   name: name,
   currentCash: 0,
-  totalDebt: 0, // 修正：預設負債改為 0
+  totalDebt: 0, // 預設負債改為 0
   cashRatio: 0,
   usdRate: 32.5,
   rebalanceAbs: 5,
@@ -18,7 +16,6 @@ export const initialAccountTemplate = (name = "新實戰計畫") => ({
   assets: [],
 });
 
-// 2. 核心狀態物件
 export let appState = {
   activeId: "acc_default",
   isSidebarCollapsed: false,
@@ -31,15 +28,13 @@ export let appState = {
   ],
 };
 
-// 3. 強化型通用工具函式 (防止 NaN 的核心防線)
+// 強化防錯：處理空字串，防止正在輸入時產生 NaN
 export function safeNum(val, def = 0) {
-  // 處理 null、undefined 或 使用者清空輸入框時的空字串
   if (val === null || val === undefined || val === "") return def;
   const n = parseFloat(val);
   return isNaN(n) ? def : n;
 }
 
-// 4. 資料持久化邏輯
 export function saveToStorage() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
 }
@@ -54,55 +49,34 @@ export function loadFromStorage() {
         return true;
       }
     } catch (e) {
-      console.error("解析 LocalStorage 失敗:", e);
+      console.error("載入存檔失敗:", e);
     }
   }
   return false;
 }
 
-// 5. 核心計算引擎
 export function calculateAccountData(acc) {
   if (!acc) return null;
-
   let totalNominalExposure = 0;
   let totalAssetBookValue = 0;
 
   const assetsCalculated = acc.assets.map((asset) => {
     const ticker = (asset.name || "").trim().toUpperCase();
-    // 判定台股：只要是數字開頭即視為台股，不計匯率
     const isTW = /^\d{4,6}/.test(ticker);
-
     const rawPrice = safeNum(asset.price, 0);
-    const usdRate = safeNum(acc.usdRate, 32.5);
-
-    const priceTwd = isTW ? rawPrice : rawPrice * usdRate;
-
+    const priceTwd = isTW ? rawPrice : rawPrice * safeNum(acc.usdRate, 32.5);
     const bookValue = priceTwd * safeNum(asset.shares, 0);
     const nominalValue = bookValue * safeNum(asset.leverage, 1);
 
     totalAssetBookValue += bookValue;
     totalNominalExposure += nominalValue;
 
-    return {
-      ...asset,
-      isTW,
-      priceTwd,
-      bookValue,
-      nominalValue,
-    };
+    return { ...asset, isTW, priceTwd, bookValue, nominalValue };
   });
 
   const netValue =
     totalAssetBookValue + safeNum(acc.currentCash) - safeNum(acc.totalDebt);
-
-  // 防止除以零導致 NaN
   const totalLeverage = netValue > 0 ? totalNominalExposure / netValue : 0;
-
-  const targetAssetRatioSum = acc.assets.reduce(
-    (s, a) => s + safeNum(a.targetRatio),
-    0
-  );
-  const targetTotalCombined = targetAssetRatioSum + safeNum(acc.cashRatio);
 
   return {
     assetsCalculated,
@@ -110,30 +84,23 @@ export function calculateAccountData(acc) {
     totalNominalExposure,
     totalAssetBookValue,
     totalLeverage,
-    targetTotalCombined,
     maintenanceRatio:
       safeNum(acc.totalDebt) > 0
         ? (totalAssetBookValue / safeNum(acc.totalDebt)) * 100
         : 0,
+    targetTotalCombined:
+      acc.assets.reduce((s, a) => s + safeNum(a.targetRatio), 0) +
+      safeNum(acc.cashRatio),
   };
 }
 
-// 6. 再平衡判斷邏輯
 export function getRebalanceSuggestion(asset, acc, netValue) {
   const factor = safeNum(asset.leverage, 1);
   const currentPct =
     netValue > 0 ? (safeNum(asset.nominalValue) / netValue) * 100 : 0;
   const targetPct = safeNum(asset.targetRatio);
   const targetNominal = netValue * (targetPct / 100);
-  const targetBookValue = targetNominal / factor;
-
-  const absDiff = Math.abs(currentPct - targetPct);
-  const thresholdAbs = safeNum(acc.rebalanceAbs, 5);
-  const thresholdRel = safeNum(acc.rebalanceRel, 25) / 100;
-  const relDiff = targetPct !== 0 ? absDiff / targetPct : 0;
-
   const diffNominal = targetNominal - safeNum(asset.nominalValue);
-  const diffCashImpact = diffNominal / factor;
   const priceTwd = safeNum(asset.priceTwd, 0);
   const diffShares =
     priceTwd * factor > 0 ? diffNominal / (priceTwd * factor) : 0;
@@ -141,16 +108,10 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
   return {
     currentPct,
     targetNominal,
-    targetBookValue,
-    absDiff,
-    relDiff,
-    isTriggered: true, // 修正：強制開啟建議顯示
-    triggerProgress: Math.min(
-      100,
-      Math.max((absDiff / thresholdAbs) * 100, (relDiff / thresholdRel) * 100)
-    ),
+    targetBookValue: targetNominal / factor,
     diffNominal,
-    diffCashImpact,
     diffShares: Math.round(diffShares),
+    isTriggered: true, // 修正：即使偏差小也顯示建議，解決輸入位數過大的 Bug
+    absDiff: Math.abs(currentPct - targetPct),
   };
 }
