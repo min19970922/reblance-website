@@ -14,7 +14,7 @@ body {
   overflow-x: auto;
 }
 
-/* 1. 佈局架構 - 取消寬度限制 */
+/* 佈局架構 - 移除寬度上限 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
@@ -34,7 +34,7 @@ aside {
 }
 .sidebar-collapsed aside {
   border-right: none;
-} /* 解決摺疊邊緣露出問題 */
+} /* 徹底隱藏摺疊邊緣 */
 main {
   width: 100%;
   padding: 40px;
@@ -42,7 +42,7 @@ main {
   flex: 1;
 }
 
-/* 2. 橫向數據看板 */
+/* 橫向數據看板 */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -61,39 +61,40 @@ main {
   color: #9d174d;
 }
 .glass-card div {
-  font-size: 2.8rem !important;
+  font-size: 2.6rem !important;
   font-weight: 900;
   margin-top: 5px;
 }
 
-/* 3. 橫向緊湊參數列 */
-.params-row-horizontal {
+/* 橫向無縫參數列 */
+.params-row-tight {
   display: flex;
   align-items: stretch;
   background: white;
   border: 2px solid #fff1f2;
-  border-radius: 20px;
+  border-radius: 24px;
   overflow: hidden;
   width: fit-content;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
 }
 .input-unit,
 .input-unit-small {
   display: flex;
   flex-direction: column;
-  padding: 12px 25px;
+  padding: 15px 30px;
   border-right: 2px solid #fff1f2;
 }
 .input-unit {
-  min-width: 250px;
+  min-width: 300px;
 }
 .input-unit-small {
-  min-width: 150px;
+  min-width: 180px;
   text-align: center;
 }
 .no-border {
   border-right: none !important;
 }
-.params-row-horizontal label {
+.params-row-tight label {
   font-size: 1.1rem;
   font-weight: 900;
   color: #fb7185;
@@ -103,7 +104,7 @@ main {
 .input-box {
   display: flex;
   align-items: baseline;
-  gap: 5px;
+  gap: 6px;
 }
 .input-box span {
   font-size: 1.8rem;
@@ -124,7 +125,7 @@ main {
   color: var(--accent-pink);
 }
 
-/* 4. 表格 Auto 寬度 */
+/* 表格 Auto 寬度核心邏輯 */
 .auto-table {
   width: 100%;
   border-spacing: 0 10px;
@@ -133,7 +134,7 @@ main {
 }
 td {
   background: white;
-  padding: 20px;
+  padding: 22px 25px;
   vertical-align: middle;
   white-space: nowrap;
   font-size: 1.5rem !important;
@@ -153,14 +154,15 @@ td:last-child {
   outline: none;
   font-weight: 900;
   font-size: 1.5rem !important;
-  width: 100%;
-  min-width: 80px;
+  width: auto; /* 取消 w-full，讓其隨文字長度延伸 */
+  min-width: 100px; /* 設定一個最小寬度保證點擊區域 */
+  transition: all 0.3s;
 }
 .underline-input:focus {
   border-bottom-color: var(--accent-pink);
 }
 
-/* 5. 脈動動畫邏輯 */
+/* 脈動動畫 */
 @keyframes pulsate-bar {
   0%,
   100% {
@@ -169,7 +171,7 @@ td:last-child {
   }
   50% {
     opacity: 0.5;
-    transform: scaleY(1.4);
+    transform: scaleY(1.3);
   }
 }
 .pulsate-bar {

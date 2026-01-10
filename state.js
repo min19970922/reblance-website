@@ -1,5 +1,5 @@
 /**
- * state.js - 金融實戰邏輯版
+ * state.js - 金融大師邏輯版 (V23)
  */
 export const STORAGE_KEY = "REBALANCE_MASTER_PRO_V23";
 
@@ -10,8 +10,8 @@ export const initialAccountTemplate = (name = "新實戰計畫") => ({
   totalDebt: 0,
   cashRatio: 0,
   usdRate: 32.5,
-  rebalanceAbs: 5, // 絕對門檻 %
-  rebalanceRel: 25, // 相對門檻 %
+  rebalanceAbs: 5, // 絕對門檻 % (如 5%)
+  rebalanceRel: 25, // 相對門檻 % (如 25%)
   assets: [],
 });
 
@@ -92,14 +92,15 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
     netValue > 0 ? (safeNum(asset.nominalValue) / netValue) * 100 : 0;
   const targetPct = safeNum(asset.targetRatio);
 
-  // 1. 絕對偏差計算
+  // 1. 絕對偏差
   const absDiff = Math.abs(currentPct - targetPct);
-  // 2. 相對偏差計算 (舊版核心邏輯)
+  // 2. 相對偏差 (absDiff / targetPct)
   const relDiff = targetPct !== 0 ? absDiff / targetPct : 0;
 
-  // 觸發判定：絕對門檻或相對門檻超過
   const tAbs = safeNum(acc.rebalanceAbs, 5);
-  const tRel = safeNum(acc.rebalanceRel, 25) / 100;
+  const tRel = safeNum(acc.rebalanceRel, 25) / 100; // 轉為小數比率
+
+  // 觸發判定
   const isTriggered = absDiff > tAbs || relDiff > tRel;
 
   const targetNominal = netValue * (targetPct / 100);
@@ -108,7 +109,7 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
   const diffShares =
     priceTwd * factor > 0 ? diffNominal / (priceTwd * factor) : 0;
 
-  // 計算進度條飽和度 (取兩門檻中最危急者)
+  // 計算進度條飽和度 (取兩個門檻中最接近的一個)
   const saturation = Math.min(1, Math.max(absDiff / tAbs, relDiff / tRel));
 
   return {
