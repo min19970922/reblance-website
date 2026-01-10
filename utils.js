@@ -77,17 +77,11 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
-/**
- * AI 圖片辨識匯入功能 - REST API 格式終極修正版
- * 修正 snake_case 命名規則以解決 400 Bad Request 錯誤
- */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
   const showToast = window.showToast || console.log;
-
-  // 1. 取得 API Key (優先從全域或 LocalStorage)
   const apiKey =
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
 
@@ -110,21 +104,22 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // 2. API 端點與模型設定 (使用 v1 穩定版)
+    // 使用最穩定的 v1 路徑
     const model = "gemini-1.5-flash";
     const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
 
-    const systemPrompt = `你是一位專業的台灣證券數據分析師，請從圖片中提取持股代號(name)與股數(shares)。
-    如果是台灣股票，代號通常是 4 到 6 位數字。
-    請嚴格以 JSON 格式輸出：{"assets": [{"name":"2330","shares":1000}]}`;
+    // 將所有指令整合進 Prompt，避開不穩定的 system_instruction 欄位
+    const fullPrompt = `你是一位專業的台灣證券數據分析師。
+    請分析這張截圖，提取所有持股代號(name)與股數(shares)。
+    請嚴格只回傳 JSON 格式，不要有任何解釋文字。
+    範例格式：{"assets": [{"name":"2330","shares":1000}]}`;
 
-    // --- 關鍵修正：將所有 Key 改為 snake_case (底線命名) ---
     const payload = {
       contents: [
         {
           role: "user",
           parts: [
-            { text: "請分析這張圖片中的持股代號與股數，並轉換為 JSON 陣列。" },
+            { text: fullPrompt },
             {
               inlineData: {
                 mimeType: file.type || "image/png",
@@ -134,18 +129,9 @@ export async function importFromImage(e, onComplete) {
           ],
         },
       ],
-      // 修正：systemInstruction -> system_instruction
-      system_instruction: {
-        parts: [{ text: systemPrompt }],
-      },
-      // 修正：generationConfig -> generation_config
-      generation_config: {
-        // 修正：responseMimeType -> response_mime_type
-        response_mime_type: "application/json",
-      },
+      // 這裡移除了導致 400 錯誤的 system_instruction 和 generation_config
     };
 
-    // 3. 執行請求
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -160,7 +146,14 @@ export async function importFromImage(e, onComplete) {
     }
 
     const result = await response.json();
-    const rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text;
+    let rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    // --- 關鍵修復：自動處理 AI 可能回傳的 Markdown 標籤 ---
+    // 有些 AI 會回傳 ```json { ... } ```，這會導致 JSON.parse 失敗
+    rawJson = rawJson
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
 
     let assets = [];
     if (rawJson) {
@@ -168,12 +161,11 @@ export async function importFromImage(e, onComplete) {
         const parsedData = JSON.parse(rawJson);
         assets = parsedData.assets || [];
       } catch (e) {
-        console.error("JSON 解析失敗:", rawJson);
-        throw new Error("AI 回傳格式異常，請再試一次");
+        console.error("JSON 解析失敗，原始內容:", rawJson);
+        throw new Error("AI 回傳格式非純 JSON，請再試一次");
       }
     }
 
-    // 4. 處理辨識結果
     if (assets.length > 0) {
       const formattedAssets = assets
         .map((a) => ({
@@ -192,7 +184,7 @@ export async function importFromImage(e, onComplete) {
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能從圖片辨識出有效資產");
+      showToast("AI 未能辨識出有效資產");
     }
   } catch (err) {
     console.error("AI辨識詳細錯誤:", err);
