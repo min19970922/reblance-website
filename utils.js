@@ -86,12 +86,6 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
-/**
- * utils.js - 股數精準辨識版 (v4.5)
- * 1. 支援 L/1 智慧校正
- * 2. 智慧過濾名稱中的數字（如 50、正 2）
- * 3. 鎖定「中文字後的第一個數字」作為股數
- */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -111,7 +105,7 @@ export async function importFromImage(e, onComplete) {
     } = await worker.recognize(file);
     await worker.terminate();
 
-    // 1. 定位關鍵字：只處理「明細」後方的資訊，避開帳號等干擾
+    // 1. 定位關鍵字：只處理「明細」後方的資訊
     const keyword = "明細";
     const startIdx = text.indexOf(keyword);
     const relevantText =
@@ -122,41 +116,36 @@ export async function importFromImage(e, onComplete) {
 
     // 2. 逐行精準掃描
     lines.forEach((line) => {
-      // 移除千分位逗號，並將 OCR 常誤判的 L/1 統一處理
+      // 移除千分位逗號
       const cleanLine = line.replace(/,/g, "");
 
-      // 正則表達式：支援 4-5 位數字，或 5 位數字 + 1 位英數
+      // 台股代碼規則：4-5位數字，或5位數字+1位英數
       const tickerMatch = cleanLine.match(/([0-9]{4,5}[A-Z1]?)/);
 
       if (tickerMatch) {
         let finalCode = tickerMatch[1].toUpperCase();
 
-        // 智慧校正：處理 00631L 被辨識為 006311 的情況
+        // 智慧校正：處理 00631L 被誤辨識為 006311 的情況
         if (finalCode.length === 6 && finalCode.endsWith("1")) {
           finalCode = finalCode.slice(0, -1) + "L";
         }
 
-        /**
-         * 股數辨識核心優化：
-         * 截取代碼之後的字串，尋找「中文字」後方的「第一個數字」。
-         * 例如： "00631L元大台灣50正2 現買(擔保品) 7000"
-         * 程式會鎖定在「擔保品)」之後的 "7000"，而非名稱中的 "50"。
-         */
+        // 股數辨識優化：尋找「中文字（類別）」後方的「第一個純數字」
         const afterTicker = cleanLine.substring(
           tickerMatch.index + tickerMatch[1].length
         );
 
-        // 尋找中文字與數字的組合
+        // 匹配模式：[中文字塊] + [可選括號] + [空白] + [數字]
         const shareMatch = afterTicker.match(/[\u4e00-\u9fa5]+\)?\s*(\d+)/);
 
         let shares = 0;
         if (shareMatch && shareMatch[1]) {
           shares = parseInt(shareMatch[1]);
         } else {
-          // 備用方案：如果沒找到中文字組合，取該行最後一個數字（通常市值或股數在後方）
+          // 備用方案：如果沒找到中文字區塊，則取該行代碼後的第一個大於 0 的整數
           const allNumbers = afterTicker.match(/\d+/g);
           if (allNumbers) {
-            shares = parseInt(allNumbers[0]); // 預設取剩餘文字的第一個數字
+            shares = parseInt(allNumbers[0]);
           }
         }
 
