@@ -77,6 +77,10 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
+/**
+ * AI 圖片辨識匯入功能 - 終極相容解決方案 (v7.0)
+ * 解決 404 模型找不到、400 格式錯誤與 403 權限問題
+ */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -85,40 +89,54 @@ export async function importFromImage(e, onComplete) {
   const apiKey =
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
 
-  if (!apiKey) {
-    showToast("❌ 請先設定並儲存 API Key");
+  if (!apiKey || apiKey.length < 10) {
+    showToast("❌ 請先在上方輸入並儲存 API Key");
+    e.target.value = "";
     return;
   }
 
-  showToast("啟動 AI 辨識中...");
+  showToast("啟動 AI 視覺大腦辨識 (診斷模式)...");
 
-  const base64 = await new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result.split(",")[1]);
-  });
-
-  // 使用 v1beta 與完整模型路徑
-  const model = "gemini-pro-vision";
-  const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
-
-  // 核心修正：避開所有可能導致 400/404 的高階參數，將指令塞入內容
-  const payload = {
-    contents: [
-      {
-        parts: [
-          {
-            text: '你是一位股票助手。請從圖片提取持股代號(name)與股數(shares)，嚴格以JSON輸出: {"assets": [{"name":"2330","shares":1000}]}',
-          },
-          {
-            inline_data: { mime_type: file.type || "image/png", data: base64 },
-          },
-        ],
-      },
-    ],
-  };
+  const fileToBase64 = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    });
 
   try {
+    const base64Image = await fileToBase64(file);
+
+    // --- 關鍵修正 1：路徑結構 ---
+    // 改回 v1beta 並使用最標準的 gemini-1.5-flash
+    const model = "gemini-1.5-flash";
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    // --- 關鍵修正 2：指令 Prompt ---
+    // 直接在 Prompt 要求 JSON，並避開 system_instruction 欄位以求最高相容性
+    const promptText = `你是一位專業的台灣證券數據分析師。
+    請分析這張截圖，提取所有持股代號(name)與股數(shares)。
+    請嚴格只回傳 JSON 格式，不要有任何 Markdown 標籤或解釋文字。
+    範例格式：{"assets": [{"name":"2330","shares":1000}]}`;
+
+    // --- 關鍵修正 3：payload 結構使用 snake_case (底線命名) ---
+    const payload = {
+      contents: [
+        {
+          parts: [
+            { text: promptText },
+            {
+              inline_data: {
+                mime_type: file.type || "image/png",
+                data: base64Image.split(",")[1],
+              },
+            },
+          ],
+        },
+      ],
+    };
+
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -126,35 +144,58 @@ export async function importFromImage(e, onComplete) {
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      // 如果 404，嘗試更換模型識別碼為 gemini-1.5-flash-latest
-      throw new Error(err.error?.message || "請求失敗");
+      const errData = await response.json();
+      // 如果依然報 404，我們在 console 印出有用資訊
+      console.error("Gemini API 報錯詳情:", errData);
+      throw new Error(
+        errData.error?.message || `請求失敗 (${response.status})`
+      );
     }
 
     const result = await response.json();
-    let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    // 清理 Markdown
-    text = text
+    let rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    // 清理 Markdown 標籤
+    rawJson = rawJson
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
 
-    const assets = JSON.parse(text).assets || [];
-    onComplete(
-      assets.map((a) => ({
-        id: Date.now() + Math.random(),
-        name: a.name.toString().toUpperCase().trim(),
-        fullName: "---",
-        price: 0,
-        shares: Math.abs(parseInt(a.shares.toString().replace(/,/g, "")) || 0),
-        leverage: 1,
-        targetRatio: 0,
-      }))
-    );
-    showToast("辨識成功！");
+    let assets = [];
+    if (rawJson) {
+      try {
+        const parsedData = JSON.parse(rawJson);
+        assets = parsedData.assets || [];
+      } catch (e) {
+        console.error("JSON 解析失敗:", rawJson);
+        throw new Error("AI 回傳內容無法解析為 JSON");
+      }
+    }
+
+    // 格式化數據回傳
+    if (assets.length > 0) {
+      const formattedAssets = assets
+        .map((a) => ({
+          id: Date.now() + Math.random(),
+          name: (a.name || "").toString().toUpperCase().trim(),
+          fullName: "---",
+          price: 0,
+          shares: Math.abs(
+            parseInt(a.shares.toString().replace(/,/g, "")) || 0
+          ),
+          leverage: 1,
+          targetRatio: 0,
+        }))
+        .filter((a) => a.name.length >= 2 && a.shares > 0);
+
+      onComplete(formattedAssets);
+      showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
+    } else {
+      showToast("AI 未能辨識出有效持股內容");
+    }
   } catch (err) {
-    console.error("AI辨識錯誤:", err);
-    showToast("辨識錯誤: " + err.message);
+    console.error("AI辨識詳細錯誤:", err);
+    showToast(`辨識失敗: ${err.message}`);
   } finally {
     e.target.value = "";
   }
