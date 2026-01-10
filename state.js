@@ -1,17 +1,16 @@
 /**
- * state.js 修正版
- * 職責：管理資料結構、本地儲存 (LocalStorage) 以及所有投資核心計算邏輯
+ * state.js (V20 最終修正版)
+ * 職責：管理資料結構、本地儲存以及所有投資核心計算邏輯
  */
 
-// 1. 定義常數與預設狀態
-export const STORAGE_KEY = "INVEST_REBAL_V19_TW_FIX";
+// 1. 更新版本號以強制清除舊版 LocalStorage 的 500,000 負債紀錄
+export const STORAGE_KEY = "INVEST_REBAL_V20_CLEAN_FIX";
 
-// 修正：將預設負債 totalDebt 從 500000 改為 0
 export const initialAccountTemplate = (name = "新實戰計畫") => ({
   id: "acc_" + Date.now(),
   name: name,
   currentCash: 0,
-  totalDebt: 0,
+  totalDebt: 0, // 修正：預設負債改為 0
   cashRatio: 0,
   usdRate: 32.5,
   rebalanceAbs: 5,
@@ -32,8 +31,9 @@ export let appState = {
   ],
 };
 
-// 3. 強化型通用工具函式 (防止 NaN 的第一道防線)
+// 3. 強化型通用工具函式 (防止 NaN 的核心防線)
 export function safeNum(val, def = 0) {
+  // 處理 null、undefined 或 使用者清空輸入框時的空字串
   if (val === null || val === undefined || val === "") return def;
   const n = parseFloat(val);
   return isNaN(n) ? def : n;
@@ -60,7 +60,7 @@ export function loadFromStorage() {
   return false;
 }
 
-// 5. 核心計算引擎 (修正計算路徑，解決 NaN 問題)
+// 5. 核心計算引擎
 export function calculateAccountData(acc) {
   if (!acc) return null;
 
@@ -69,13 +69,12 @@ export function calculateAccountData(acc) {
 
   const assetsCalculated = acc.assets.map((asset) => {
     const ticker = (asset.name || "").trim().toUpperCase();
-    // 強化判定：數字開頭即視為台股
+    // 判定台股：只要是數字開頭即視為台股，不計匯率
     const isTW = /^\d{4,6}/.test(ticker);
 
     const rawPrice = safeNum(asset.price, 0);
     const usdRate = safeNum(acc.usdRate, 32.5);
 
-    // 台股不乘匯率，美股乘匯率
     const priceTwd = isTW ? rawPrice : rawPrice * usdRate;
 
     const bookValue = priceTwd * safeNum(asset.shares, 0);
@@ -96,7 +95,7 @@ export function calculateAccountData(acc) {
   const netValue =
     totalAssetBookValue + safeNum(acc.currentCash) - safeNum(acc.totalDebt);
 
-  // 避免除以零產生 NaN
+  // 防止除以零導致 NaN
   const totalLeverage = netValue > 0 ? totalNominalExposure / netValue : 0;
 
   const targetAssetRatioSum = acc.assets.reduce(
@@ -119,7 +118,7 @@ export function calculateAccountData(acc) {
   };
 }
 
-// 6. 再平衡判斷邏輯 (修正顯示建議門檻)
+// 6. 再平衡判斷邏輯
 export function getRebalanceSuggestion(asset, acc, netValue) {
   const factor = safeNum(asset.leverage, 1);
   const currentPct =
@@ -133,9 +132,6 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
   const thresholdRel = safeNum(acc.rebalanceRel, 25) / 100;
   const relDiff = targetPct !== 0 ? absDiff / targetPct : 0;
 
-  // 門檻判斷
-  const isTriggered = absDiff > thresholdAbs || relDiff > thresholdRel;
-
   const diffNominal = targetNominal - safeNum(asset.nominalValue);
   const diffCashImpact = diffNominal / factor;
   const priceTwd = safeNum(asset.priceTwd, 0);
@@ -148,7 +144,7 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
     targetBookValue,
     absDiff,
     relDiff,
-    isTriggered: true, // 強制開啟建議顯示，不再受門檻限制
+    isTriggered: true, // 修正：強制開啟建議顯示
     triggerProgress: Math.min(
       100,
       Math.max((absDiff / thresholdAbs) * 100, (relDiff / thresholdRel) * 100)
