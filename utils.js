@@ -104,32 +104,29 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // 使用最穩定的 v1 路徑
+    // --- 修正 1：回到 v1beta，這是目前 Flash 模型最穩定的路徑 ---
     const model = "gemini-1.5-flash";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    // 將所有指令整合進 Prompt，避開不穩定的 system_instruction 欄位
-    const fullPrompt = `你是一位專業的台灣證券數據分析師。
-    請分析這張截圖，提取所有持股代號(name)與股數(shares)。
-    請嚴格只回傳 JSON 格式，不要有任何解釋文字。
-    範例格式：{"assets": [{"name":"2330","shares":1000}]}`;
+    // --- 修正 2：將所有指令與圖片放入 contents，避開所有不穩定的高階參數 ---
+    const promptText = `你是一位專業的台灣證券數據分析師。請分析這張截圖，提取所有持股代號(name)與股數(shares)。
+    請嚴格只回傳 JSON 格式，不要有任何 Markdown 標籤或解釋文字。
+    範例：{"assets": [{"name":"2330","shares":1000}]}`;
 
     const payload = {
       contents: [
         {
-          role: "user",
           parts: [
-            { text: fullPrompt },
+            { text: promptText },
             {
-              inlineData: {
-                mimeType: file.type || "image/png",
+              inline_data: {
+                mime_type: file.type || "image/png",
                 data: base64Image.split(",")[1],
               },
             },
           ],
         },
       ],
-      // 這裡移除了導致 400 錯誤的 system_instruction 和 generation_config
     };
 
     const response = await fetch(apiUrl, {
@@ -140,6 +137,7 @@ export async function importFromImage(e, onComplete) {
 
     if (!response.ok) {
       const errData = await response.json();
+      // 如果報 403，通常是 Referer 被擋或是 API Key 沒開 Generative Language API 權限
       throw new Error(
         errData.error?.message || `請求失敗 (${response.status})`
       );
@@ -148,8 +146,7 @@ export async function importFromImage(e, onComplete) {
     const result = await response.json();
     let rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // --- 關鍵修復：自動處理 AI 可能回傳的 Markdown 標籤 ---
-    // 有些 AI 會回傳 ```json { ... } ```，這會導致 JSON.parse 失敗
+    // 清理可能出現的 Markdown 標籤
     rawJson = rawJson
       .replace(/```json/g, "")
       .replace(/```/g, "")
@@ -161,8 +158,8 @@ export async function importFromImage(e, onComplete) {
         const parsedData = JSON.parse(rawJson);
         assets = parsedData.assets || [];
       } catch (e) {
-        console.error("JSON 解析失敗，原始內容:", rawJson);
-        throw new Error("AI 回傳格式非純 JSON，請再試一次");
+        console.error("JSON 解析失敗:", rawJson);
+        throw new Error("AI 回傳格式不正確，請再試一次");
       }
     }
 
@@ -184,10 +181,11 @@ export async function importFromImage(e, onComplete) {
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能辨識出有效資產");
+      showToast("AI 未能辨識出資產");
     }
   } catch (err) {
     console.error("AI辨識詳細錯誤:", err);
+    // 這裡會顯示最真實的錯誤原因（例如：Referer Blocked）
     showToast(`辨識失敗: ${err.message}`);
   } finally {
     e.target.value = "";
