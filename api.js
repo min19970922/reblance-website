@@ -1,7 +1,7 @@
 /**
- * api.js - 雙軌制穩定版
- * 報價：Yahoo Finance v8
- * 名稱：Google Finance Suggest API
+ * api.js - 官方數據源穩定版
+ * 報價：Yahoo v8 Chart
+ * 名稱：Yahoo Search Suggest (官方接口)
  */
 import { renderMainUI, showToast } from "./ui.js";
 import { saveToStorage } from "./state.js";
@@ -12,34 +12,33 @@ const PROXIES = [
 ];
 
 /**
- * 透過 Google Finance Suggest API 獲取中文名稱
+ * 透過 Yahoo 官方搜尋建議接口獲取名稱 (最穩定)
  */
-async function fetchNameFromGoogle(ticker) {
+async function fetchNameFromYahoo(ticker) {
   try {
-    // 處理台股代號格式，Google 習慣用 TPE:2330
-    const googleTicker = ticker.includes(".")
-      ? ticker.replace(".TW", "").replace(".TWO", "")
-      : ticker;
-    const searchUrl = `https://www.google.com/finance/explorer/search?q=${googleTicker}&client=finance`;
+    // 處理台股代號增加後綴
+    const query = /^\d{4,6}$/.test(ticker) ? `${ticker}.TW` : ticker;
 
-    // 注意：Google Suggest 接口通常需要透過代理獲取
+    // Yahoo 官方搜尋預覽接口，專門回傳標的全稱
+    const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${query}&quotesCount=1&newsCount=0&lang=zh-Hant-TW&region=TW`;
+
     const proxyUrl = `${PROXIES[0]}${encodeURIComponent(searchUrl)}`;
     const res = await fetch(proxyUrl);
-    const rawData = await res.json();
-    const data = JSON.parse(rawData.contents);
+    const wrapper = await res.json();
+    const data = JSON.parse(wrapper.contents);
 
-    // 解析 Google 搜尋建議中的名稱
-    if (data && data.matches && data.matches.length > 0) {
-      return data.matches[0].t; // 回傳標的名稱，例如「台積電」
+    if (data.quotes && data.quotes.length > 0) {
+      // 優先取 longname，其次取 shortname
+      return data.quotes[0].longname || data.quotes[0].shortname;
     }
   } catch (e) {
-    console.warn("Google Finance 名稱抓取失敗:", e);
+    console.warn("Yahoo 名稱抓取失敗:", e);
   }
   return null;
 }
 
 /**
- * 抓取報價 (Yahoo v8) 與 名稱 (Google)
+ * 抓取單一資產報價與名稱
  */
 export async function fetchLivePrice(id, symbol, appState) {
   if (!symbol) return false;
@@ -50,20 +49,20 @@ export async function fetchLivePrice(id, symbol, appState) {
   const cleanTicker = ticker.replace(".TW", "").replace(".TWO", "");
   const isTaiwan = /^\d{4,6}/.test(cleanTicker);
 
-  // 1. 非同步抓取名稱 (Google) - 不卡住報價流程
-  fetchNameFromGoogle(cleanTicker).then((name) => {
+  // 1. 非同步抓取名稱 - 改用官方 Search 接口
+  fetchNameFromYahoo(ticker).then((name) => {
     if (name) {
       const acc = appState.accounts.find((a) => a.id === appState.activeId);
       const asset = acc.assets.find((a) => a.id === id);
       if (asset) {
         asset.fullName = name;
         saveToStorage();
-        renderMainUI(acc); // 名稱抓到後立即刷新畫面
+        renderMainUI(acc);
       }
     }
   });
 
-  // 2. 抓取報價 (Yahoo v8)
+  // 2. 抓取報價 (Yahoo v8 Chart)
   const tryFetchPrice = async (targetTicker) => {
     const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d`;
     for (let proxy of PROXIES) {
@@ -101,10 +100,9 @@ export async function fetchLivePrice(id, symbol, appState) {
     const asset = acc.assets.find((a) => a.id === id);
     if (asset) {
       asset.price = priceResult;
-      // 如果 Google 沒回傳，且目前 fullName 是空的，才顯示代號
-      if (!asset.fullName || asset.fullName === "---") {
-        asset.fullName = ticker;
-      }
+      // 兜底：如果沒抓到名稱，顯示 Ticker
+      if (!asset.fullName || asset.fullName === "---") asset.fullName = ticker;
+
       saveToStorage();
       renderMainUI(acc);
       if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
