@@ -90,113 +90,123 @@ export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  if (window.showToast) window.showToast("正在深度智慧辨識 (v6.3)...");
+  const showToast = window.showToast || console.log;
+  showToast("啟動 AI 視覺大腦辨識 (v28.0)...");
 
-  try {
-    const worker = await Tesseract.createWorker("chi_tra+eng", 1, {
-      workerPath:
-        "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js",
-      corePath:
-        "https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js",
+  // 1. 圖片轉 Base64 輔助函式
+  const fileToBase64 = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
     });
 
-    const {
-      data: { text },
-    } = await worker.recognize(file);
-    await worker.terminate();
+  try {
+    const base64Image = await fileToBase64(file);
+    const apiKey = ""; // 執行環境自動注入
+    const model = "gemini-2.5-flash-preview-09-2025";
 
-    const rawLines = text.split("\n");
-    let isTableStarted = false;
-    const assets = [];
+    const prompt = `
+      這是一張證券APP的庫存/未實現損益截圖。
+      請精確提取表格中的：
+      1. 股票代號 (Ticker)
+      2. 持有股數 (Shares)
+      
+      請注意：
+      - 排除頂部的總計數字（如總股數、總市值、總預估損益）。
+      - 股數通常是整數。
+      - 區分「股數」與「均價/現價」，不要將它們黏在一起。
+      - 如果代號中包含字母（如 00631L），請正確識別。
+    `;
 
-    for (let line of rawLines) {
-      // 1. 定位表格起點：看到標頭關鍵字後才開始抓取
-      if (
-        line.includes("商品") ||
-        line.includes("類別") ||
-        line.includes("股數") ||
-        line.includes("均價")
-      ) {
-        isTableStarted = true;
-        continue;
+    const payload = {
+      contents: [
+        {
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: "image/png",
+                data: base64Image.split(",")[1],
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            assets: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  name: { type: "STRING" },
+                  shares: { type: "NUMBER" },
+                },
+                required: ["name", "shares"],
+              },
+            },
+          },
+        },
+      },
+    };
+
+    // 2. 執行 API 請求（含 5 次指數退避重試）
+    let retries = 0;
+    const maxRetries = 5;
+    let assets = [];
+
+    while (retries < maxRetries) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        );
+
+        if (!response.ok) throw new Error("API Request Failed");
+
+        const result = await response.json();
+        const rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        assets = JSON.parse(rawJson).assets || [];
+        break; // 成功則跳出重試迴圈
+      } catch (error) {
+        retries++;
+        if (retries === maxRetries) throw error;
+        await new Promise((res) =>
+          setTimeout(res, Math.pow(2, retries) * 1000)
+        );
       }
+    }
 
-      // 2. 雜訊排除：只要包含統計字眼，哪怕是在表格後方，也一律跳過
-      if (
-        !isTableStarted ||
-        line.includes("總股數") ||
-        line.includes("總成本") ||
-        line.includes("帳號") ||
-        line.includes("總金額") ||
-        line.includes("總市值")
-      ) {
-        continue;
-      }
-
-      let clean = line.replace(/,/g, "");
-
-      /**
-       * 3. 股票代碼提取 (4-6 位)
-       */
-      const tickerMatch = clean.match(/\b(\d{4,5}[A-Z1]?)\b/);
-      if (!tickerMatch) continue;
-
-      let ticker = tickerMatch[1].toUpperCase();
-
-      // 校正 006311 -> 00631L
-      if (ticker.length === 6 && ticker.endsWith("1")) {
-        ticker = ticker.slice(0, -1) + "L";
-      }
-
-      const after = clean.substring(tickerMatch.index + tickerMatch[1].length);
-      // 修復手機千分位斷裂 (7 000 -> 7000)
-      const fixed = after.replace(/(\b\d{1,3})\s+(\d{3})(?!\d)/g, "$1$2");
-
-      /**
-       * 4. 股數提取邏輯：鎖定交易類別關鍵字後的長數字
-       */
-      const categoryMatch = fixed.match(
-        /(?:現買|擔保品|融資|庫存|普通|現賣|現股|現|買|賣)[^\d]*?(\d{2,7})/
-      );
-
-      let shares = 0;
-      if (categoryMatch) {
-        shares = parseInt(categoryMatch[1]);
-      } else {
-        // 備援：抓取該行扣除代碼後第一個長整數 (排除帶小數點的單價)
-        const nums = fixed.match(/\b\d{2,7}\b/g);
-        if (nums) {
-          const pick = nums.find((n) => parseInt(n) > 10);
-          if (pick) shares = parseInt(pick);
-        }
-      }
-
-      if (!shares || shares < 1) continue;
-
-      assets.push({
+    // 3. 將 AI 結果映射至原系統資產格式
+    if (assets.length > 0) {
+      const formattedAssets = assets.map((a) => ({
         id: Date.now() + Math.random(),
-        name: ticker,
+        name: a.name.toUpperCase(),
         fullName: "---",
         price: 0,
-        shares: shares,
+        shares: a.shares,
         leverage: 1,
         targetRatio: 0,
-      });
-    }
+      }));
 
-    if (assets.length > 0) {
-      const unique = Array.from(
-        new Map(assets.map((a) => [a.name, a])).values()
-      );
-      onComplete(unique);
-      if (window.showToast)
-        window.showToast(`辨識成功！發現 ${unique.length} 筆資產`);
+      onComplete(formattedAssets);
+      showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      if (window.showToast) window.showToast("未能辨識有效股票資料");
+      showToast("AI 未能識別有效數據");
     }
   } catch (err) {
-    if (window.showToast) window.showToast("辨識衝突，請重試");
+    console.error("AI辨識錯誤:", err);
+    showToast("AI 服務異常，請稍後重試");
   } finally {
-    e.target.value = "";
+    e.target.value = ""; // 清空 input 讓下次選擇同一張圖也能觸發
   }
 }
