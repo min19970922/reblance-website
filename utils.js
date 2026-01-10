@@ -7,7 +7,9 @@
 import { safeNum } from "./state.js";
 import { showToast } from "./ui.js";
 
-/** 匯出 Excel */
+/**
+ * 匯出 Excel
+ */
 export function exportExcel(acc) {
   if (!acc) return;
   const data = [
@@ -36,7 +38,9 @@ export function exportExcel(acc) {
   XLSX.writeFile(wb, `${acc.name}_財務快照.xlsx`);
 }
 
-/** 匯入 Excel */
+/**
+ * 匯入 Excel
+ */
 export function importExcel(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -82,7 +86,9 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
-/** 核心辨識引擎 v5.3 */
+/**
+ * 核心辨識引擎 v5.3
+ */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
