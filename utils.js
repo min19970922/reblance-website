@@ -1,15 +1,12 @@
 /**
- * utils.js - 專業辨識修復版 (v4.0)
- * 1. 解決 WASM 初始化報錯：顯式指定 CDN 路徑
- * 2. 深度適配明細頁面：從混合文字中精準分離代碼與名稱
- * 3. 強制轉換代碼為大寫
+ * utils.js - 精準辨識修正版 (v5.1)
+ * 1. 修正電腦版股數與價格黏連 (7000206)
+ * 2. 修正手機版千分位斷裂 (7 000)
  */
 import { safeNum } from "./state.js";
 import { showToast } from "./ui.js";
 
-/**
- * 匯出 Excel
- */
+/** 匯出 Excel */
 export function exportExcel(acc) {
   if (!acc) return;
   const data = [
@@ -38,9 +35,7 @@ export function exportExcel(acc) {
   XLSX.writeFile(wb, `${acc.name}_財務快照.xlsx`);
 }
 
-/**
- * 匯入 Excel
- */
+/** 匯入 Excel */
 export function importExcel(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -86,20 +81,19 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
+/** 核心辨識引擎 v5.1 */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  showToast("正在初始化穩定版引擎...");
+  showToast("正在智慧辨識 (v5.1)...");
 
   try {
-    // 強制指定穩定 Core 路徑，解決 wasm.js:31 報錯
     const worker = await Tesseract.createWorker("chi_tra+eng", 1, {
       workerPath:
         "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js",
       corePath:
         "https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js",
-      logger: (m) => console.log(m),
     });
 
     const {
@@ -107,97 +101,82 @@ export async function importFromImage(e, onComplete) {
     } = await worker.recognize(file);
     await worker.terminate();
 
-    console.log("辨識成功內容:", text);
+    // 1. 區域定位：尋找表格起始點 (多關鍵字容錯)
+    const anchors = ["明細", "商品", "類別"];
+    let startIdx = -1;
+    for (const a of anchors) {
+      const idx = text.lastIndexOf(a);
+      if (idx > startIdx) startIdx = idx;
+    }
+    const targetText = startIdx !== -1 ? text.substring(startIdx) : text;
 
-    // 1. 清理數據：移除逗號，將文字切分為 Token 陣列
-    const tokens = text.replace(/,/g, "").split(/\s+/);
+    const lines = targetText.split("\n");
     const newAssets = [];
 
-    // 2. 遍歷 Token 尋找潛在標的
-    for (let i = 0; i < tokens.length; i++) {
-      // 關鍵字檢查：包含「明細」或符合常見 OCR 誤認模式
-      const token = tokens[i];
-      if (token.includes("明細") || /BHfE|茹/.test(token)) {
-        // 規則：[i]是按鈕, [i+1]通常是代碼 (如 00631L)
-        const potentialCodeToken = tokens[i + 1];
-        if (!potentialCodeToken) continue;
+    lines.forEach((line) => {
+      let cleanLine = line.replace(/,/g, "");
+      const tickerMatch = cleanLine.match(/([0-9]{4,5}[A-Z1]?)/);
 
-        // 從 Token 中分離出 4-6 位的英數組合 (適配代碼與名稱黏在一起的情況)
-        const codeMatch = potentialCodeToken.match(/^([0-9A-Z]{4,6})/);
-        if (codeMatch) {
-          const code = codeMatch[1].toUpperCase();
+      if (tickerMatch) {
+        let ticker = tickerMatch[1].toUpperCase();
+        if (ticker.length === 6 && ticker.endsWith("1"))
+          ticker = ticker.slice(0, -1) + "L";
 
-          // 根據規則：搜尋到代碼後兩個欄位就是股數
-          // [i+1]代碼, [i+2]跳過項, [i+3]股數
-          const potentialShares = tokens[i + 3];
-          const shares = parseInt(potentialShares);
+        const afterTicker = cleanLine.substring(
+          tickerMatch.index + tickerMatch[1].length
+        );
 
-          if (!isNaN(shares) && shares > 0) {
-            newAssets.push({
-              id: Date.now() + Math.random(),
-              name: code,
-              fullName: "---",
-              price: 0,
-              shares: shares,
-              leverage: 1,
-              targetRatio: 0,
-            });
-          }
+        /**
+         * 重要修正：精準數字合併邏輯
+         * 只合併符合「千分位」特徵的數字，例如 "7 000" -> "7000"
+         * 避免將 "7000" 與後方的價格 "206" 合併
+         */
+        const joinedLine = afterTicker.replace(
+          /(\b\d{1,3})\s+(\d{3})(?!\d)/g,
+          "$1$2"
+        );
+
+        // 股數定位：鎖定交易類別後的第一組有效數字
+        const categoryMatch = joinedLine.match(
+          /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買)[^\d]*(\d{2,})/
+        );
+
+        let shares = 0;
+        if (categoryMatch) {
+          shares = parseInt(categoryMatch[1]);
+        } else {
+          // 備用方案：抓取該行除了標的名稱數字外的首個長數字
+          const allNums = joinedLine.match(/\b\d{2,}\b/g);
+          if (allNums) shares = parseInt(allNums[0]);
+        }
+
+        if (shares > 0) {
+          newAssets.push({
+            id: Date.now() + Math.random(),
+            name: ticker,
+            fullName: "---",
+            price: 0,
+            shares: shares,
+            leverage: 1,
+            targetRatio: 0,
+          });
         }
       }
-    }
+    });
 
     if (newAssets.length > 0) {
-      onComplete(newAssets);
-      showToast(`成功辨識 ${newAssets.length} 筆資產`);
+      const uniqueAssets = Array.from(
+        new Map(newAssets.map((a) => [a.name, a])).values()
+      );
+      onComplete(uniqueAssets);
+      showToast(`成功辨識 ${uniqueAssets.length} 筆資產`);
     } else {
-      showToast("未偵測到明細關鍵字或格式不符");
+      showToast("未偵測到有效資產，請重新拍攝");
     }
   } catch (err) {
-    console.error("OCR 致命錯誤:", err);
-    showToast("辨識引擎衝突，請重新整理頁面");
+    console.error("OCR 錯誤:", err);
+    showToast("辨識衝突，請重新整理頁面");
   } finally {
     e.target.value = "";
   }
-}
-export function parsePastedText(text) {
-  const lines = text.split("\n");
-  const detectedAssets = [];
-
-  lines.forEach((line) => {
-    // 移除頭尾空白
-    let cleanLine = line.trim();
-    if (!cleanLine) return;
-
-    // 1. 嘗試找出代碼 (假設代碼在前面，通常是數字或數字帶英文)
-    // 這裡使用一個簡單的規則：取第一個空白前的部分當作代碼
-    // 如果是 Excel 貼上，中間可能是 Tab (\t) 或多個空白
-    let parts = cleanLine.split(/[\s,\t]+/); // 用空白、逗號或 Tab 分割
-
-    // 過濾掉空字串
-    parts = parts.filter((p) => p.length > 0);
-
-    if (parts.length >= 2) {
-      // 假設第一個部分是代碼
-      let symbol = parts[0].toUpperCase();
-      // 假設最後一個部分是股數 (移除可能的逗號)
-      let sharesStr = parts[parts.length - 1].replace(/,/g, "");
-      let shares = parseInt(sharesStr);
-
-      // 基本驗證：代碼長度至少 3 碼，股數要是有效數字
-      if (symbol.length >= 3 && !isNaN(shares) && shares > 0) {
-        detectedAssets.push({
-          id: Date.now() + Math.random(),
-          name: symbol,
-          fullName: "待同步...",
-          price: 0,
-          shares: shares,
-          leverage: 1,
-          targetRatio: 0,
-        });
-      }
-    }
-  });
-
-  return detectedAssets;
 }
