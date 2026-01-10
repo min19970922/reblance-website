@@ -1,5 +1,5 @@
 /**
- * ui.js - 專家版 (自動寬度與心理預期強化)
+ * ui.js - 專家版 (解決標題載入中、數字切斷與條件建議)
  */
 import {
   safeNum,
@@ -36,13 +36,22 @@ export function renderAccountList(appState, onSwitch, onDelete) {
       </div>
       <button onclick="event.stopPropagation(); ${onDelete}('${
       acc.id
-    }')" class="opacity-0 group-hover:opacity-100 p-1 text-rose-200 hover:text-white"><i class="fas fa-trash-alt text-lg"></i></button>`;
+    }')" class="opacity-0 group-hover:opacity-100 p-1 text-rose-200 hover:text-white">
+        <i class="fas fa-trash-alt text-lg"></i>
+      </button>`;
     list.appendChild(div);
   });
 }
 
 export function renderMainUI(acc) {
   if (!acc) return;
+
+  // --- 修復點：更新上方帳戶名稱標題 ---
+  const titleEl = document.getElementById("activeAccountTitle");
+  if (titleEl) {
+    titleEl.innerHTML = `${acc.name} <i class="fas fa-pen text-xl text-rose-200 ml-4"></i>`;
+  }
+
   document.getElementById("debtInput").value = acc.totalDebt;
   document.getElementById("cashInput").value = acc.currentCash;
   document.getElementById("usdRateInput").value = acc.usdRate;
@@ -75,18 +84,18 @@ function generateAssetRowHTML(asset, index, totalAssets) {
       : "text-rose-400"
     : "text-rose-300 animate-pulse";
 
-  // 移除所有固定寬度限制，確保數據完全顯示
+  // --- 修正點：移除 w-48 等固定寬度，讓 CSS 控制自動撐開 ---
   return `
     <td>
       <div class="flex items-center gap-4">
-        <div class="flex flex-col"><button onclick="moveAsset(${
-          asset.id
-        },-1)" class="${
+        <div class="flex flex-col">
+          <button onclick="moveAsset(${asset.id},-1)" class="${
     index === 0 ? "invisible" : ""
   }"><i class="fas fa-caret-up"></i></button>
-        <button onclick="moveAsset(${asset.id},1)" class="${
+          <button onclick="moveAsset(${asset.id},1)" class="${
     index === totalAssets - 1 ? "invisible" : ""
-  }"><i class="fas fa-caret-down"></i></button></div>
+  }"><i class="fas fa-caret-down"></i></button>
+        </div>
         <div class="flex flex-col min-w-[240px]">
           <input type="text" value="${asset.name}" onchange="updateAsset(${
     asset.id
@@ -107,11 +116,11 @@ function generateAssetRowHTML(asset, index, totalAssets) {
         <input type="number" value="${asset.price}" onchange="updateAsset(${
     asset.id
   },'price',this.value)" class="underline-input font-mono-data">
-        <button onclick="fetchLivePrice(${asset.id},'${
-    asset.name
-  }')"><i id="assetSync-${
-    asset.id
-  }" class="fas fa-sync-alt text-rose-200"></i></button>
+        <button onclick="fetchLivePrice(${asset.id},'${asset.name}')">
+          <i id="assetSync-${
+            asset.id
+          }" class="fas fa-sync-alt text-rose-200"></i>
+        </button>
       </div>
     </td>
     <td>
@@ -125,16 +134,20 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     <td id="curPct-${
       asset.id
     }" class="font-mono-data text-indigo-800 text-center font-black"></td>
-    <td class="text-center"><input type="number" value="${
-      asset.targetRatio
-    }" onchange="updateAsset(${
+    <td class="text-center">
+      <input type="number" value="${asset.targetRatio}" onchange="updateAsset(${
     asset.id
-  },'targetRatio',this.value)" class="underline-input text-center text-rose-900 w-24 font-black">%</td>
+  },'targetRatio',this.value)" class="underline-input text-center text-rose-900 w-24 font-black">%
+    </td>
     <td id="targetVal-${asset.id}" class="text-center"></td>
     <td id="sugg-${asset.id}" class="text-center"></td>
-    <td><button onclick="removeAsset(${
-      asset.id
-    })" class="text-rose-100 hover:text-rose-600"><i class="fas fa-trash-alt text-2xl"></i></button></td>`;
+    <td class="text-right">
+      <button onclick="removeAsset(${
+        asset.id
+      })" class="text-rose-100 hover:text-rose-600">
+        <i class="fas fa-trash-alt text-2xl"></i>
+      </button>
+    </td>`;
 }
 
 function updateAssetRowData(asset, acc, netValue) {
@@ -156,7 +169,6 @@ function updateAssetRowData(asset, acc, netValue) {
       ).toLocaleString()}</span>
     </div>`;
 
-  // 五階顏色與脈動邏輯
   let barColor = "bg-emerald-500";
   if (s.saturation > 0.4) barColor = "bg-lime-500";
   if (s.saturation > 0.6) barColor = "bg-yellow-500";
@@ -166,9 +178,8 @@ function updateAssetRowData(asset, acc, netValue) {
   const isBuy = s.diffNominal > 0;
   const suggCell = document.getElementById(`sugg-${asset.id}`);
 
-  // 核心：條件顯示建議
+  // --- 修正點：未達門檻僅顯示進度條，已觸發才顯示建議文字 ---
   if (!s.isTriggered) {
-    // 未達門檻：隱藏文字，僅顯示進度條管理心理預期
     suggCell.innerHTML = `
       <div class="flex flex-col items-center min-w-[320px]">
         <div class="w-full h-4 bg-gray-100 rounded-full mt-2 overflow-hidden border">
@@ -177,12 +188,11 @@ function updateAssetRowData(asset, acc, netValue) {
     )}%"></div>
         </div>
         <div class="flex justify-between w-full text-sm font-black mt-2 text-rose-300">
-          <span>偏離: ${s.absDiff.toFixed(1)}%</span>
+          <span>偏差: ${s.absDiff.toFixed(1)}%</span>
           <span>達標進度: ${Math.round(s.saturation * 100)}%</span>
         </div>
       </div>`;
   } else {
-    // 已達門檻：顯示加碼/減持建議
     suggCell.innerHTML = `
       <div class="flex flex-col items-center min-w-[320px] scale-105 transition-transform">
         <div class="flex items-center gap-4">
