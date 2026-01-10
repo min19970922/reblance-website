@@ -1,12 +1,11 @@
-/**
- * api.js - 線上環境穩定版
- * 解決 401/500/CORS 與中文名稱問題
- */
 import { renderMainUI, showToast } from "./ui.js";
 import { saveToStorage } from "./state.js";
 
-// 這裡只保留在線上環境最穩定的代理
-const ALL_ORIGINS = "https://api.allorigins.win/get?url=";
+// 使用您驗證過的穩定代理組合
+const PROXIES = [
+  "https://api.allorigins.win/get?url=",
+  "https://corsproxy.io/?",
+];
 
 export async function fetchLivePrice(id, symbol, appState) {
   if (!symbol) return false;
@@ -14,61 +13,59 @@ export async function fetchLivePrice(id, symbol, appState) {
   if (icon) icon.classList.add("fa-spin-fast", "text-rose-600");
 
   let ticker = symbol.trim().toUpperCase();
-  const isTaiwan = /^\d{4,6}/.test(ticker);
+  const isTaiwan = /^\d{4,6}[A-Z]?$/.test(ticker);
 
   const tryFetch = async (targetTicker) => {
-    // 使用 v8 接口搭配繁體中文參數
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d&lang=zh-Hant-TW&region=TW`;
+    // 換回您提供的穩定 v8/chart 網址格式
+    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d`;
 
-    try {
-      // 這是繞過 CORS 最穩定的寫法：AllOrigins 的內容轉義模式
-      const finalUrl = `${ALL_ORIGINS}${encodeURIComponent(
-        yahooUrl
-      )}&_=${Date.now()}`;
+    for (let proxy of PROXIES) {
+      try {
+        const finalUrl = proxy.includes("allorigins")
+          ? proxy + encodeURIComponent(yahooUrl)
+          : proxy + yahooUrl;
 
-      const res = await fetch(finalUrl);
-      if (!res.ok) return null;
+        const res = await fetch(finalUrl);
+        if (!res.ok) continue;
 
-      const wrapper = await res.json();
-      // 關鍵：AllOrigins 回傳的是字串，必須解析
-      const data = JSON.parse(wrapper.contents);
+        const json = await res.json();
 
-      const meta = data.chart?.result?.[0]?.meta;
-      if (meta) {
-        return {
-          price: meta.regularMarketPrice || meta.previousClose,
-          // 抓取 API 回傳的名稱
-          name: meta.shortName || meta.longName || meta.symbol,
-        };
+        // 關鍵：針對 GitHub Pages 上的 AllOrigins 進行 JSON 解析
+        let data = proxy.includes("allorigins")
+          ? JSON.parse(json.contents)
+          : json;
+
+        const meta = data.chart?.result?.[0]?.meta;
+        const price = meta?.regularMarketPrice || meta?.previousClose;
+
+        if (price) {
+          return {
+            price: price,
+            name: meta?.shortName || meta?.symbol || targetTicker,
+          };
+        }
+      } catch (e) {
+        console.warn(`代理 ${proxy} 失敗`);
+        continue;
       }
-    } catch (e) {
-      console.error("抓取失敗:", e);
     }
     return null;
   };
 
   let result = null;
   if (isTaiwan && !ticker.includes(".")) {
-    // 自動輪詢上市櫃
     result =
       (await tryFetch(ticker + ".TW")) || (await tryFetch(ticker + ".TWO"));
   } else {
     result = await tryFetch(ticker);
   }
 
-  if (result && result.price) {
+  if (result) {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     const asset = acc.assets.find((a) => a.id === id);
     if (asset) {
       asset.price = result.price;
-
-      // 中文名稱處理
-      const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
-      if (result.name && hasChinese(result.name)) {
-        asset.fullName = result.name;
-      } else if (!asset.fullName || asset.fullName === "---") {
-        asset.fullName = ticker;
-      }
+      asset.fullName = result.name; // 直接套用 API 名稱
 
       saveToStorage();
       renderMainUI(acc);
@@ -84,16 +81,16 @@ export async function fetchLivePrice(id, symbol, appState) {
 export async function syncAllPrices(appState) {
   const mainSync = document.getElementById("syncIcon");
   if (mainSync) mainSync.classList.add("fa-spin-fast");
-  showToast("更新報價中...");
+  showToast("正在更新即時報價...");
 
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   for (let asset of acc.assets) {
     if (asset.name) {
       await fetchLivePrice(asset.id, asset.name, appState);
-      // 拉長延遲到 1 秒，防止 GitHub Pages 網域被 Yahoo 暫時封鎖
-      await new Promise((r) => setTimeout(r, 1000));
+      // 維持 450ms 延遲以保證穩定性
+      await new Promise((r) => setTimeout(r, 450));
     }
   }
   if (mainSync) mainSync.classList.remove("fa-spin-fast");
-  showToast("同步完成");
+  showToast("報價已同步");
 }
