@@ -1,7 +1,6 @@
-/* styles.css - 修正版 */
+/* styles.css - 終極穩定版 */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap");
 
 :root {
   --primary-pink: #fb7185;
@@ -13,7 +12,10 @@
   --font-size-table: 1.2rem;
 }
 
-body {
+/* 全域字體：英文 Calibri, 中文微軟正黑 */
+body,
+input,
+button {
   font-family: "Calibri", "Microsoft JhengHei", sans-serif !important;
   background-color: var(--bg-soft-pink);
   color: #1a0005;
@@ -21,8 +23,11 @@ body {
   overflow-x: hidden;
 }
 
-.font-mono-data {
-  font-family: "Calibri", sans-serif !important; /* 數據區使用 Calibri */
+.font-mono-data,
+.flat-input,
+.underline-input,
+.glass-card div {
+  font-family: "Calibri", sans-serif !important;
 }
 
 .dashboard-container {
@@ -32,7 +37,7 @@ body {
   transition: all 0.3s ease;
 }
 
-/* 修正殘影：縮回時完全隱藏 aside */
+/* 側邊欄縮回修復 */
 .dashboard-container.sidebar-collapsed {
   grid-template-columns: 0px 1fr;
 }
@@ -40,6 +45,7 @@ body {
   visibility: hidden;
   opacity: 0;
   border: none;
+  pointer-events: none;
 }
 
 aside {
@@ -93,7 +99,6 @@ main {
 .glass-card div {
   font-size: var(--font-size-data) !important;
   font-weight: 900;
-  font-family: "JetBrains Mono", monospace;
   letter-spacing: -1px;
 }
 
@@ -108,9 +113,10 @@ main {
   overflow: hidden;
 }
 
+/* 核心修復：自動寬度輸入框疊加邏輯 */
 .input-col-wrapper {
   position: relative;
-  display: inline-grid; /* 使用 Grid 讓鏡像層與輸入框重疊 */
+  display: inline-grid;
   vertical-align: middle;
   justify-items: center;
   align-items: center;
@@ -118,19 +124,41 @@ main {
 
 .input-mirror {
   grid-area: 1 / 1;
-  visibility: hidden; /* 關鍵：隱藏鏡像文字但保留撐開寬度的能力 */
-  white-space: pre; /* 保留空格寬度 */
-  padding: 0 8px; /* 預留一點間距 */
+  /* 強制隱藏文字內容但保留撐開空間的物理特性 */
+  opacity: 0 !important;
+  color: transparent !important;
+  visibility: hidden !important;
+  white-space: pre;
+  padding: 0 10px;
   pointer-events: none;
+  z-index: 1;
 }
 
+.underline-input {
+  grid-area: 1 / 1;
+  width: 100%;
+  background: transparent !important;
+  border: none;
+  border-bottom: 2px solid #fecdd3;
+  outline: none;
+  text-align: center;
+  padding: 0 10px;
+  font-weight: 900;
+  z-index: 2; /* 確保輸入框在最上方 */
+  transition: border-color 0.2s;
+}
+
+.underline-input:focus {
+  border-bottom-color: var(--primary-pink);
+}
+
+/* 其餘表格設定 */
 .input-unit,
 .input-unit-small {
   display: flex;
   flex-direction: column;
   padding: 12px 20px;
   border-right: 2px solid #fff1f2;
-  background: white;
 }
 
 .input-unit:last-child,
@@ -144,19 +172,6 @@ main {
   font-weight: 900;
   color: var(--primary-pink);
   margin-bottom: 2px;
-  white-space: nowrap;
-}
-
-.input-box {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.input-box span {
-  font-size: 1.4rem;
-  font-weight: 900;
-  color: #fecdd3;
 }
 
 .flat-input {
@@ -164,7 +179,6 @@ main {
   outline: none;
   font-size: 1.6rem;
   font-weight: 900;
-  font-family: "JetBrains Mono";
   width: 100%;
   background: transparent;
   text-align: right;
@@ -183,7 +197,6 @@ main {
   color: #9d174d;
   background: #fffafb;
   border-bottom: 2px solid #fecdd3;
-  text-align: center;
 }
 
 td {
@@ -194,23 +207,6 @@ td {
   border-bottom: 1px solid #fff1f2;
 }
 
-.underline-input {
-  grid-area: 1 / 1;
-  width: 100%;
-  background: transparent !important;
-  border: none;
-  border-bottom: 2px solid #fecdd3;
-  outline: none;
-  text-align: center;
-  padding: 0 8px;
-  font-weight: 900;
-  transition: border-color 0.2s;
-}
-
-.underline-input:focus {
-  border-bottom-color: var(--primary-pink);
-}
-
 .btn-pink {
   background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
   color: white;
@@ -219,26 +215,8 @@ td {
   padding: 10px 25px;
   border: none;
   cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-pink:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px -5px rgba(225, 29, 72, 0.4);
 }
 
 #toast {
   transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-}
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #fecdd3;
-  border-radius: 10px;
 }

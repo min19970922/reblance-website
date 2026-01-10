@@ -132,10 +132,13 @@ export async function fetchLivePrice(id, symbol, appState) {
   return false;
 }
 
+// api.js 建議修正
 export async function syncAllPrices(appState) {
   const mainSync = document.getElementById("syncIcon");
   if (mainSync) mainSync.classList.add("fa-spin-fast");
-  showToast("正在更新報價中...");
+
+  // 修正：補上 window.
+  if (window.showToast) window.showToast("正在更新報價中...");
 
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   for (let asset of acc.assets) {
@@ -145,5 +148,7 @@ export async function syncAllPrices(appState) {
     }
   }
   if (mainSync) mainSync.classList.remove("fa-spin-fast");
-  showToast("更新完成");
+
+  // 修正：補上 window.
+  if (window.showToast) window.showToast("更新完成");
 }
