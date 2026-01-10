@@ -86,11 +86,14 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
+/**
+ * utils.js - 專業 OCR 辨識優化版 (支援 L/1 校正與明細過濾)
+ */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  showToast("正在辨識資產明細...");
+  showToast("正在辨識資產明細..."); //
 
   try {
     const worker = await Tesseract.createWorker("chi_tra+eng", 1, {
@@ -98,38 +101,53 @@ export async function importFromImage(e, onComplete) {
         "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js",
       corePath:
         "https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js",
-    });
+    }); //
 
     const {
       data: { text },
     } = await worker.recognize(file);
     await worker.terminate();
 
-    // 1. 預處理：按行分割，並移除千分位逗號
-    const lines = text.split("\n");
+    // 1. 關鍵字定位：只取「明細」後方的文字
+    const keyword = "明細";
+    const startIdx = text.indexOf(keyword);
+    const relevantText =
+      startIdx !== -1 ? text.substring(startIdx + keyword.length) : text;
+
+    // 2. 數據清理與分行處理
+    const lines = relevantText.split("\n");
     const newAssets = [];
 
-    // 2. 逐行掃描：針對您的截圖佈局進行優化
-    lines.forEach((line) => {
-      const cleanLine = line.replace(/,/g, "");
+    //
 
-      // 搜尋 4-6 位的標的代碼 (允許代碼後面直接接名稱)
-      const tickerMatch = cleanLine.match(/([0-9A-Z]{4,6})/);
+    // 3. 逐行掃描
+    lines.forEach((line) => {
+      const cleanLine = line.replace(/,/g, ""); // 移除千分位逗號
+
+      /**
+       * 正規表示式說明：
+       * ([0-9]{4,5}[A-Z1]?)
+       * - 前 4 到 5 位必須是數字
+       * - 最後一位可以是英文字母或被誤判的數字 1
+       */
+      const tickerMatch = cleanLine.match(/([0-9]{4,5}[A-Z1]?)/);
 
       if (tickerMatch) {
-        const finalCode = tickerMatch[1];
+        let finalCode = tickerMatch[1].toUpperCase();
 
-        // 在同一行代碼之後，尋找第一個數字 (股數)
-        // 排除掉代碼本身，從代碼位置之後開始找數字
+        // 智慧校正：若長度為 6 且末位為 1，極大機率是 L (槓桿 ETF)
+        if (finalCode.length === 6 && finalCode.endsWith("1")) {
+          finalCode = finalCode.slice(0, -1) + "L";
+        }
+
+        // 尋找該行中的股數 (代碼後的第一個純數字塊)
         const remainingText = cleanLine.substring(
-          tickerMatch.index + finalCode.length
+          tickerMatch.index + tickerMatch[1].length
         );
         const numbers = remainingText.match(/\d+/g);
 
         if (numbers && numbers.length > 0) {
-          // 通常股數是代碼後的第一個純數字塊
           const shares = parseInt(numbers[0]);
-
           if (shares > 0) {
             newAssets.push({
               id: Date.now() + Math.random(),
@@ -146,18 +164,17 @@ export async function importFromImage(e, onComplete) {
     });
 
     if (newAssets.length > 0) {
-      // 依據代碼去重
       const uniqueAssets = Array.from(
         new Map(newAssets.map((a) => [a.name, a])).values()
       );
       onComplete(uniqueAssets);
-      showToast(`辨識成功！發現 ${uniqueAssets.length} 筆標的`);
+      showToast(`辨識成功！發現 ${uniqueAssets.length} 筆資產`); //
     } else {
-      showToast("未能辨識有效標的，請嘗試更清晰的照片");
+      showToast("未能辨識有效標的，請嘗試更清晰的照片"); //
     }
   } catch (err) {
     console.error("OCR 錯誤:", err);
-    showToast("辨識發生錯誤");
+    showToast("辨識發生錯誤"); //
   } finally {
     e.target.value = "";
   }
