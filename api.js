@@ -1,8 +1,6 @@
 /**
- * api.js
- * 修正重點：
- * 1. 強化名稱抓取：確保從 v10 API 的多個可能欄位中擷取中文名稱。
- * 2. 修正連動問題：確保在抓到名稱後，呼叫 renderMainUI 以更新下方「再平衡建議」的顯示。
+ * api.js 最終穩定版
+ * 職責：處理穩定報價 (v8/v10)，並透過 Yahoo 語系設定嘗試抓取中文名稱
  */
 import { renderMainUI, showToast } from "./ui.js";
 import { saveToStorage } from "./state.js";
@@ -11,24 +9,6 @@ const PROXIES = [
   "https://corsproxy.io/?",
   "https://api.allorigins.win/get?url=",
 ];
-
-/**
- * 輔助函式：透過 Fugle API 獲取台股中文名稱 (自動化且最精準)
- */
-async function getTaiwanStockName(ticker) {
-  try {
-    const res = await fetch(
-      `https://api.fugle.tw/marketdata/v1.0/stock/intraday/tickers/${ticker}`
-    );
-    if (res.ok) {
-      const data = await res.json();
-      return data.name;
-    }
-  } catch (e) {
-    console.warn(`[Fugle] 無法獲取代號 ${ticker} 的名稱`);
-  }
-  return null;
-}
 
 /**
  * 抓取單一資產報價與名稱
@@ -42,9 +22,9 @@ export async function fetchLivePrice(id, symbol, appState) {
   const cleanTicker = ticker.replace(".TW", "").replace(".TWO", "");
   const isTaiwan = /^\d{4,6}/.test(cleanTicker);
 
-  const tryFetchPrice = async (targetTicker) => {
-    // 使用 v10 參數並強制指定語系
-    const yahooUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${targetTicker}?modules=price&lang=zh-Hant-TW&region=TW`;
+  const tryFetchData = async (targetTicker) => {
+    // 使用 v8 接口搭配繁體中文參數，這是目前您環境下最穩定的報價路徑
+    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d&lang=zh-Hant-TW&region=TW`;
 
     for (let proxy of PROXIES) {
       try {
@@ -53,19 +33,19 @@ export async function fetchLivePrice(id, symbol, appState) {
         if (!res.ok) continue;
 
         const rawData = await res.json();
+        // 解析 AllOrigins 特有的 contents 封裝
         let data = proxy.includes("allorigins")
           ? JSON.parse(rawData.contents)
           : rawData;
 
-        const result = data.quoteSummary?.result?.[0]?.price;
-        if (result) {
+        const result = data.chart?.result?.[0];
+        if (result && result.meta) {
           return {
-            price:
-              result.regularMarketPrice?.raw ||
-              result.regularMarketPreviousClose?.raw ||
-              0,
-            // 優先嘗試 Yahoo 的中文名稱欄位
-            yahooName: result.longName || result.shortName,
+            price: result.meta.regularMarketPrice || result.meta.previousClose,
+            name:
+              result.meta.shortName ||
+              result.meta.longName ||
+              result.meta.symbol,
           };
         }
       } catch (e) {
@@ -79,44 +59,31 @@ export async function fetchLivePrice(id, symbol, appState) {
   let result = null;
   if (isTaiwan && !ticker.includes(".")) {
     result =
-      (await tryFetchPrice(ticker + ".TW")) ||
-      (await tryFetchPrice(ticker + ".TWO"));
+      (await tryFetchData(ticker + ".TW")) ||
+      (await tryFetchData(ticker + ".TWO"));
   } else {
-    result = await tryFetchPrice(ticker);
+    result = await tryFetchData(ticker);
   }
 
-  // 2. 名稱更新邏輯
-  if (result) {
+  // 2. 處理資料更新
+  if (result && result.price) {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     const asset = acc.assets.find((a) => a.id === id);
     if (asset) {
+      // 更新價格
       asset.price = result.price;
 
-      // 名稱處理：台股優先使用 Fugle，非台股使用 Yahoo
+      // 名稱邏輯：檢查是否有中文字元
       const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
 
-      if (isTaiwan) {
-        const fugleName = await getTaiwanStockName(cleanTicker);
-        if (fugleName) {
-          asset.fullName = fugleName;
-        } else if (result.yahooName && hasChinese(result.yahooName)) {
-          asset.fullName = result.yahooName;
-        }
-      } else {
-        if (result.yahooName) asset.fullName = result.yahooName;
+      if (result.name && hasChinese(result.name)) {
+        asset.fullName = result.name;
+      } else if (!asset.fullName || asset.fullName === "---") {
+        // 若抓不到中文，且原本是空值，則顯示 Ticker
+        asset.fullName = ticker;
       }
 
-      // 兜底方案：如果還是沒抓到中文，且原本也沒有正確名稱，才顯示代碼
-      if (
-        !asset.fullName ||
-        asset.fullName === "---" ||
-        !hasChinese(asset.fullName)
-      ) {
-        if (result.yahooName) asset.fullName = result.yahooName;
-        else asset.fullName = ticker;
-      }
-
-      // --- 重要：更新資料後必須存檔並強制渲染 UI ---
+      // --- 核心修正：存檔後必須渲染，下方文字才會變 ---
       saveToStorage();
       renderMainUI(acc);
 
@@ -135,7 +102,7 @@ export async function fetchLivePrice(id, symbol, appState) {
 export async function syncAllPrices(appState) {
   const mainSync = document.getElementById("syncIcon");
   if (mainSync) mainSync.classList.add("fa-spin-fast");
-  showToast("更新報價與名稱中...");
+  showToast("更新報價中...");
 
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   let successCount = 0;
@@ -144,10 +111,11 @@ export async function syncAllPrices(appState) {
     if (asset.name) {
       const success = await fetchLivePrice(asset.id, asset.name, appState);
       if (success) successCount++;
-      await new Promise((r) => setTimeout(r, 600)); // 避免請求過快被封鎖
+      // 增加延遲防止被 Yahoo 封鎖
+      await new Promise((r) => setTimeout(r, 600));
     }
   }
 
   if (mainSync) mainSync.classList.remove("fa-spin-fast");
-  showToast(successCount > 0 ? `同步完成 (${successCount} 筆)` : "更新失敗");
+  showToast(successCount > 0 ? `同步完成 (${successCount} 筆)` : "同步失敗");
 }
