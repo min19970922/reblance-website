@@ -65,15 +65,24 @@ main {
   overflow-y: auto;
 }
 
-.dashboard-grid,
-.params-row-tight {
+.dashboard-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 15px;
-  width: 100%;
-  min-width: 900px;
+  margin-bottom: 10px; /* 從 25px 縮小至 10px */
 }
 
+.params-row-tight {
+  background: white;
+  border: 2px solid #fff1f2;
+  border-radius: 20px;
+  box-shadow: 0 5px 20px -10px rgba(0, 0, 0, 0.05);
+  margin-top: 5px; /* 額外加入微小間距 */
+  margin-bottom: 20px; /* 縮小下方與表格的間距 */
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  overflow: hidden;
+}
 .main-scroll-wrapper {
   overflow-x: auto;
   width: 100%;

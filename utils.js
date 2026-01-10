@@ -105,7 +105,7 @@ export async function importFromImage(e, onComplete) {
     } = await worker.recognize(file);
     await worker.terminate();
 
-    // 1. 定位關鍵字：只處理「明細」後方的資訊
+    // 1. 定位「明細」關鍵字，只解析之後的文字以過濾干擾資訊
     const keyword = "明細";
     const startIdx = text.indexOf(keyword);
     const relevantText =
@@ -114,39 +114,37 @@ export async function importFromImage(e, onComplete) {
     const lines = relevantText.split("\n");
     const newAssets = [];
 
-    // 2. 逐行精準掃描
+    // 2. 逐行掃描
     lines.forEach((line) => {
-      // 移除千分位逗號
-      const cleanLine = line.replace(/,/g, "");
+      const cleanLine = line.replace(/,/g, ""); // 移除千分位
 
-      // 台股代碼規則：4-5位數字，或5位數字+1位英數
+      // 匹配台股代碼規則：4-5位數字，或5位數字+1位英數
       const tickerMatch = cleanLine.match(/([0-9]{4,5}[A-Z1]?)/);
 
       if (tickerMatch) {
         let finalCode = tickerMatch[1].toUpperCase();
 
-        // 智慧校正：處理 00631L 被誤辨識為 006311 的情況
+        // 智慧校正：將誤判為 1 的 L 修正回來
         if (finalCode.length === 6 && finalCode.endsWith("1")) {
           finalCode = finalCode.slice(0, -1) + "L";
         }
 
-        // 股數辨識優化：尋找「中文字（類別）」後方的「第一個純數字」
+        /**
+         * 股數定位：鎖定在「中文字塊」之後的第一組數字
+         * 這能跳過「元大台灣50正2」中的 50 和 2
+         */
         const afterTicker = cleanLine.substring(
           tickerMatch.index + tickerMatch[1].length
         );
-
-        // 匹配模式：[中文字塊] + [可選括號] + [空白] + [數字]
         const shareMatch = afterTicker.match(/[\u4e00-\u9fa5]+\)?\s*(\d+)/);
 
         let shares = 0;
         if (shareMatch && shareMatch[1]) {
           shares = parseInt(shareMatch[1]);
         } else {
-          // 備用方案：如果沒找到中文字區塊，則取該行代碼後的第一個大於 0 的整數
+          // 備用方案：抓取該行後方的第一個數字塊
           const allNumbers = afterTicker.match(/\d+/g);
-          if (allNumbers) {
-            shares = parseInt(allNumbers[0]);
-          }
+          if (allNumbers) shares = parseInt(allNumbers[0]);
         }
 
         if (shares > 0) {
