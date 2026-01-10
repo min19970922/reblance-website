@@ -1,193 +1,218 @@
-/* * styles.css - 終極美學大氣版 (v4.0 置中與全自動對齊) */
+/* styles.css - 終極對齊與不換行版 */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap");
 
 :root {
   --primary-pink: #fb7185;
   --accent-pink: #e11d48;
-  --sidebar-width: 320px;
+  --sidebar-width: 260px;
   --bg-soft-pink: #fffafb;
-  --font-size-data: 2.2rem;
-  --font-size-table: 1.4rem;
+  --font-size-base: 1rem;
+  --font-size-data: 1.8rem;
+  --font-size-table: 1.2rem;
 }
 
-/* 1. 基礎強制設定 */
+/* 基礎設定 */
 body {
-  font-family: "Calibri", "Microsoft JhengHei", sans-serif !important;
-  background-color: var(--bg-soft-pink) !important;
-  color: #1a0005 !important;
+  font-family: "Noto Sans TC", sans-serif;
+  background-color: var(--bg-soft-pink);
+  color: #1a0005;
   margin: 0;
   overflow-x: hidden;
 }
 
-/* 2. 佈局與上方卡片 - 嚴格保留 5 欄配置 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
   min-height: 100vh;
+  transition: all 0.3s ease;
 }
+
 .dashboard-container.sidebar-collapsed {
   grid-template-columns: 0px 1fr;
 }
+
+/* 側邊欄 */
 aside {
   width: var(--sidebar-width);
   background: white;
   border-right: 1px solid #fff1f2;
   display: flex;
   flex-direction: column;
+  z-index: 10;
+  overflow: hidden;
 }
+
 main {
-  width: 100%;
-  padding: 40px;
+  padding: 30px;
   box-sizing: border-box;
+  overflow-y: auto;
 }
 
-.dashboard-grid {
-  display: grid !important;
-  grid-template-columns: repeat(5, 1fr) !important;
-  gap: 20px;
-  margin-bottom: 30px;
+/* --- 核心對齊佈局：強制 5 欄等寬 --- */
+
+.dashboard-grid,
+.params-row-tight {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr); /* 強制 5 欄等分 */
+  gap: 15px;
+  width: 100%;
+  min-width: 900px; /* 確保在小螢幕上也不會擠壓變形，而是產生橫向捲軸 */
 }
 
+/* 為了在大容器中支持橫向捲軸 */
+.main-scroll-wrapper {
+  overflow-x: auto;
+  width: 100%;
+  padding-bottom: 10px;
+}
+
+/* 數據卡片 */
 .glass-card {
-  background: white !important;
-  border-radius: 24px !important;
-  border: 1px solid rgba(251, 113, 133, 0.2) !important;
-  padding: 20px !important;
-  box-shadow: 0 10px 25px -5px rgba(251, 113, 133, 0.08) !important;
+  background: white;
+  border-radius: 20px;
+  border: 1px solid rgba(251, 113, 133, 0.2);
+  padding: 15px;
+  box-shadow: 0 5px 15px -5px rgba(251, 113, 133, 0.08);
+}
+
+.glass-card span {
+  font-size: 0.9rem;
+  font-weight: 900;
+  color: #9d174d;
+  display: block;
+  margin-bottom: 5px;
 }
 
 .glass-card div {
   font-size: var(--font-size-data) !important;
-  font-weight: 900 !important;
-  font-family: "Calibri", sans-serif !important;
+  font-weight: 900;
+  font-family: "JetBrains Mono", monospace;
+  letter-spacing: -1px;
 }
 
-/* 3. 參數列修正：解決 Loan/Cash 垂直基準線對齊 */
+/* 參數控制列樣式 */
 .params-row-tight {
-  display: grid !important;
-  grid-template-columns: repeat(5, 1fr) !important;
-  background: white !important;
-  border: 2px solid #fff1f2 !important;
-  border-radius: 24px !important;
-  width: 100% !important;
-  box-shadow: 0 10px 30px -10px rgba(251, 113, 133, 0.15) !important;
-  margin-bottom: 40px !important;
+  background: white;
+  border: 2px solid #fff1f2;
+  border-radius: 20px;
+  gap: 0; /* 內部使用邊框分割 */
+  box-shadow: 0 5px 20px -10px rgba(0, 0, 0, 0.05);
+  margin-top: 20px;
+  margin-bottom: 30px;
   overflow: hidden;
 }
 
-.param-item {
-  padding: 15px 20px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: center !important;
-  border-right: 1px solid #fff1f2 !important;
-}
-.param-item label {
-  font-size: 0.85rem !important;
-  font-weight: 900 !important;
-  color: var(--primary-pink) !important;
-  margin-bottom: 2px !important;
-}
-.input-wrapper {
-  display: flex !important;
-  align-items: baseline !important;
-  gap: 4px !important;
-}
-.param-item input {
-  border: none !important;
-  background: transparent !important;
-  font-size: 1.8rem !important;
-  font-weight: 900 !important;
-  font-family: "Calibri", sans-serif !important;
-  color: #1a0005 !important;
-  outline: none !important;
+.input-unit,
+.input-unit-small {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 20px;
+  border-right: 2px solid #fff1f2;
+  background: white;
 }
 
-/* 4. 表格對齊核心：標題與內容全置中 */
+.input-unit:last-child {
+  border-right: none;
+}
+
+.input-unit label,
+.input-unit-small label {
+  font-size: 0.85rem;
+  font-weight: 900;
+  color: var(--primary-pink);
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.input-box {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.input-box span {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #fecdd3;
+}
+
+.flat-input {
+  border: none;
+  outline: none;
+  font-size: 1.6rem;
+  font-weight: 900;
+  font-family: "JetBrains Mono";
+  width: 100%;
+  background: transparent;
+  text-align: right;
+  color: #1a0005;
+}
+
+/* 表格與其餘樣式 */
 .auto-table {
-  width: 100% !important;
-  border-spacing: 0 10px !important;
-  border-collapse: separate !important;
-  table-layout: auto !important;
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
 }
 
 .auto-table th {
-  text-align: center !important; /* 標題強制置中 */
-  padding: 10px 15px !important;
-  color: var(--primary-pink) !important;
-  font-weight: 900 !important;
-  font-size: 1.2rem !important;
+  padding: 15px 12px;
+  font-size: 0.9rem;
+  color: #9d174d;
+  background: #fffafb;
+  border-bottom: 2px solid #fecdd3;
+  text-align: center;
 }
 
-/* 鏡像對齊容器：解決自動寬度問題 */
-.input-col-wrapper {
-  display: inline-grid !important;
-  vertical-align: middle;
-  grid-template-columns: min-content !important;
-  min-width: 40px;
-}
-.input-col-wrapper > * {
-  grid-area: 1 / 1;
-}
-.input-mirror {
-  visibility: hidden;
-  white-space: pre;
-  pointer-events: none;
+td {
+  padding: 15px 12px;
+  text-align: center;
+  font-size: var(--font-size-table);
   font-weight: 900;
-  padding: 0 4px;
+  border-bottom: 1px solid #fff1f2;
 }
 
 .underline-input {
-  background: transparent !important;
-  border: none !important;
-  border-bottom: 2px solid #fecdd3 !important;
-  outline: none !important;
-  font-weight: 900 !important;
-  font-family: "Calibri", sans-serif !important;
-  width: 100% !important;
-  text-align: center !important; /* 輸入文字預設置中 */
+  background: transparent;
+  border-bottom: 2px solid #fecdd3;
+  outline: none;
+  font-weight: 900;
+  width: 100px;
+  text-align: right;
+  font-family: "JetBrains Mono";
 }
 
-/* 內容單元格：全置中 */
-td {
-  background: white !important;
-  padding: 12px 15px !important;
-  vertical-align: middle !important;
-  font-size: var(--font-size-table) !important;
-  font-weight: 900 !important;
-  white-space: nowrap;
-  text-align: center !important;
-}
-
-/* 針對「再平衡建議」這類長內容做微調 */
-td:has(.min-w-\[150px\]) {
-  min-width: 160px;
-}
-
-td:first-child {
-  border-radius: 20px 0 0 20px !important;
-}
-td:last-child {
-  border-radius: 0 20px 20px 0 !important;
-}
-
-/* 其他細節 */
-.prefix,
-.suffix {
-  font-family: "Calibri", sans-serif !important;
-  color: #fecdd3 !important;
-  font-weight: 900 !important;
-}
 .btn-pink {
-  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%) !important;
-  color: white !important;
-  border-radius: 16px !important;
-  font-weight: 900 !important;
-  border: none !important;
+  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
+  color: white;
+  font-weight: 900;
+  border-radius: 15px;
+  padding: 10px 25px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
 }
-input::-webkit-outer-spin-button,
-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+
+.btn-pink:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -5px rgba(225, 29, 72, 0.4);
+}
+
+#toast {
+  transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+/* 捲軸美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #fecdd3;
+  border-radius: 10px;
 }

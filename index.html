@@ -2,11 +2,14 @@
 <html lang="zh-TW">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>再平衡終端</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>股市再平衡終端機</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
       rel="stylesheet"
     />
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -15,7 +18,7 @@
   </head>
   <body>
     <div class="dashboard-container" id="mainContainer">
-      <aside class="bg-white flex flex-col p-5 overflow-y-auto">
+      <aside class="p-5">
         <div class="mb-10 text-center pt-8">
           <h1 class="text-3xl font-black text-rose-500 tracking-tighter">
             <i class="fas fa-heart mr-2"></i>REBALANCE
@@ -37,12 +40,12 @@
         </div>
       </aside>
 
-      <main class="bg-[#fffafb] flex flex-col">
+      <main>
         <div class="flex items-center justify-between mb-8">
           <div class="flex items-center gap-6">
             <button
               id="btnToggleSidebar"
-              class="w-12 h-12 flex items-center justify-center bg-white border-2 border-rose-100 rounded-xl text-rose-500 hover:bg-rose-50 transition-all"
+              class="w-12 h-12 flex items-center justify-center bg-white border-2 border-rose-100 rounded-xl text-rose-500 hover:bg-rose-50"
             >
               <i id="toggleIcon" class="fas fa-chevron-left text-lg"></i>
             </button>
@@ -62,12 +65,15 @@
             </button>
             <label
               class="px-6 py-3 bg-white border border-amber-200 text-amber-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm"
-              ><i class="fas fa-file-import"></i> 匯入<input
+            >
+              <i class="fas fa-file-import"></i> 匯入
+              <input
                 type="file"
                 id="inputImport"
                 class="hidden"
                 accept=".xlsx"
-            /></label>
+              />
+            </label>
             <label
               class="px-6 py-3 bg-white border border-rose-200 text-rose-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm hover:bg-rose-50"
             >
@@ -88,109 +94,106 @@
           </div>
         </div>
 
-        <div class="dashboard-grid mb-6">
-          <div class="glass-card border-t-[6px] border-t-rose-500">
-            <span>帳戶淨值</span>
-            <div id="totalNetValue" class="font-mono-data">$0</div>
-          </div>
-          <div class="glass-card border-t-[6px] border-t-pink-500">
-            <span>總曝險額</span>
-            <div id="totalExposure" class="font-mono-data">$0</div>
-          </div>
-          <div class="glass-card border-t-[6px] border-t-amber-500">
-            <span>實質槓桿</span>
-            <div id="leverageDisplay" class="font-mono-data">1.00x</div>
-          </div>
-          <div class="glass-card border-t-[6px] border-t-rose-600">
-            <span
-              >預算總計
-              <span
-                id="levBadge"
-                class="hidden text-xs bg-rose-100 px-2 rounded"
-                >LEV</span
-              ></span
+        <div class="main-scroll-wrapper">
+          <div class="dashboard-grid">
+            <div class="glass-card border-t-[6px] border-t-rose-500">
+              <span>帳戶淨值</span>
+              <div id="totalNetValue" class="font-mono-data">$0</div>
+            </div>
+            <div class="glass-card border-t-[6px] border-t-pink-500">
+              <span>總曝險額</span>
+              <div id="totalExposure" class="font-mono-data">$0</div>
+            </div>
+            <div class="glass-card border-t-[6px] border-t-amber-500">
+              <span>實質槓桿</span>
+              <div id="leverageDisplay" class="font-mono-data">1.00x</div>
+            </div>
+            <div class="glass-card border-t-[6px] border-t-rose-600">
+              <span>預算總計</span>
+              <div id="targetTotalRatio" class="font-mono-data">0.0%</div>
+            </div>
+            <div
+              class="glass-card border-t-[6px] border-t-indigo-600"
+              id="maintenanceCard"
             >
-            <div id="targetTotalRatio" class="font-mono-data">0.0%</div>
-          </div>
-          <div
-            class="glass-card border-t-[6px] border-t-indigo-600"
-            id="maintenanceCard"
-          >
-            <span>質押維持率</span>
-            <div id="maintenanceRatio" class="font-mono-data">N/A</div>
-          </div>
-        </div>
-
-        <div class="params-row-tight mb-10">
-          <div class="param-item">
-            <label>貸款/負債 (Loan)</label>
-            <div class="input-wrapper">
-              <span class="prefix">$</span>
-              <input
-                type="number"
-                id="debtInput"
-                placeholder="0"
-                oninput="updateGlobal('totalDebt', this.value)"
-              />
+              <span>質押維持率</span>
+              <div id="maintenanceRatio" class="font-mono-data">N/A</div>
             </div>
           </div>
 
-          <div class="param-item">
-            <label>現金餘額 (Cash)</label>
-            <div class="input-wrapper">
-              <span class="prefix">$</span>
-              <input
-                type="number"
-                id="cashInput"
-                placeholder="0"
-                oninput="updateGlobal('currentCash', this.value)"
-              />
+          <div class="params-row-tight">
+            <div class="input-unit">
+              <label>貸款/負債 (Loan)</label>
+              <div class="input-box">
+                <span>$</span>
+                <input
+                  type="number"
+                  id="debtInput"
+                  class="flat-input"
+                  placeholder="0"
+                  oninput="updateGlobal('totalDebt', this.value)"
+                />
+              </div>
             </div>
-          </div>
 
-          <div class="param-item">
-            <label>匯率 (USD/TWD)</label>
-            <div class="input-wrapper">
-              <input
-                type="number"
-                id="usdRateInput"
-                step="0.1"
-                class="accent-text"
-                oninput="updateGlobal('usdRate', this.value)"
-              />
+            <div class="input-unit">
+              <label>現金餘額 (Cash)</label>
+              <div class="input-box">
+                <span>$</span>
+                <input
+                  type="number"
+                  id="cashInput"
+                  class="flat-input"
+                  placeholder="0"
+                  oninput="updateGlobal('currentCash', this.value)"
+                />
+              </div>
             </div>
-          </div>
 
-          <div class="param-item">
-            <label>絕對門檻</label>
-            <div class="input-wrapper">
-              <input
-                type="number"
-                id="rebalanceAbsInput"
-                step="0.1"
-                class="accent-text"
-                oninput="updateGlobal('rebalanceAbs', this.value)"
-              />
-              <span class="suffix">%</span>
+            <div class="input-unit-small">
+              <label>匯率 (USD/TWD)</label>
+              <div class="input-box">
+                <input
+                  type="number"
+                  id="usdRateInput"
+                  step="0.1"
+                  class="flat-input"
+                  oninput="updateGlobal('usdRate', this.value)"
+                />
+              </div>
             </div>
-          </div>
 
-          <div class="param-item no-border">
-            <label>相對門檻</label>
-            <div class="input-wrapper">
-              <input
-                type="number"
-                id="rebalanceRelInput"
-                step="0.1"
-                class="accent-text"
-                oninput="updateGlobal('rebalanceRel', this.value)"
-              />
-              <span class="suffix">%</span>
+            <div class="input-unit-small">
+              <label>絕對門檻</label>
+              <div class="input-box">
+                <input
+                  type="number"
+                  id="rebalanceAbsInput"
+                  step="0.1"
+                  class="flat-input"
+                  oninput="updateGlobal('rebalanceAbs', this.value)"
+                />
+                <span class="text-rose-200">%</span>
+              </div>
+            </div>
+
+            <div class="input-unit-small">
+              <label>相對門檻</label>
+              <div class="input-box">
+                <input
+                  type="number"
+                  id="rebalanceRelInput"
+                  step="0.1"
+                  class="flat-input"
+                  oninput="updateGlobal('rebalanceRel', this.value)"
+                />
+                <span class="text-rose-200">%</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="flex-1 overflow-x-auto">
+        <div class="mt-6">
           <div class="flex justify-between items-center mb-6">
             <h3 class="text-3xl font-black text-rose-900">
               <i class="fas fa-layer-group mr-4 text-rose-500"></i>標的實時監控
@@ -210,32 +213,36 @@
               </button>
             </div>
           </div>
-          <table class="auto-table">
-            <thead>
-              <tr class="text-center text-rose-400 font-black text-xl">
-                <th class="px-4 text-center">標的 / 名稱</th>
-                <th class="px-4 text-center">槓桿</th>
-                <th class="px-4 text-center">目前單價</th>
-                <th class="px-4 text-center">持有股數</th>
-                <th class="px-4 text-center">名目曝險</th>
-                <th class="px-4 text-center text-indigo-700">目前%</th>
-                <th class="px-4 text-center text-rose-800">目標%</th>
-                <th class="px-4 text-center">理想配置</th>
-                <th class="px-4 text-center">再平衡建議</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="assetBody"></tbody>
-          </table>
+          <div class="bg-white rounded-3xl p-4 shadow-sm overflow-x-auto">
+            <table class="auto-table">
+              <thead>
+                <tr class="text-rose-400 font-black text-xl">
+                  <th>標的 / 名稱</th>
+                  <th>槓桿</th>
+                  <th>目前單價</th>
+                  <th>持有股數</th>
+                  <th>名目曝險</th>
+                  <th class="text-indigo-700">目前%</th>
+                  <th class="text-rose-800">目標%</th>
+                  <th>理想配置</th>
+                  <th>再平衡建議</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="assetBody"></tbody>
+            </table>
+          </div>
         </div>
       </main>
     </div>
+
     <div
       id="toast"
       class="fixed bottom-10 right-10 px-10 py-5 bg-rose-950 text-white rounded-2xl shadow-2xl opacity-0 z-50 pointer-events-none flex items-center gap-4 font-black text-xl"
     >
       <i class="fas fa-bell text-rose-400"></i> <span id="toastMsg"></span>
     </div>
+
     <script type="module" src="main.js"></script>
   </body>
 </html>

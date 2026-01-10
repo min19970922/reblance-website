@@ -90,16 +90,14 @@ export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  showToast("正在初始化穩定版引擎...");
+  showToast("正在辨識資產明細...");
 
   try {
-    // 強制指定穩定 Core 路徑，解決 wasm.js:31 報錯
     const worker = await Tesseract.createWorker("chi_tra+eng", 1, {
       workerPath:
         "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js",
       corePath:
         "https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js",
-      logger: (m) => console.log(m),
     });
 
     const {
@@ -107,55 +105,61 @@ export async function importFromImage(e, onComplete) {
     } = await worker.recognize(file);
     await worker.terminate();
 
-    console.log("辨識成功內容:", text);
-
-    // 1. 清理數據：移除逗號，將文字切分為 Token 陣列
-    const tokens = text.replace(/,/g, "").split(/\s+/);
+    // 1. 預處理：移除千分位逗號，統一空白
+    const cleanText = text.replace(/,/g, "");
+    const tokens = cleanText.split(/\s+/);
     const newAssets = [];
 
-    // 2. 遍歷 Token 尋找潛在標的
+    // 2. 智慧掃描：尋找 [代碼] + [跳過數個] + [股數] 的模式
     for (let i = 0; i < tokens.length; i++) {
-      // 關鍵字檢查：包含「明細」或符合常見 OCR 誤認模式
       const token = tokens[i];
-      if (token.includes("明細") || /BHfE|茹/.test(token)) {
-        // 規則：[i]是按鈕, [i+1]通常是代碼 (如 00631L)
-        const potentialCodeToken = tokens[i + 1];
-        if (!potentialCodeToken) continue;
 
-        // 從 Token 中分離出 4-6 位的英數組合 (適配代碼與名稱黏在一起的情況)
-        const codeMatch = potentialCodeToken.match(/^([0-9A-Z]{4,6})/);
-        if (codeMatch) {
-          const code = codeMatch[1].toUpperCase();
+      // 判斷是否為台股/美股代碼 (4-6位數字或字母，且排除純日期)
+      const isTicker = /^[0-9A-Z]{4,6}$/.test(token) && !/\d{8}/.test(token);
 
-          // 根據規則：搜尋到代碼後兩個欄位就是股數
-          // [i+1]代碼, [i+2]跳過項, [i+3]股數
-          const potentialShares = tokens[i + 3];
-          const shares = parseInt(potentialShares);
+      if (isTicker || token.includes("明細")) {
+        let code = isTicker ? token : tokens[i + 1];
+        if (!code) continue;
 
-          if (!isNaN(shares) && shares > 0) {
+        // 如果是從「明細」關鍵字找起，代碼通常在後面
+        const potentialCode = code.match(/^[0-9A-Z]{4,6}/);
+        if (!potentialCode) continue;
+
+        const finalCode = potentialCode[0].toUpperCase();
+
+        // 股數偵測邏輯：在代碼附近的 5 個 token 內尋找大於 0 的純整數
+        for (let j = 1; j <= 5; j++) {
+          const nextVal = parseInt(tokens[i + j]);
+          if (!isNaN(nextVal) && nextVal > 0 && nextVal % 1 === 0) {
             newAssets.push({
               id: Date.now() + Math.random(),
-              name: code,
+              name: finalCode,
               fullName: "---",
               price: 0,
-              shares: shares,
+              shares: nextVal,
               leverage: 1,
               targetRatio: 0,
             });
+            i += j; // 成功找到後跳過已處理的 token
+            break;
           }
         }
       }
     }
 
     if (newAssets.length > 0) {
-      onComplete(newAssets);
-      showToast(`成功辨識 ${newAssets.length} 筆資產`);
+      // 簡單去重
+      const uniqueAssets = Array.from(
+        new Map(newAssets.map((a) => [a.name, a])).values()
+      );
+      onComplete(uniqueAssets);
+      showToast(`辨識成功！發現 ${uniqueAssets.length} 筆標的`);
     } else {
-      showToast("未偵測到明細關鍵字或格式不符");
+      showToast("未能辨識有效標的，請嘗試更清晰的照片");
     }
   } catch (err) {
-    console.error("OCR 致命錯誤:", err);
-    showToast("辨識引擎衝突，請重新整理頁面");
+    console.error(err);
+    showToast("辨識發生錯誤");
   } finally {
     e.target.value = "";
   }
