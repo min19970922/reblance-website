@@ -77,11 +77,16 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
+/**
+ * AI 圖片辨識匯入功能 - 終極相容解決方案
+ * 修正 v1/v1beta 模型找不到 (404) 與參數格式 (400) 問題
+ */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
   const showToast = window.showToast || console.log;
+  // 優先從全域或 LocalStorage 取得 Key
   const apiKey =
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
 
@@ -104,15 +109,16 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // --- 修正 1：回到 v1beta，這是目前 Flash 模型最穩定的路徑 ---
+    // --- 修正 1：路徑結構 ---
     const model = "gemini-1.5-flash";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    // --- 修正 2：將所有指令與圖片放入 contents，避開所有不穩定的高階參數 ---
+    // 將指令直接放入 Prompt，避開不穩定的系統欄位
     const promptText = `你是一位專業的台灣證券數據分析師。請分析這張截圖，提取所有持股代號(name)與股數(shares)。
     請嚴格只回傳 JSON 格式，不要有任何 Markdown 標籤或解釋文字。
-    範例：{"assets": [{"name":"2330","shares":1000}]}`;
+    範例格式：{"assets": [{"name":"2330","shares":1000}]}`;
 
+    // --- 修正 2：REST API 必須使用 snake_case (底線命名) ---
     const payload = {
       contents: [
         {
@@ -137,7 +143,6 @@ export async function importFromImage(e, onComplete) {
 
     if (!response.ok) {
       const errData = await response.json();
-      // 如果報 403，通常是 Referer 被擋或是 API Key 沒開 Generative Language API 權限
       throw new Error(
         errData.error?.message || `請求失敗 (${response.status})`
       );
@@ -159,11 +164,12 @@ export async function importFromImage(e, onComplete) {
         assets = parsedData.assets || [];
       } catch (e) {
         console.error("JSON 解析失敗:", rawJson);
-        throw new Error("AI 回傳格式不正確，請再試一次");
+        throw new Error("AI 回傳格式非純 JSON，請再試一次");
       }
     }
 
     if (assets.length > 0) {
+      // 依據 state.js 定義的格式轉換資料
       const formattedAssets = assets
         .map((a) => ({
           id: Date.now() + Math.random(),
@@ -181,11 +187,10 @@ export async function importFromImage(e, onComplete) {
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能辨識出資產");
+      showToast("AI 未能辨識出內容");
     }
   } catch (err) {
-    console.error("AI辨識詳細錯誤:", err);
-    // 這裡會顯示最真實的錯誤原因（例如：Referer Blocked）
+    console.error("AI辨識錯誤:", err);
     showToast(`辨識失敗: ${err.message}`);
   } finally {
     e.target.value = "";
