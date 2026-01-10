@@ -1,5 +1,5 @@
 /**
- * ui.js - 美學專家優化版
+ * ui.js - 美學專家大字版
  */
 import {
   safeNum,
@@ -46,16 +46,13 @@ export function renderAccountList(appState, onSwitch, onDelete) {
 
 export function renderMainUI(acc) {
   if (!acc) return;
-  // 更新標題
   const titleEl = document.getElementById("activeAccountTitle");
-  if (titleEl)
-    titleEl.innerHTML = `${acc.name} <i class="fas fa-pen text-2xl text-rose-200 ml-4"></i>`;
+  if (titleEl) titleEl.innerText = acc.name;
 
   document.getElementById("debtInput").value = acc.totalDebt;
   document.getElementById("cashInput").value = acc.currentCash;
   document.getElementById("usdRateInput").value = acc.usdRate;
   document.getElementById("rebalanceAbsInput").value = acc.rebalanceAbs;
-  document.getElementById("rebalanceRelInput").value = acc.rebalanceRel;
 
   const body = document.getElementById("assetBody");
   body.innerHTML = "";
@@ -77,7 +74,7 @@ export function renderMainUI(acc) {
 function generateAssetRowHTML(asset, index, totalAssets) {
   const hasContent =
     asset.fullName && asset.fullName !== "" && asset.fullName !== "---";
-  const displayName = hasContent ? asset.fullName : "正在載入資訊...";
+  const displayName = hasContent ? asset.fullName : "正在載入...";
   const nameColor = hasContent
     ? /[\u4e00-\u9fa5]/.test(asset.fullName)
       ? "text-rose-600"
@@ -85,9 +82,9 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     : "text-rose-300 animate-pulse";
 
   return `
-        <td class="col-symbol">
+        <td>
             <div class="flex items-center gap-4">
-                <div class="flex flex-col gap-1">
+                <div class="flex flex-col">
                     <button onclick="moveAsset(${asset.id}, -1)" class="${
     index === 0 ? "invisible" : ""
   }"><i class="fas fa-caret-up"></i></button>
@@ -100,21 +97,21 @@ function generateAssetRowHTML(asset, index, totalAssets) {
                       asset.name
                     }" onchange="updateAsset(${
     asset.id
-  }, 'name', this.value)" class="underline-input uppercase tracking-tighter w-40">
+  }, 'name', this.value)" class="underline-input uppercase w-40">
                     <span id="nameLabel-${
                       asset.id
                     }" class="text-xl font-black ${nameColor} mt-1">${displayName}</span>
                 </div>
             </div>
         </td>
-        <td class="col-leverage text-center">
+        <td class="text-center">
             <input type="number" value="${
               asset.leverage
             }" onchange="updateAsset(${
     asset.id
   }, 'leverage', this.value)" class="underline-input text-center text-rose-600 w-20" step="0.1">
         </td>
-        <td class="col-price">
+        <td>
             <div class="flex items-center gap-2">
                 <input type="number" value="${
                   asset.price
@@ -130,7 +127,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
                 </button>
             </div>
         </td>
-        <td class="col-shares">
+        <td>
             <input type="number" value="${
               asset.shares
             }" onchange="updateAsset(${
@@ -139,19 +136,19 @@ function generateAssetRowHTML(asset, index, totalAssets) {
         </td>
         <td id="curVal-${
           asset.id
-        }" class="col-nominal font-mono-data text-rose-950 font-black tracking-tighter"></td>
+        }" class="font-mono-data text-rose-950 font-black"></td>
         <td id="curPct-${
           asset.id
-        }" class="col-ratio font-mono-data text-indigo-800 text-center font-black"></td>
-        <td class="col-ratio text-center">
+        }" class="font-mono-data text-indigo-800 text-center font-black"></td>
+        <td class="text-center">
             <input type="number" value="${
               asset.targetRatio
             }" onchange="updateAsset(${
     asset.id
   }, 'targetRatio', this.value)" class="underline-input text-center text-rose-900 w-20" step="0.1">%
         </td>
-        <td id="targetVal-${asset.id}" class="col-target text-center"></td>
-        <td id="sugg-${asset.id}" class="col-suggest text-center"></td>
+        <td id="targetVal-${asset.id}" class="text-center"></td>
+        <td id="sugg-${asset.id}" class="text-center"></td>
         <td class="text-right">
             <button onclick="removeAsset(${
               asset.id

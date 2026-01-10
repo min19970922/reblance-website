@@ -1,11 +1,11 @@
-/* 1. 字體與基礎設定 */
+/* 1. 字體與基礎變數 */
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800&display=swap");
 
 :root {
   --primary-pink: #fb7185;
   --accent-pink: #e11d48;
-  --sidebar-width: 320px;
+  --sidebar-width: 300px;
 }
 
 body {
@@ -13,10 +13,10 @@ body {
   background-color: #fffafb;
   color: #1a0005;
   margin: 0;
-  overflow-x: auto;
+  overflow-x: auto; /* 允許橫向捲動防止寬度不足切斷文字 */
 }
 
-/* 2. 置中佈局控制 */
+/* 2. 佈局架構 - 解決壞掉的佈局 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
@@ -28,40 +28,21 @@ body {
   --sidebar-width: 0px;
 }
 
-/* 限制內容最大寬度並置中 */
+/* 核心：主內容區滾動控制 */
 main {
-  max-width: 1650px;
+  max-width: 1600px;
   margin: 0 auto;
   width: 100%;
-  padding: 40px 20px;
+  padding: 40px;
+  box-sizing: border-box;
+  /* 移除固定高度，讓內容自然撐開或由外層容器處理滾動 */
 }
 
-/* 3. 側邊欄開關按鈕 (精簡化並放在標題旁) */
-#btnToggleSidebar {
-  all: unset;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 50px;
-  height: 50px;
-  background: white;
-  color: var(--primary-pink);
-  border: 2px solid #fecdd3;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-#btnToggleSidebar:hover {
-  background: var(--secondary-pink);
-  border-color: var(--primary-pink);
-}
-
-/* 4. 看板卡片優化 - 大字體、小間距 */
+/* 3. 橫向數據卡片 - 簡約化 */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 15px; /* 縮小間距 */
+  grid-template-columns: repeat(5, 1fr); /* 確保橫向排列 */
+  gap: 20px;
   margin-bottom: 30px;
 }
 
@@ -69,50 +50,48 @@ main {
   background: white;
   border-radius: 20px;
   border: 1px solid rgba(251, 113, 133, 0.2);
-  padding: 15px 20px !important; /* 縮小內距 */
-  box-shadow: 0 4px 20px -5px rgba(251, 113, 133, 0.1);
+  padding: 15px 20px !important; /* 縮小間距保持簡約 */
+  box-shadow: 0 4px 15px -5px rgba(251, 113, 133, 0.1);
+  display: flex;
+  flex-col: column;
+  justify-content: center;
 }
 
 .glass-card span {
   font-size: 1.1rem !important;
-} /* 標籤字體 */
+  color: #9d174d;
+}
 .glass-card div {
-  font-size: 2.8rem !important;
+  font-size: 2.2rem !important;
   font-weight: 900;
-} /* 數據大字 */
+  color: #1a0005;
+  margin-top: 5px;
+}
 
-/* 5. 表格欄位 - 自動寬度、不切斷 */
+/* 4. 表格欄位 - 寬度 Auto 且不切斷 */
 table {
   border-spacing: 0 10px;
   border-collapse: separate;
   width: 100%;
+  table-layout: auto; /* 關鍵：寬度自動根據內容調整 */
 }
 
 td {
   background: white;
-  padding: 20px 15px;
+  padding: 18px 20px;
   vertical-align: middle;
-  white-space: nowrap; /* 確保文字不被切斷 */
-  font-size: 1.5rem !important; /* 適合老花的大字體 */
+  white-space: nowrap; /* 防止大字體被切斷 */
+  font-size: 1.5rem !important; /* 老花友善大字 */
 }
 
 td:first-child {
-  border-radius: 20px 0 0 20px;
+  border-radius: 18px 0 0 18px;
 }
 td:last-child {
-  border-radius: 0 20px 20px 0;
+  border-radius: 0 18px 18px 0;
 }
 
-/* 移除硬性 min-width，改由內容撐開 */
-.col-symbol,
-.col-price,
-.col-shares,
-.col-nominal,
-.col-suggest {
-  width: auto;
-}
-
-/* 6. 輸入框大字體 */
+/* 5. 輸入框美化 */
 .underline-input {
   background: transparent;
   border-bottom: 3px solid #fecdd3;
@@ -121,21 +100,51 @@ td:last-child {
   font-size: 1.5rem !important;
   padding: 4px;
   color: #1a0005;
+  transition: border-color 0.2s;
 }
 
 .underline-input:focus {
   border-bottom-color: var(--accent-pink);
 }
 
-/* 其他輔助 */
+/* 6. 其他美學元件 */
+.btn-pink {
+  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
+  color: white;
+  font-weight: 900;
+  border-radius: 16px;
+  transition: transform 0.2s;
+}
+
+.btn-pink:hover {
+  transform: translateY(-2px);
+}
+
+#btnToggleSidebar {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  background: white;
+  border: 2px solid #fecdd3;
+  border-radius: 15px;
+  cursor: pointer;
+  color: var(--primary-pink);
+}
+
 .font-mono-data {
   font-family: "JetBrains Mono", monospace;
   letter-spacing: -1px;
 }
+
 .params-row {
   display: flex;
-  gap: 2rem;
+  gap: 3rem;
   align-items: flex-end;
-  padding: 20px 0;
-  overflow-x: auto;
+  padding: 25px 0;
+  border-top: 1px solid #fff1f2;
+  border-bottom: 1px solid #fff1f2;
+  margin-bottom: 30px;
 }
