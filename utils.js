@@ -91,7 +91,7 @@ export async function importFromImage(e, onComplete) {
   if (!file) return;
 
   const showToast = window.showToast || console.log;
-  showToast("啟動 AI 視覺大腦辨識 (v28.0)...");
+  showToast("啟動 AI 視覺大腦辨識 (v28.1)...");
 
   // 1. 圖片轉 Base64 輔助函式
   const fileToBase64 = (file) =>
@@ -106,34 +106,42 @@ export async function importFromImage(e, onComplete) {
     const base64Image = await fileToBase64(file);
     const apiKey = ""; // 執行環境自動注入
     const model = "gemini-2.5-flash-preview-09-2025";
+    const mimeType = file.type || "image/png";
 
-    const prompt = `
-      這是一張證券APP的庫存/未實現損益截圖。
-      請精確提取表格中的：
-      1. 股票代號 (Ticker)
-      2. 持有股數 (Shares)
-      
-      請注意：
-      - 排除頂部的總計數字（如總股數、總市值、總預估損益）。
-      - 股數通常是整數。
-      - 區分「股數」與「均價/現價」，不要將它們黏在一起。
-      - 如果代號中包含字母（如 00631L），請正確識別。
-    `;
+    // 專業級視覺分析指令
+    const systemPrompt = `你是一位專業的台灣證券數據分析師。
+你的任務是從這張庫存截圖中提取「股票代號」與「持有股數」。
+
+規則：
+1. 識別表格：尋找包含「商品」、「類別」、「股數」、「均價」或「現價」的標題行。
+2. 提取對象：只抓取標題行下方的每一列資料。
+3. 欄位解析：
+   - [名稱/代號]：通常是 4-6 位數字，可能帶有字母（如 00631L 代表元大台灣50正2，請務必保留 L）。
+   - [股數]：位於「類別（現買/擔保品/融資）」之後，「均價」之前。股數通常是整數。
+4. 排除雜訊：絕對不要包含頂部的「總成本」、「總股數」、「總市值」或「帳號資訊」。
+5. 資料清理：移除所有逗號與空格，確保股數為純數字。
+6. 修正字元：若股數首位出現 / 或 |，請將其識別為 7 或 1。`;
+
+    const userQuery = "請將這張截圖中的所有持股代號與股數轉換為 JSON 陣列。";
 
     const payload = {
       contents: [
         {
+          role: "user",
           parts: [
-            { text: prompt },
+            { text: userQuery },
             {
               inlineData: {
-                mimeType: "image/png",
+                mimeType: mimeType,
                 data: base64Image.split(",")[1],
               },
             },
           ],
         },
       ],
+      systemInstruction: {
+        parts: [{ text: systemPrompt }],
+      },
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -144,8 +152,14 @@ export async function importFromImage(e, onComplete) {
               items: {
                 type: "OBJECT",
                 properties: {
-                  name: { type: "STRING" },
-                  shares: { type: "NUMBER" },
+                  name: {
+                    type: "STRING",
+                    description: "股票代號，例如 2330 或 00631L",
+                  },
+                  shares: {
+                    type: "NUMBER",
+                    description: "持有股數，例如 1000",
+                  },
                 },
                 required: ["name", "shares"],
               },
@@ -155,7 +169,7 @@ export async function importFromImage(e, onComplete) {
       },
     };
 
-    // 2. 執行 API 請求（含 5 次指數退避重試）
+    // 2. 執行 API 請求 (含 5 次指數退避重試)
     let retries = 0;
     const maxRetries = 5;
     let assets = [];
@@ -171,42 +185,52 @@ export async function importFromImage(e, onComplete) {
           }
         );
 
-        if (!response.ok) throw new Error("API Request Failed");
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error?.message || "API Request Failed");
+        }
 
         const result = await response.json();
         const rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text;
-        assets = JSON.parse(rawJson).assets || [];
-        break; // 成功則跳出重試迴圈
+
+        if (!rawJson) throw new Error("AI 回傳內容為空");
+
+        const parsed = JSON.parse(rawJson);
+        assets = parsed.assets || [];
+        break;
       } catch (error) {
         retries++;
         if (retries === maxRetries) throw error;
+        // 指數退避：1s, 2s, 4s, 8s, 16s
         await new Promise((res) =>
-          setTimeout(res, Math.pow(2, retries) * 1000)
+          setTimeout(res, Math.pow(2, retries - 1) * 1000)
         );
       }
     }
 
-    // 3. 將 AI 結果映射至原系統資產格式
+    // 3. 資料結構映射與校正
     if (assets.length > 0) {
-      const formattedAssets = assets.map((a) => ({
-        id: Date.now() + Math.random(),
-        name: a.name.toUpperCase(),
-        fullName: "---",
-        price: 0,
-        shares: a.shares,
-        leverage: 1,
-        targetRatio: 0,
-      }));
+      const formattedAssets = assets
+        .map((a) => ({
+          id: Date.now() + Math.random(),
+          name: (a.name || "").toString().toUpperCase().trim(),
+          fullName: "---",
+          price: 0,
+          shares: Math.abs(parseInt(a.shares) || 0),
+          leverage: 1,
+          targetRatio: 0,
+        }))
+        .filter((a) => a.name.length >= 4 && a.shares > 0);
 
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能識別有效數據");
+      showToast("AI 未能從圖片中找到持股數據");
     }
   } catch (err) {
-    console.error("AI辨識錯誤:", err);
-    showToast("AI 服務異常，請稍後重試");
+    console.error("AI辨識詳細錯誤:", err);
+    showToast("AI 服務暫時繁忙，請再試一次");
   } finally {
-    e.target.value = ""; // 清空 input 讓下次選擇同一張圖也能觸發
+    e.target.value = "";
   }
 }
