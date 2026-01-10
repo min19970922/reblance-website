@@ -1,5 +1,7 @@
 /**
- * ui.js - 專家版 (解決標題載入中、數字切斷與條件建議)
+ * ui.js - 終極適配版
+ * 1. 移除所有固定寬度限制，確保數據不切斷
+ * 2. 強化標題名稱賦值邏輯
  */
 import {
   safeNum,
@@ -46,7 +48,7 @@ export function renderAccountList(appState, onSwitch, onDelete) {
 export function renderMainUI(acc) {
   if (!acc) return;
 
-  // --- 修復點：確保標題名稱被正確寫入 ---
+  // 更新標題
   const titleEl = document.getElementById("activeAccountTitle");
   if (titleEl) {
     titleEl.innerHTML = `${acc.name} <i class="fas fa-pen text-xl text-rose-200 ml-4"></i>`;
@@ -84,7 +86,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
       : "text-rose-400"
     : "text-rose-300 animate-pulse";
 
-  // --- 修正點：移除所有固定寬度限制，讓表格自然延展 ---
+  // --- 核心修正：移除固定寬度類別 (w-24, min-w 等)，確保 Auto 寬度 ---
   return `
     <td>
       <div class="flex items-center gap-4">
@@ -96,7 +98,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     index === totalAssets - 1 ? "invisible" : ""
   }"><i class="fas fa-caret-down"></i></button>
         </div>
-        <div class="flex flex-col min-w-[240px]">
+        <div class="flex flex-col">
           <input type="text" value="${asset.name}" onchange="updateAsset(${
     asset.id
   },'name',this.value)" class="underline-input uppercase font-black">
@@ -106,11 +108,11 @@ function generateAssetRowHTML(asset, index, totalAssets) {
         </div>
       </div>
     </td>
-    <td class="text-center"><input type="number" value="${
-      asset.leverage
-    }" onchange="updateAsset(${
+    <td class="text-center">
+      <input type="number" value="${asset.leverage}" onchange="updateAsset(${
     asset.id
-  },'leverage',this.value)" class="underline-input text-center text-rose-600 w-24"></td>
+  },'leverage',this.value)" class="underline-input text-rose-600 font-black">
+    </td>
     <td>
       <div class="flex items-center gap-2">
         <input type="number" value="${asset.price}" onchange="updateAsset(${
@@ -130,14 +132,18 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     </td>
     <td id="curVal-${
       asset.id
-    }" class="font-mono-data text-rose-950 font-black"></td>
+    }" class="font-mono-data text-rose-950 font-black text-right"></td>
     <td id="curPct-${
       asset.id
     }" class="font-mono-data text-indigo-800 text-center font-black"></td>
     <td class="text-center">
-      <input type="number" value="${asset.targetRatio}" onchange="updateAsset(${
+      <div class="flex items-center justify-end gap-1">
+        <input type="number" value="${
+          asset.targetRatio
+        }" onchange="updateAsset(${
     asset.id
-  },'targetRatio',this.value)" class="underline-input text-center text-rose-900 w-24 font-black">%
+  },'targetRatio',this.value)" class="underline-input text-rose-900 font-black text-right">%
+      </div>
     </td>
     <td id="targetVal-${asset.id}" class="text-center"></td>
     <td id="sugg-${asset.id}" class="text-center"></td>
@@ -178,7 +184,7 @@ function updateAssetRowData(asset, acc, netValue) {
   const isBuy = s.diffNominal > 0;
   const suggCell = document.getElementById(`sugg-${asset.id}`);
 
-  // --- 修正點：未達門檻僅顯示進度條，已觸發才顯示具體文字 ---
+  // 門檻觸發顯示邏輯
   if (!s.isTriggered) {
     suggCell.innerHTML = `
       <div class="flex flex-col items-center min-w-[320px]">
