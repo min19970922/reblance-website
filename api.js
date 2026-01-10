@@ -2,20 +2,16 @@
  * api.js
  * 職責：處理外部數據通訊、CORS 代理切換、以及報價資料的解析
  */
+/**
+ * api.js 修正版
+ */
 import { renderMainUI, showToast } from "./ui.js";
 
-// 1. 定義常用的 CORS 代理列表，增加穩定性
 const PROXIES = [
+  "https://api.allorigins.win/get?url=", // 建議將此放第一位，GitHub Pages 環境下較穩
   "https://corsproxy.io/?",
-  "https://api.allorigins.win/get?url=",
-  "https://cors-anywhere.herokuapp.com/",
 ];
 
-/**
- * 抓取單一標的的實時報價
- * @param {number} id - 資產在 state 中的唯一標識
- * @param {string} symbol - 股票代號 (如: 2330 或 VT)
- */
 export async function fetchLivePrice(id, symbol, appState) {
   if (!symbol) return false;
 
@@ -25,65 +21,65 @@ export async function fetchLivePrice(id, symbol, appState) {
   let ticker = symbol.trim().toUpperCase();
   const isTaiwan = /^\d{4,6}[A-Z]?$/.test(ticker);
 
-  // 嘗試不同的代理進行抓取
   const tryFetch = async (targetTicker) => {
+    // 強制指定語言為繁體中文，這能解決名稱非中文的問題
     const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d&lang=zh-Hant-TW&region=TW`;
 
     for (let proxy of PROXIES) {
       try {
-        let finalUrl = proxy.includes("allorigins")
-          ? proxy + encodeURIComponent(yahooUrl)
-          : proxy + yahooUrl;
-
+        const finalUrl = proxy + encodeURIComponent(yahooUrl);
         const res = await fetch(finalUrl);
         if (!res.ok) continue;
 
+        const json = await res.json();
+
+        // --- 關鍵修正：AllOrigins 的 JSONP 解析 ---
         let data;
         if (proxy.includes("allorigins")) {
-          const json = await res.json();
           data = JSON.parse(json.contents);
         } else {
-          data = await res.json();
+          data = json;
         }
 
         const meta = data.chart?.result?.[0]?.meta;
         if (meta && (meta.regularMarketPrice || meta.previousClose)) {
           return {
-            price: meta.regularMarketPrice || meta.previousClose,
+            price: parseFloat(meta.regularMarketPrice || meta.previousClose),
+            // Yahoo v8 API 中文通常存在於 shortName
             name: meta.shortName || meta.longName || meta.symbol,
           };
         }
       } catch (e) {
-        console.warn(`代理 ${proxy} 請求失敗，嘗試下一個...`);
+        console.error("代理抓取失敗:", e);
+        continue;
       }
     }
     return null;
   };
 
   let result = null;
-  // 台股自動補完邏輯
   if (isTaiwan && !ticker.includes(".")) {
-    result = await tryFetch(ticker + ".TW");
-    if (!result) result = await tryFetch(ticker + ".TWO");
+    result =
+      (await tryFetch(ticker + ".TW")) || (await tryFetch(ticker + ".TWO"));
   } else {
     result = await tryFetch(ticker);
   }
 
-  if (result) {
+  if (result && !isNaN(result.price)) {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     const asset = acc.assets.find((a) => a.id === id);
-    if (asset && result.price) {
+    if (asset) {
       asset.price = result.price;
 
-      // 處理中文名稱邏輯
+      // 中文名稱鎖定邏輯
       const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
-      if (hasChinese(result.name)) {
+      if (result.name && hasChinese(result.name)) {
         asset.fullName = result.name;
       } else if (!asset.fullName || asset.fullName === "---") {
         asset.fullName = ticker;
       }
 
-      renderMainUI(acc);
+      renderMainUI(acc); // 確保 UI 重新渲染
       if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
       return true;
     }
@@ -92,6 +88,8 @@ export async function fetchLivePrice(id, symbol, appState) {
   if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
   return false;
 }
+
+// syncAllPrices 保持原樣即可，但確保它傳遞正確的 appState
 
 /**
  * 批次同步所有資產報價
