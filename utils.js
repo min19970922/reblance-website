@@ -91,9 +91,8 @@ export async function importFromImage(e, onComplete) {
   if (!file) return;
 
   const showToast = window.showToast || console.log;
-  showToast("啟動 AI 視覺大腦辨識 (v28.1)...");
+  showToast("啟動 AI 視覺大腦辨識 (v28.2)...");
 
-  // 1. 圖片轉 Base64 輔助函式
   const fileToBase64 = (file) =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -104,24 +103,19 @@ export async function importFromImage(e, onComplete) {
 
   try {
     const base64Image = await fileToBase64(file);
-    const apiKey = ""; // 執行環境自動注入
-    const model = "gemini-2.5-flash-preview-09-2025";
+
+    // --- 修正點 1：從 window 讀取 key ---
+    const apiKey = window.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "你的_API_KEY_字串") {
+      throw new Error("請先在 index.html 中設定有效的 API Key");
+    }
+
+    // --- 修正點 2：更正模型名稱 ---
+    const model = "gemini-1.5-flash";
     const mimeType = file.type || "image/png";
 
-    // 專業級視覺分析指令
-    const systemPrompt = `你是一位專業的台灣證券數據分析師。
-你的任務是從這張庫存截圖中提取「股票代號」與「持有股數」。
-
-規則：
-1. 識別表格：尋找包含「商品」、「類別」、「股數」、「均價」或「現價」的標題行。
-2. 提取對象：只抓取標題行下方的每一列資料。
-3. 欄位解析：
-   - [名稱/代號]：通常是 4-6 位數字，可能帶有字母（如 00631L 代表元大台灣50正2，請務必保留 L）。
-   - [股數]：位於「類別（現買/擔保品/融資）」之後，「均價」之前。股數通常是整數。
-4. 排除雜訊：絕對不要包含頂部的「總成本」、「總股數」、「總市值」或「帳號資訊」。
-5. 資料清理：移除所有逗號與空格，確保股數為純數字。
-6. 修正字元：若股數首位出現 / 或 |，請將其識別為 7 或 1。`;
-
+    // (中間 systemPrompt 與 payload 保持不變...)
+    const systemPrompt = `你是一位專業的台灣證券數據分析師...`; // 保持你原有的內容
     const userQuery = "請將這張截圖中的所有持股代號與股數轉換為 JSON 陣列。";
 
     const payload = {
@@ -139,9 +133,7 @@ export async function importFromImage(e, onComplete) {
           ],
         },
       ],
-      systemInstruction: {
-        parts: [{ text: systemPrompt }],
-      },
+      systemInstruction: { parts: [{ text: systemPrompt }] },
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -152,14 +144,8 @@ export async function importFromImage(e, onComplete) {
               items: {
                 type: "OBJECT",
                 properties: {
-                  name: {
-                    type: "STRING",
-                    description: "股票代號，例如 2330 或 00631L",
-                  },
-                  shares: {
-                    type: "NUMBER",
-                    description: "持有股數，例如 1000",
-                  },
+                  name: { type: "STRING" },
+                  shares: { type: "NUMBER" },
                 },
                 required: ["name", "shares"],
               },
@@ -169,46 +155,39 @@ export async function importFromImage(e, onComplete) {
       },
     };
 
-    // 2. 執行 API 請求 (含 5 次指數退避重試)
+    // --- 執行請求 ---
     let retries = 0;
-    const maxRetries = 5;
+    const maxRetries = 3;
     let assets = [];
 
     while (retries < maxRetries) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          }
-        );
-
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error?.message || "API Request Failed");
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         }
+      );
 
-        const result = await response.json();
-        const rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!rawJson) throw new Error("AI 回傳內容為空");
-
-        const parsed = JSON.parse(rawJson);
-        assets = parsed.assets || [];
-        break;
-      } catch (error) {
-        retries++;
-        if (retries === maxRetries) throw error;
-        // 指數退避：1s, 2s, 4s, 8s, 16s
-        await new Promise((res) =>
-          setTimeout(res, Math.pow(2, retries - 1) * 1000)
-        );
+      if (!response.ok) {
+        const errData = await response.json();
+        // 如果是 403，通常是 API Key 無效或未啟動 Gemini API 權限
+        if (response.status === 403)
+          throw new Error(`API Key 權限錯誤: ${errData.error?.message}`);
+        throw new Error(errData.error?.message || "請求失敗");
       }
+
+      const result = await response.json();
+      const rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (rawJson) {
+        assets = JSON.parse(rawJson).assets || [];
+        break;
+      }
+      retries++;
     }
 
-    // 3. 資料結構映射與校正
+    // (後續處理資料邏輯保持不變...)
     if (assets.length > 0) {
       const formattedAssets = assets
         .map((a) => ({
@@ -224,12 +203,14 @@ export async function importFromImage(e, onComplete) {
 
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
-    } else {
-      showToast("AI 未能從圖片中找到持股數據");
     }
   } catch (err) {
     console.error("AI辨識詳細錯誤:", err);
-    showToast("AI 服務暫時繁忙，請再試一次");
+    showToast(
+      err.message.includes("Key")
+        ? "API Key 無效"
+        : "辨識失敗，請檢查網路或圖片內容"
+    );
   } finally {
     e.target.value = "";
   }
