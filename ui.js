@@ -211,22 +211,28 @@ function updateAssetRowData(asset, acc, netValue) {
             </div>`;
   } else {
     const isBuy = sugg.diffNominal > 0;
+
+    // 即使沒觸發門檻(Progress < 100%)，我們也直接顯示建議
     suggCell.innerHTML = `
-            <div class="flex flex-col items-center">
-                <div class="flex items-center gap-3">
-                    <span class="${
-                      isBuy ? "text-emerald-500" : "text-rose-700"
-                    } text-rebalance-big tracking-tighter">${
-      isBuy ? "加碼" : "減持"
-    } $${Math.abs(Math.round(sugg.diffNominal)).toLocaleString()}</span>
-                    <span class="text-rose-900 text-rebalance-big border-l-2 border-rose-100 pl-3 tracking-tighter">${Math.abs(
-                      sugg.diffShares
-                    ).toLocaleString()} 股</span>
-                </div>
-                <div class="text-[10px] font-black text-rose-400 uppercase tracking-widest mt-1">Cash Impact: $${Math.abs(
-                  Math.round(sugg.diffCashImpact)
-                ).toLocaleString()}</div>
-            </div>`;
+      <div class="flex flex-col items-center">
+          <div class="flex items-center gap-3">
+              <span class="${
+                isBuy ? "text-emerald-500" : "text-rose-700"
+              } text-rebalance-big font-bold tracking-tighter">
+                ${isBuy ? "加碼" : "減持"} $${Math.abs(
+      Math.round(sugg.diffNominal)
+    ).toLocaleString()}
+              </span>
+              <span class="text-rose-900 text-rebalance-big border-l-2 border-rose-100 pl-3 tracking-tighter font-bold">
+                ${Math.abs(sugg.diffShares).toLocaleString()} 股
+              </span>
+          </div>
+          <div class="text-[10px] font-black ${
+            sugg.isTriggered ? "text-rose-600" : "text-rose-300"
+          } uppercase tracking-widest mt-1">
+            偏差: ${sugg.absDiff.toFixed(1)}% / 門檻: ${acc.rebalanceAbs}%
+          </div>
+      </div>`;
   }
 }
 

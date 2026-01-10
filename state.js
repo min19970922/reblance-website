@@ -1,17 +1,17 @@
 /**
- * state.js
+ * state.js 修正版
  * 職責：管理資料結構、本地儲存 (LocalStorage) 以及所有投資核心計算邏輯
- * 修正版：解決 NaN 錯誤與數值計算斷層
  */
 
 // 1. 定義常數與預設狀態
 export const STORAGE_KEY = "INVEST_REBAL_V19_TW_FIX";
 
+// 修正：將預設負債 totalDebt 從 500000 改為 0
 export const initialAccountTemplate = (name = "新實戰計畫") => ({
   id: "acc_" + Date.now(),
   name: name,
   currentCash: 0,
-  totalDebt: 500000,
+  totalDebt: 0,
   cashRatio: 0,
   usdRate: 32.5,
   rebalanceAbs: 5,
@@ -27,33 +27,14 @@ export let appState = {
     {
       ...initialAccountTemplate("實戰配置"),
       id: "acc_default",
-      assets: [
-        {
-          id: 1,
-          name: "2330",
-          fullName: "台積電",
-          price: 1000,
-          shares: 100,
-          targetRatio: 40,
-          leverage: 1,
-        },
-        {
-          id: 2,
-          name: "0050",
-          fullName: "元大台灣50",
-          price: 180,
-          shares: 1000,
-          targetRatio: 30,
-          leverage: 1,
-        },
-      ],
+      assets: [],
     },
   ],
 };
 
 // 3. 強化型通用工具函式 (防止 NaN 的第一道防線)
 export function safeNum(val, def = 0) {
-  if (val === null || val === undefined) return def;
+  if (val === null || val === undefined || val === "") return def;
   const n = parseFloat(val);
   return isNaN(n) ? def : n;
 }
@@ -86,17 +67,15 @@ export function calculateAccountData(acc) {
   let totalNominalExposure = 0;
   let totalAssetBookValue = 0;
 
-  // A. 處理各項資產基礎計算
   const assetsCalculated = acc.assets.map((asset) => {
-    // 強化判定：確保 asset.name 存在
     const ticker = (asset.name || "").trim().toUpperCase();
+    // 強化判定：數字開頭即視為台股
     const isTW = /^\d{4,6}/.test(ticker);
 
-    // 確保價格、匯率為有效數字
     const rawPrice = safeNum(asset.price, 0);
     const usdRate = safeNum(acc.usdRate, 32.5);
 
-    // 台股不乘匯率，其餘（美股）乘匯率
+    // 台股不乘匯率，美股乘匯率
     const priceTwd = isTW ? rawPrice : rawPrice * usdRate;
 
     const bookValue = priceTwd * safeNum(asset.shares, 0);
@@ -110,11 +89,10 @@ export function calculateAccountData(acc) {
       isTW,
       priceTwd,
       bookValue,
-      nominalValue, // 確保此處產出的為數字型態
+      nominalValue,
     };
   });
 
-  // B. 帳戶總體數據 (增加保護邏輯)
   const netValue =
     totalAssetBookValue + safeNum(acc.currentCash) - safeNum(acc.totalDebt);
 
@@ -127,12 +105,6 @@ export function calculateAccountData(acc) {
   );
   const targetTotalCombined = targetAssetRatioSum + safeNum(acc.cashRatio);
 
-  // C. 質押維持率計算
-  let maintenanceRatio = 0;
-  if (safeNum(acc.totalDebt) > 0) {
-    maintenanceRatio = (totalAssetBookValue / safeNum(acc.totalDebt)) * 100;
-  }
-
   return {
     assetsCalculated,
     netValue,
@@ -140,11 +112,14 @@ export function calculateAccountData(acc) {
     totalAssetBookValue,
     totalLeverage,
     targetTotalCombined,
-    maintenanceRatio,
+    maintenanceRatio:
+      safeNum(acc.totalDebt) > 0
+        ? (totalAssetBookValue / safeNum(acc.totalDebt)) * 100
+        : 0,
   };
 }
 
-// 6. 再平衡判斷邏輯 (修正除以零與 undefined 引用)
+// 6. 再平衡判斷邏輯 (修正顯示建議門檻)
 export function getRebalanceSuggestion(asset, acc, netValue) {
   const factor = safeNum(asset.leverage, 1);
   const currentPct =
@@ -153,21 +128,18 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
   const targetNominal = netValue * (targetPct / 100);
   const targetBookValue = targetNominal / factor;
 
-  // 觸發門檻判斷
   const absDiff = Math.abs(currentPct - targetPct);
-  const relDiff = targetPct !== 0 ? absDiff / targetPct : 0;
   const thresholdAbs = safeNum(acc.rebalanceAbs, 5);
   const thresholdRel = safeNum(acc.rebalanceRel, 25) / 100;
+  const relDiff = targetPct !== 0 ? absDiff / targetPct : 0;
 
+  // 門檻判斷
   const isTriggered = absDiff > thresholdAbs || relDiff > thresholdRel;
 
-  // 計算交易股數
   const diffNominal = targetNominal - safeNum(asset.nominalValue);
   const diffCashImpact = diffNominal / factor;
-
-  // 確保 priceTwd 有效
   const priceTwd = safeNum(asset.priceTwd, 0);
-  const diffSharesRaw =
+  const diffShares =
     priceTwd * factor > 0 ? diffNominal / (priceTwd * factor) : 0;
 
   return {
@@ -176,13 +148,13 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
     targetBookValue,
     absDiff,
     relDiff,
-    isTriggered,
+    isTriggered: true, // 強制開啟建議顯示，不再受門檻限制
     triggerProgress: Math.min(
       100,
       Math.max((absDiff / thresholdAbs) * 100, (relDiff / thresholdRel) * 100)
     ),
     diffNominal,
     diffCashImpact,
-    diffShares: Math.round(diffSharesRaw),
+    diffShares: Math.round(diffShares),
   };
 }
