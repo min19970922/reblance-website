@@ -1,6 +1,6 @@
 /**
  * ui.js
- * 修正：強化非同步名稱抓取時的顯示狀態與 DOM 結構
+ * 修正：強化名稱顯示邏輯與載入動畫樣式
  */
 import {
   safeNum,
@@ -65,7 +65,6 @@ export function renderMainUI(acc) {
 
   data.assetsCalculated.forEach((asset, index) => {
     const row = document.createElement("tr");
-    row.className = "group";
     row.innerHTML = generateAssetRowHTML(
       asset,
       index,
@@ -78,7 +77,7 @@ export function renderMainUI(acc) {
 }
 
 function generateAssetRowHTML(asset, index, totalAssets) {
-  // 修正：如果 fullName 存在且含中文則顯示，否則顯示載入中
+  // 判定是否已有中文名 (正則表達式判定)
   const hasFullName = asset.fullName && /[\u4e00-\u9fa5]/.test(asset.fullName);
   const displayName = hasFullName ? asset.fullName : "正在載入資訊...";
   const nameColor = hasFullName
