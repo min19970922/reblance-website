@@ -3,7 +3,7 @@
  */
 export const STORAGE_KEY = "REBALANCE_MASTER_PRO_V23";
 
-export const initialAccountTemplate = (name = "新實戰計畫") => ({
+export const initialAccountTemplate = (name = "新計畫") => ({
   id: "acc_" + Date.now(),
   name: name,
   currentCash: 0,
@@ -19,7 +19,7 @@ export let appState = {
   activeId: "acc_default",
   isSidebarCollapsed: false,
   accounts: [
-    { ...initialAccountTemplate("實戰配置"), id: "acc_default", assets: [] },
+    { ...initialAccountTemplate("主帳戶"), id: "acc_default", assets: [] },
   ],
 };
 

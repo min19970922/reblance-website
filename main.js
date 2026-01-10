@@ -139,7 +139,7 @@ function bindGlobalEvents() {
   const btnCreate = document.getElementById("btnCreateAccount");
   if (btnCreate) {
     btnCreate.onclick = () => {
-      const name = prompt("計畫名稱:", "新實戰計畫");
+      const name = prompt("計畫名稱:", "新計畫");
       if (!name) return;
       const newAcc = initialAccountTemplate(name);
       appState.accounts.push(newAcc);
