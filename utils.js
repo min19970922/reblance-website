@@ -90,7 +90,7 @@ export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  if (window.showToast) window.showToast("正在智慧辨識 (v5.5)...");
+  if (window.showToast) window.showToast("正在智慧辨識 (v5.6)...");
 
   try {
     const worker = await Tesseract.createWorker("chi_tra+eng", 1, {
@@ -106,76 +106,66 @@ export async function importFromImage(e, onComplete) {
     await worker.terminate();
 
     const rawLines = text.split("\n");
-    let isTableStarted = false;
     const newAssets = [];
 
     for (const line of rawLines) {
-      // 1. 強力過濾統計行：徹底排除「總股數: 17040」等雜訊
+      // 1. 強力過濾雜訊行：包含統計關鍵字的直接跳過，解決 17040 問題
       if (
         line.includes("總股數") ||
-        line.includes("總市值") ||
         line.includes("帳號") ||
-        line.includes("總成本")
+        line.includes("總成本") ||
+        line.includes("未實現")
       ) {
         continue;
       }
 
-      // 2. 偵測表格起點 (修正：不再因「明細」二字就跳過整行數據)
-      if (
-        !isTableStarted &&
-        (line.includes("商品") ||
-          line.includes("類別") ||
-          line.includes("股數"))
-      ) {
-        isTableStarted = true;
-        if (!/\d/.test(line)) continue; // 只有純文字標頭才跳過
-      }
+      // 2. 數據清洗：移除逗號與異常空格
+      let cleanLine = line.replace(/,/g, "");
 
-      if (isTableStarted) {
-        let cleanLine = line.replace(/,/g, "");
-        // 台股代碼規則：4-5位數字，或5位數字+1位英數
-        const tickerMatch = cleanLine.match(/([0-9]{4,5}[A-Z1]?)/);
+      // 3. 定位代碼：搜尋 4-6 位代碼 (支援 6811 到 00631L)
+      const tickerMatch = cleanLine.match(/([0-9]{4,5}[A-Z1]?)/);
 
-        if (tickerMatch) {
-          let ticker = tickerMatch[1].toUpperCase();
-          // L/1 校正：處理 00631L 被誤辨識為 006311 的情況
-          if (ticker.length === 6 && ticker.endsWith("1"))
-            ticker = ticker.slice(0, -1) + "L";
+      if (tickerMatch) {
+        let ticker = tickerMatch[1].toUpperCase();
+        if (ticker.length === 6 && ticker.endsWith("1"))
+          ticker = ticker.slice(0, -1) + "L";
 
-          const afterTicker = cleanLine.substring(
-            tickerMatch.index + tickerMatch[1].length
-          );
-          // 手機版斷裂合併 (如 7 000 合併為 7000)
-          const joinedPart = afterTicker.replace(
-            /(\b\d{1,3})\s+(\d{3})(?!\d)/g,
-            "$1$2"
-          );
+        const afterTicker = cleanLine.substring(
+          tickerMatch.index + tickerMatch[1].length
+        );
 
-          // 股數定位：鎖定類別後的長數字，跳過名稱中的數字 (如 50 正 2)
-          const categoryMatch = joinedPart.match(
-            /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買)[^\d]*(\d{2,})/
-          );
+        /**
+         * 4. 股數提取核心修正：
+         * 優先尋找類別關鍵字（現買、擔保品等）「之後」的第一組長數字。
+         * 這能完美跳過名稱中的 "50"，因為 "50" 位在類別關鍵字之前。
+         */
+        const categoryMatch = afterTicker.match(
+          /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買)[^\d]*(\d{2,})/
+        );
 
-          let shares = 0;
-          if (categoryMatch) {
-            shares = parseInt(categoryMatch[1]);
-          } else {
-            // 備用方案：抓取該行除了標的代號外的首個兩位數以上整數
-            const allNums = joinedPart.match(/\b\d{2,}\b/g);
-            if (allNums) shares = parseInt(allNums[0]);
+        let shares = 0;
+        if (categoryMatch && categoryMatch[1]) {
+          shares = parseInt(categoryMatch[1]);
+        } else {
+          // 備用方案：抓取該行扣除代碼後的第一組「非名稱」數字 (大於 50)
+          const allNums = afterTicker.match(/\b\d+\b/g);
+          if (allNums) {
+            shares = parseInt(
+              allNums.find((n) => parseInt(n) > 60) || allNums[0]
+            );
           }
+        }
 
-          if (shares > 0) {
-            newAssets.push({
-              id: Date.now() + Math.random(),
-              name: ticker,
-              fullName: "---",
-              price: 0,
-              shares: shares,
-              leverage: 1,
-              targetRatio: 0,
-            });
-          }
+        if (shares > 0) {
+          newAssets.push({
+            id: Date.now() + Math.random(),
+            name: ticker,
+            fullName: "---",
+            price: 0,
+            shares: shares,
+            leverage: 1,
+            targetRatio: 0,
+          });
         }
       }
     }
@@ -186,12 +176,13 @@ export async function importFromImage(e, onComplete) {
       );
       onComplete(uniqueAssets);
       if (window.showToast)
-        window.showToast(`成功辨識 ${uniqueAssets.length} 筆資產`);
+        window.showToast(`辨識成功！發現 ${uniqueAssets.length} 筆資產`);
     } else {
       if (window.showToast)
-        window.showToast("未能辨識有效資料，請對準表格拍攝");
+        window.showToast("未能辨識有效資料，請完整拍攝表格");
     }
   } catch (err) {
+    console.error("OCR 錯誤:", err);
     if (window.showToast) window.showToast("辨識衝突，請重新整理");
   } finally {
     e.target.value = "";
