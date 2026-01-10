@@ -99,7 +99,7 @@ export async function importFromImage(e, onComplete) {
   });
 
   // 使用 v1beta 與完整模型路徑
-  const model = "gemini-1.5-flash-latest";
+  const model = "gemini-pro-vision";
   const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
 
   // 核心修正：避開所有可能導致 400/404 的高階參數，將指令塞入內容
