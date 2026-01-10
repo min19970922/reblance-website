@@ -78,13 +78,16 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
+/**
+ * AI 圖片辨識匯入功能 - 穩定路徑修正版
+ */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
   const showToast = window.showToast || console.log;
 
-  // 1. 取得 API Key
+  // 1. 取得 API Key (優先從全域或 LocalStorage)
   const apiKey =
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
 
@@ -107,7 +110,7 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // --- 關鍵修正：切換至 v1 穩定版端點 ---
+    // --- 關鍵修正：改用 v1 穩定版端點 ---
     const model = "gemini-1.5-flash";
     const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
 
@@ -129,7 +132,7 @@ export async function importFromImage(e, onComplete) {
           ],
         },
       ],
-      // 在 v1 中，systemInstruction 建議放在這層
+      // 在 v1 中建議將指令包含在 systemInstruction
       systemInstruction: { parts: [{ text: systemPrompt }] },
       generationConfig: {
         responseMimeType: "application/json",
@@ -145,8 +148,6 @@ export async function importFromImage(e, onComplete) {
 
     if (!response.ok) {
       const errData = await response.json();
-      // 如果報 404 代表模型名稱或版本依舊不匹配
-      // 如果報 403 代表 Key 的權限或 Referer 限制有問題
       throw new Error(
         errData.error?.message || `請求失敗 (${response.status})`
       );
@@ -180,7 +181,7 @@ export async function importFromImage(e, onComplete) {
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能辨識出有效資產");
+      showToast("AI 未能辨識出內容");
     }
   } catch (err) {
     console.error("AI辨識詳細錯誤:", err);
