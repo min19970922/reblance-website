@@ -77,22 +77,26 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
+/**
+ * AI 圖片辨識匯入功能 - 終極修復版 (v10.0)
+ * 根據診斷結果改用 gemini-2.0-flash 並修正 REST 命名規範
+ */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
   const showToast = window.showToast || console.log;
-  // 從全域變數或 LocalStorage 取得您儲存的 Key
+  // 優先從全域或 LocalStorage 取得 Key
   const apiKey =
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
 
   if (!apiKey || apiKey.length < 10) {
-    showToast("❌ 請先在上方輸入並儲存 API Key");
+    showToast("❌ 請先設定並儲存 API Key");
     e.target.value = "";
     return;
   }
 
-  showToast("啟動 AI 視覺大腦辨識...");
+  showToast("啟動 AI 視覺辨識中...");
 
   const fileToBase64 = (file) =>
     new Promise((resolve, reject) => {
@@ -105,18 +109,15 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // --- 關鍵修正 1：使用 v1beta 與標準模型路徑 ---
-    // 這是目前 Flash 模型最穩定的 REST 存取點
-    const model = "gemini-1.5-flash";
+    // --- 核心修正：改用診斷清單中確認存在的 gemini-2.0-flash ---
+    const model = "gemini-2.0-flash";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    // --- 關鍵修正 2：指令全部整合進 Prompt ---
-    // 避開 system_instruction 欄位，這能解決 "Cannot find field" 的 400 錯誤
-    const promptText = `你是一位專業的證券分析師。請分析這張截圖，提取持股代號(name)與股數(shares)。
-    請嚴格只回傳 JSON 格式，不要包含 Markdown 標籤或任何解釋。
+    const promptText = `你是一位專業分析師。請提取圖片中的持股代號(name)與股數(shares)。
+    請嚴格只回傳 JSON 格式，不要有任何 Markdown 標籤或解釋。
     範例格式：{"assets": [{"name":"2330","shares":1000}]}`;
 
-    // --- 關鍵修正 3：使用 snake_case (底線命名) ---
+    // --- 核心修正：使用底線命名法 (snake_case) 確保相容性 ---
     const payload = {
       contents: [
         {
@@ -141,25 +142,29 @@ export async function importFromImage(e, onComplete) {
 
     if (!response.ok) {
       const errData = await response.json();
-      console.error("Gemini API 錯誤詳情:", errData);
       throw new Error(
         errData.error?.message || `請求失敗 (${response.status})`
       );
     }
 
     const result = await response.json();
-    let rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // 清理 Markdown 標籤 (```json ... ```)
-    rawJson = rawJson
+    // 移除 AI 可能回傳的 Markdown 標籤以防解析當機
+    text = text
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
 
     let assets = [];
-    if (rawJson) {
-      const parsedData = JSON.parse(rawJson);
-      assets = parsedData.assets || [];
+    if (text) {
+      try {
+        const parsedData = JSON.parse(text);
+        assets = parsedData.assets || [];
+      } catch (e) {
+        console.error("JSON 解析失敗，原始文字:", text);
+        throw new Error("AI 回傳內容無法解析，請再試一次");
+      }
     }
 
     if (assets.length > 0) {
@@ -169,6 +174,7 @@ export async function importFromImage(e, onComplete) {
           name: (a.name || "").toString().toUpperCase().trim(),
           fullName: "---",
           price: 0,
+          // 處理股數中的千分位逗號
           shares: Math.abs(
             parseInt(a.shares.toString().replace(/,/g, "")) || 0
           ),
@@ -180,10 +186,10 @@ export async function importFromImage(e, onComplete) {
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能辨識出有效內容");
+      showToast("AI 未能辨識出有效持股");
     }
   } catch (err) {
-    console.error("AI辨識錯誤:", err);
+    console.error("AI辨識詳細錯誤:", err);
     showToast(`辨識失敗: ${err.message}`);
   } finally {
     e.target.value = "";
