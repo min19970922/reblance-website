@@ -1,5 +1,5 @@
 /**
- * utils.js - 動態 Key 加強版
+ * utils.js - 終極修正相容版
  */
 import { safeNum } from "./state.js";
 import { showToast } from "./ui.js";
@@ -77,64 +77,45 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
-/**
- * AI 圖片辨識匯入功能 - 終極相容解決方案
- * 修正 v1/v1beta 模型找不到 (404) 與參數格式 (400) 問題
- */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  const showToast = window.showToast || console.log;
-  // 優先從全域或 LocalStorage 取得 Key
   const apiKey =
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
-
-  if (!apiKey || apiKey.length < 10) {
-    showToast("❌ 請先在上方輸入並儲存 API Key");
-    e.target.value = "";
+  if (!apiKey) {
+    showToast("❌ 請先設定 API Key");
     return;
   }
 
-  showToast("啟動 AI 視覺大腦辨識...");
+  showToast("啟動 AI 辨識中...");
 
-  const fileToBase64 = (file) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = (error) => reject(error);
-    });
+  const base64 = await new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(",")[1]);
+  });
+
+  // 使用 v1 穩定版與標準模型路徑
+  const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+  // 混合式 Prompt：將規則直接寫入對話內容，確保 v1/v1beta 通用
+  const payload = {
+    contents: [
+      {
+        parts: [
+          {
+            text: '你是一位股票分析助手。請從圖片中提取持股代號(name)與股數(shares)。請嚴格只回傳 JSON 格式如下：{"assets": [{"name":"2330","shares":1000}]}',
+          },
+          {
+            inline_data: { mime_type: file.type || "image/png", data: base64 },
+          },
+        ],
+      },
+    ],
+  };
 
   try {
-    const base64Image = await fileToBase64(file);
-
-    // --- 修正 1：路徑結構 ---
-    const model = "gemini-1.5-flash";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    // 將指令直接放入 Prompt，避開不穩定的系統欄位
-    const promptText = `你是一位專業的台灣證券數據分析師。請分析這張截圖，提取所有持股代號(name)與股數(shares)。
-    請嚴格只回傳 JSON 格式，不要有任何 Markdown 標籤或解釋文字。
-    範例格式：{"assets": [{"name":"2330","shares":1000}]}`;
-
-    // --- 修正 2：REST API 必須使用 snake_case (底線命名) ---
-    const payload = {
-      contents: [
-        {
-          parts: [
-            { text: promptText },
-            {
-              inline_data: {
-                mime_type: file.type || "image/png",
-                data: base64Image.split(",")[1],
-              },
-            },
-          ],
-        },
-      ],
-    };
-
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -142,56 +123,33 @@ export async function importFromImage(e, onComplete) {
     });
 
     if (!response.ok) {
-      const errData = await response.json();
-      throw new Error(
-        errData.error?.message || `請求失敗 (${response.status})`
-      );
+      const err = await response.json();
+      throw new Error(err.error?.message || "請求失敗");
     }
 
     const result = await response.json();
-    let rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    // 清理可能出現的 Markdown 標籤
-    rawJson = rawJson
+    let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    text = text
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
 
-    let assets = [];
-    if (rawJson) {
-      try {
-        const parsedData = JSON.parse(rawJson);
-        assets = parsedData.assets || [];
-      } catch (e) {
-        console.error("JSON 解析失敗:", rawJson);
-        throw new Error("AI 回傳格式非純 JSON，請再試一次");
-      }
-    }
-
-    if (assets.length > 0) {
-      // 依據 state.js 定義的格式轉換資料
-      const formattedAssets = assets
-        .map((a) => ({
-          id: Date.now() + Math.random(),
-          name: (a.name || "").toString().toUpperCase().trim(),
-          fullName: "---",
-          price: 0,
-          shares: Math.abs(
-            parseInt(a.shares.toString().replace(/,/g, "")) || 0
-          ),
-          leverage: 1,
-          targetRatio: 0,
-        }))
-        .filter((a) => a.name.length >= 2 && a.shares > 0);
-
-      onComplete(formattedAssets);
-      showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
-    } else {
-      showToast("AI 未能辨識出內容");
-    }
+    const assets = JSON.parse(text).assets || [];
+    onComplete(
+      assets.map((a) => ({
+        id: Date.now() + Math.random(),
+        name: a.name.toString().toUpperCase().trim(),
+        fullName: "---",
+        price: 0,
+        shares: Math.abs(parseInt(a.shares.toString().replace(/,/g, "")) || 0),
+        leverage: 1,
+        targetRatio: 0,
+      }))
+    );
+    showToast("辨識成功！");
   } catch (err) {
-    console.error("AI辨識錯誤:", err);
-    showToast(`辨識失敗: ${err.message}`);
+    console.error(err);
+    showToast("辨識錯誤: " + err.message);
   } finally {
     e.target.value = "";
   }
