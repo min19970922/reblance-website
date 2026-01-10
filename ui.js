@@ -46,7 +46,7 @@ export function renderAccountList(appState, onSwitch, onDelete) {
 export function renderMainUI(acc) {
   if (!acc) return;
 
-  // --- 修復點：更新上方帳戶名稱標題 ---
+  // --- 修復點：確保標題名稱被正確寫入 ---
   const titleEl = document.getElementById("activeAccountTitle");
   if (titleEl) {
     titleEl.innerHTML = `${acc.name} <i class="fas fa-pen text-xl text-rose-200 ml-4"></i>`;
@@ -84,7 +84,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
       : "text-rose-400"
     : "text-rose-300 animate-pulse";
 
-  // --- 修正點：移除 w-48 等固定寬度，讓 CSS 控制自動撐開 ---
+  // --- 修正點：移除所有固定寬度限制，讓表格自然延展 ---
   return `
     <td>
       <div class="flex items-center gap-4">
@@ -115,7 +115,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
       <div class="flex items-center gap-2">
         <input type="number" value="${asset.price}" onchange="updateAsset(${
     asset.id
-  },'price',this.value)" class="underline-input font-mono-data">
+  },'price',this.value)" class="underline-input font-mono-data text-right">
         <button onclick="fetchLivePrice(${asset.id},'${asset.name}')">
           <i id="assetSync-${
             asset.id
@@ -126,7 +126,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     <td>
       <input type="number" value="${asset.shares}" onchange="updateAsset(${
     asset.id
-  },'shares',this.value)" class="underline-input font-mono-data">
+  },'shares',this.value)" class="underline-input font-mono-data text-right">
     </td>
     <td id="curVal-${
       asset.id
@@ -178,7 +178,7 @@ function updateAssetRowData(asset, acc, netValue) {
   const isBuy = s.diffNominal > 0;
   const suggCell = document.getElementById(`sugg-${asset.id}`);
 
-  // --- 修正點：未達門檻僅顯示進度條，已觸發才顯示建議文字 ---
+  // --- 修正點：未達門檻僅顯示進度條，已觸發才顯示具體文字 ---
   if (!s.isTriggered) {
     suggCell.innerHTML = `
       <div class="flex flex-col items-center min-w-[320px]">
