@@ -12,18 +12,18 @@ const PROXIES = [
   "https://corsproxy.io/?",
 ];
 
+// api.js
 export async function fetchLivePrice(id, symbol, appState) {
   if (!symbol) return false;
-
   const icon = document.getElementById(`assetSync-${id}`);
   if (icon) icon.classList.add("fa-spin-fast", "text-rose-600");
 
   let ticker = symbol.trim().toUpperCase();
-  const isTaiwan = /^\d{4,6}[A-Z]?$/.test(ticker);
+  const isTaiwan = /^\d{4,6}/.test(ticker);
 
   const tryFetch = async (targetTicker) => {
-    // 強制指定語言為繁體中文，這能解決名稱非中文的問題
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d&lang=zh-Hant-TW&region=TW`;
+    // 改用 v10/quoteSummary，這是目前抓取繁體中文最穩定的路徑
+    const yahooUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${targetTicker}?modules=price&lang=zh-Hant-TW&region=TW`;
 
     for (let proxy of PROXIES) {
       try {
@@ -32,26 +32,21 @@ export async function fetchLivePrice(id, symbol, appState) {
         if (!res.ok) continue;
 
         const json = await res.json();
+        let data = proxy.includes("allorigins")
+          ? JSON.parse(json.contents)
+          : json;
 
-        // --- 關鍵修正：AllOrigins 的 JSONP 解析 ---
-        let data;
-        if (proxy.includes("allorigins")) {
-          data = JSON.parse(json.contents);
-        } else {
-          data = json;
-        }
-
-        const meta = data.chart?.result?.[0]?.meta;
-        if (meta && (meta.regularMarketPrice || meta.previousClose)) {
+        // v10 的資料結構與 v8 不同，需重新對齊
+        const result = data.quoteSummary?.result?.[0]?.price;
+        if (result && result.regularMarketPrice) {
           return {
-            price: meta.regularMarketPrice || meta.previousClose,
-            // 如果 API 有給 longName 優先使用，因為 longName 通常是完整中文公司名
-            name: meta.longName || meta.shortName || meta.symbol,
+            price: result.regularMarketPrice.raw || result.regularMarketPrice,
+            // 這裡優先取 longName，台股通常會顯示「台積電」
+            name: result.longName || result.shortName || result.symbol,
           };
         }
       } catch (e) {
-        console.error("代理抓取失敗:", e);
-        continue;
+        console.error("抓取失敗:", e);
       }
     }
     return null;
@@ -65,32 +60,26 @@ export async function fetchLivePrice(id, symbol, appState) {
     result = await tryFetch(ticker);
   }
 
-  if (result && !isNaN(result.price)) {
+  if (result) {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     const asset = acc.assets.find((a) => a.id === id);
     if (asset) {
       asset.price = result.price;
 
-      // 中文名稱鎖定邏輯
       const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
-
-      if (result.name && hasChinese(result.name)) {
-        asset.fullName = result.name; // 只有抓到中文才更新
-      } else if (!asset.fullName || asset.fullName === "---") {
-        // 如果完全沒名稱才顯示代碼，否則保留舊的名稱
-        asset.fullName = asset.fullName || ticker;
+      if (hasChinese(result.name)) {
+        asset.fullName = result.name;
       }
 
-      renderMainUI(acc); // 確保 UI 重新渲染
-      if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
+      // 關鍵修正：重新整理前先儲存 state
+      import("./state.js").then((m) => m.saveToStorage());
+      renderMainUI(acc);
       return true;
     }
   }
-
   if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
   return false;
 }
-
 // syncAllPrices 保持原樣即可，但確保它傳遞正確的 appState
 
 /**

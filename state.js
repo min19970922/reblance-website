@@ -1,6 +1,7 @@
 /**
  * state.js
  * 職責：管理資料結構、本地儲存 (LocalStorage) 以及所有投資核心計算邏輯
+ * 修正版：解決 NaN 錯誤與數值計算斷層
  */
 
 // 1. 定義常數與預設狀態
@@ -50,8 +51,9 @@ export let appState = {
   ],
 };
 
-// 3. 通用工具函式
+// 3. 強化型通用工具函式 (防止 NaN 的第一道防線)
 export function safeNum(val, def = 0) {
+  if (val === null || val === undefined) return def;
   const n = parseFloat(val);
   return isNaN(n) ? def : n;
 }
@@ -77,8 +79,7 @@ export function loadFromStorage() {
   return false;
 }
 
-// 5. 核心計算引擎 (The Engine)
-// 此函式負責計算出所有顯示所需的數據，但不更動 DOM
+// 5. 核心計算引擎 (修正計算路徑，解決 NaN 問題)
 export function calculateAccountData(acc) {
   if (!acc) return null;
 
@@ -87,12 +88,18 @@ export function calculateAccountData(acc) {
 
   // A. 處理各項資產基礎計算
   const assetsCalculated = acc.assets.map((asset) => {
-    const isTW = /^\d{4,6}[A-Z]?$/.test(asset.name.trim().toUpperCase());
-    const priceTwd = isTW
-      ? safeNum(asset.price)
-      : safeNum(asset.price) * safeNum(acc.usdRate);
+    // 強化判定：確保 asset.name 存在
+    const ticker = (asset.name || "").trim().toUpperCase();
+    const isTW = /^\d{4,6}/.test(ticker);
 
-    const bookValue = priceTwd * safeNum(asset.shares);
+    // 確保價格、匯率為有效數字
+    const rawPrice = safeNum(asset.price, 0);
+    const usdRate = safeNum(acc.usdRate, 32.5);
+
+    // 台股不乘匯率，其餘（美股）乘匯率
+    const priceTwd = isTW ? rawPrice : rawPrice * usdRate;
+
+    const bookValue = priceTwd * safeNum(asset.shares, 0);
     const nominalValue = bookValue * safeNum(asset.leverage, 1);
 
     totalAssetBookValue += bookValue;
@@ -103,14 +110,17 @@ export function calculateAccountData(acc) {
       isTW,
       priceTwd,
       bookValue,
-      nominalValue,
+      nominalValue, // 確保此處產出的為數字型態
     };
   });
 
-  // B. 帳戶總體數據
+  // B. 帳戶總體數據 (增加保護邏輯)
   const netValue =
     totalAssetBookValue + safeNum(acc.currentCash) - safeNum(acc.totalDebt);
+
+  // 避免除以零產生 NaN
   const totalLeverage = netValue > 0 ? totalNominalExposure / netValue : 0;
+
   const targetAssetRatioSum = acc.assets.reduce(
     (s, a) => s + safeNum(a.targetRatio),
     0
@@ -118,7 +128,7 @@ export function calculateAccountData(acc) {
   const targetTotalCombined = targetAssetRatioSum + safeNum(acc.cashRatio);
 
   // C. 質押維持率計算
-  let maintenanceRatio = null;
+  let maintenanceRatio = 0;
   if (safeNum(acc.totalDebt) > 0) {
     maintenanceRatio = (totalAssetBookValue / safeNum(acc.totalDebt)) * 100;
   }
@@ -134,10 +144,11 @@ export function calculateAccountData(acc) {
   };
 }
 
-// 6. 再平衡判斷邏輯
+// 6. 再平衡判斷邏輯 (修正除以零與 undefined 引用)
 export function getRebalanceSuggestion(asset, acc, netValue) {
   const factor = safeNum(asset.leverage, 1);
-  const currentPct = netValue > 0 ? (asset.nominalValue / netValue) * 100 : 0;
+  const currentPct =
+    netValue > 0 ? (safeNum(asset.nominalValue) / netValue) * 100 : 0;
   const targetPct = safeNum(asset.targetRatio);
   const targetNominal = netValue * (targetPct / 100);
   const targetBookValue = targetNominal / factor;
@@ -151,10 +162,13 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
   const isTriggered = absDiff > thresholdAbs || relDiff > thresholdRel;
 
   // 計算交易股數
-  const diffNominal = targetNominal - asset.nominalValue;
+  const diffNominal = targetNominal - safeNum(asset.nominalValue);
   const diffCashImpact = diffNominal / factor;
+
+  // 確保 priceTwd 有效
+  const priceTwd = safeNum(asset.priceTwd, 0);
   const diffSharesRaw =
-    asset.priceTwd * factor > 0 ? diffNominal / (asset.priceTwd * factor) : 0;
+    priceTwd * factor > 0 ? diffNominal / (priceTwd * factor) : 0;
 
   return {
     currentPct,

@@ -71,6 +71,7 @@ export function renderMainUI(acc) {
   // 取得 state.js 的運算結果
   const data = calculateAccountData(acc);
 
+  // ui.js 的 renderMainUI 函式中
   data.assetsCalculated.forEach((asset, index) => {
     const row = document.createElement("tr");
     row.className = "group";
@@ -81,7 +82,7 @@ export function renderMainUI(acc) {
     );
     body.appendChild(row);
 
-    // 此時傳入的 asset 物件已經包含 nominalValue 和 priceTwd
+    // 這裡傳入的是『計算過』的 asset，裡面才有 nominalValue
     updateAssetRowData(asset, acc, data.netValue);
   });
 
