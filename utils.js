@@ -86,10 +86,6 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
-/**
- * 相機明細辨識加強版
- * 規則：搜尋「明細」 -> 擷取後一個 Token 中的 4-6 位英數代碼 -> 跳兩格 -> 擷取股數
- */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -97,12 +93,13 @@ export async function importFromImage(e, onComplete) {
   showToast("正在初始化穩定版引擎...");
 
   try {
-    // 解決 WASM 報錯：顯式指定路徑
+    // 強制指定穩定 Core 路徑，解決 wasm.js:31 報錯
     const worker = await Tesseract.createWorker("chi_tra+eng", 1, {
       workerPath:
         "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js",
       corePath:
         "https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js",
+      logger: (m) => console.log(m),
     });
 
     const {
@@ -112,23 +109,26 @@ export async function importFromImage(e, onComplete) {
 
     console.log("辨識成功內容:", text);
 
+    // 1. 清理數據：移除逗號，將文字切分為 Token 陣列
     const tokens = text.replace(/,/g, "").split(/\s+/);
     const newAssets = [];
 
+    // 2. 遍歷 Token 尋找潛在標的
     for (let i = 0; i < tokens.length; i++) {
-      if (tokens[i].includes("明細")) {
-        // [i]明細 -> [i+1]通常為 "代碼+名稱" (如: 00631L元大台灣50正2)
-        const rawCodeAndName = tokens[i + 1];
+      // 關鍵字檢查：包含「明細」或符合常見 OCR 誤認模式
+      const token = tokens[i];
+      if (token.includes("明細") || /BHfE|茹/.test(token)) {
+        // 規則：[i]是按鈕, [i+1]通常是代碼 (如 00631L)
+        const potentialCodeToken = tokens[i + 1];
+        if (!potentialCodeToken) continue;
 
-        // 正則表達式：擷取開頭 4-6 位的英數組合 (代碼)
-        const codeMatch = rawCodeAndName
-          ? rawCodeAndName.match(/^([A-Z0-9]{4,6})/)
-          : null;
-
+        // 從 Token 中分離出 4-6 位的英數組合 (適配代碼與名稱黏在一起的情況)
+        const codeMatch = potentialCodeToken.match(/^([0-9A-Z]{4,6})/);
         if (codeMatch) {
-          const code = codeMatch[1].toUpperCase(); // 強制轉大寫
+          const code = codeMatch[1].toUpperCase();
 
-          // 規則：代碼後跳過一格 [i+2] 類別, [i+3] 即為股數
+          // 根據規則：搜尋到代碼後兩個欄位就是股數
+          // [i+1]代碼, [i+2]跳過項, [i+3]股數
           const potentialShares = tokens[i + 3];
           const shares = parseInt(potentialShares);
 
@@ -149,13 +149,13 @@ export async function importFromImage(e, onComplete) {
 
     if (newAssets.length > 0) {
       onComplete(newAssets);
-      showToast(`成功辨識 ${newAssets.length} 筆明細資產`);
+      showToast(`成功辨識 ${newAssets.length} 筆資產`);
     } else {
       showToast("未偵測到明細關鍵字或格式不符");
     }
   } catch (err) {
     console.error("OCR 致命錯誤:", err);
-    showToast("相機引擎衝突，請重新整理頁面重試");
+    showToast("辨識引擎衝突，請重新整理頁面");
   } finally {
     e.target.value = "";
   }

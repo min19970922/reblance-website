@@ -109,7 +109,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
 
   return `
     <td class="px-2">
-      <div class="flex items-center gap-2">
+      <div class="flex items-center justify-center gap-2">
         <div class="flex flex-col text-[10px] text-rose-200">
           <button onclick="moveAsset(${asset.id},-1)" class="${
     index === 0 ? "invisible" : ""
@@ -118,7 +118,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     index === totalAssets - 1 ? "invisible" : ""
   }"><i class="fas fa-caret-down"></i></button>
         </div>
-        <div class="flex flex-col">
+        <div class="flex flex-col items-center">
           ${autoWidthInput(
             asset.id,
             "name",
@@ -136,17 +136,17 @@ function generateAssetRowHTML(asset, index, totalAssets) {
         asset.id,
         "leverage",
         asset.leverage,
-        "text-rose-600 font-black text-center text-xl",
+        "text-rose-600 font-black text-xl",
         "number"
       )}
     </td>
-    <td class="text-right">
-      <div class="flex items-center justify-end gap-1">
+    <td class="text-center">
+      <div class="flex items-center justify-center gap-1">
         ${autoWidthInput(
           asset.id,
           "price",
           asset.price,
-          "font-mono-data text-right text-xl",
+          "font-mono-data text-xl",
           "number"
         )}
         <button onclick="fetchLivePrice(${asset.id},'${asset.name}')">
@@ -156,18 +156,18 @@ function generateAssetRowHTML(asset, index, totalAssets) {
         </button>
       </div>
     </td>
-    <td class="text-right">
+    <td class="text-center">
       ${autoWidthInput(
         asset.id,
         "shares",
         asset.shares,
-        "font-mono-data text-right text-xl",
+        "font-mono-data text-xl",
         "number"
       )}
     </td>
     <td id="curVal-${
       asset.id
-    }" class="font-mono-data text-rose-950 font-black text-right px-4 text-xl"></td>
+    }" class="font-mono-data text-rose-950 font-black px-4 text-xl"></td>
     <td id="curPct-${
       asset.id
     }" class="font-mono-data text-indigo-800 text-center font-black px-4 text-xl"></td>
@@ -177,7 +177,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
           asset.id,
           "targetRatio",
           asset.targetRatio,
-          "text-center text-rose-900 font-black text-xl",
+          "text-rose-900 font-black text-xl",
           "number"
         )}
         <span class="text-rose-900 font-black">%</span>

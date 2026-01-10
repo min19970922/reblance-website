@@ -1,9 +1,4 @@
-/* * styles.css - 終極美學大氣版 (v4.0 標題置中與全欄位自動對齊) 
- * 1. 保留上方 5 欄數據卡片
- * 2. 參數列 Loan/Cash 垂直對齊 (Baseline)
- * 3. 標題與內容全置中顯示
- * 4. 鏡像對齊技術：根據內容自動調整欄位寬度
- */
+/* * styles.css - 終極美學大氣版 (v4.0 置中與全自動對齊) */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 
@@ -25,7 +20,7 @@ body {
   overflow-x: hidden;
 }
 
-/* 2. 佈局與上方卡片 (保持 5 欄不動) */
+/* 2. 佈局與上方卡片 - 嚴格保留 5 欄配置 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
@@ -53,6 +48,7 @@ main {
   gap: 20px;
   margin-bottom: 30px;
 }
+
 .glass-card {
   background: white !important;
   border-radius: 24px !important;
@@ -60,13 +56,14 @@ main {
   padding: 20px !important;
   box-shadow: 0 10px 25px -5px rgba(251, 113, 133, 0.08) !important;
 }
+
 .glass-card div {
   font-size: var(--font-size-data) !important;
   font-weight: 900 !important;
   font-family: "Calibri", sans-serif !important;
 }
 
-/* 3. 參數列修正：解決文字不一樣高、位置奇怪的問題 */
+/* 3. 參數列修正：解決 Loan/Cash 垂直基準線對齊 */
 .params-row-tight {
   display: grid !important;
   grid-template-columns: repeat(5, 1fr) !important;
@@ -78,6 +75,7 @@ main {
   margin-bottom: 40px !important;
   overflow: hidden;
 }
+
 .param-item {
   padding: 15px 20px !important;
   display: flex !important;
@@ -91,8 +89,6 @@ main {
   color: var(--primary-pink) !important;
   margin-bottom: 2px !important;
 }
-
-/* 核心：確保符號與數字底部對齊 */
 .input-wrapper {
   display: flex !important;
   align-items: baseline !important;
@@ -108,7 +104,7 @@ main {
   outline: none !important;
 }
 
-/* 4. [重點] 表格欄位全置中與自動寬度對齊 --- */
+/* 4. 表格對齊核心：標題與內容全置中 */
 .auto-table {
   width: 100% !important;
   border-spacing: 0 10px !important;
@@ -117,14 +113,14 @@ main {
 }
 
 .auto-table th {
-  text-align: center !important; /* 強制標題置中 */
+  text-align: center !important; /* 標題強制置中 */
   padding: 10px 15px !important;
   color: var(--primary-pink) !important;
   font-weight: 900 !important;
   font-size: 1.2rem !important;
 }
 
-/* 鏡像容器技術：自動根據內容撐開寬度 */
+/* 鏡像對齊容器：解決自動寬度問題 */
 .input-col-wrapper {
   display: inline-grid !important;
   vertical-align: middle;
@@ -150,9 +146,10 @@ main {
   font-weight: 900 !important;
   font-family: "Calibri", sans-serif !important;
   width: 100% !important;
+  text-align: center !important; /* 輸入文字預設置中 */
 }
 
-/* 表格單元格內容：預設置中 */
+/* 內容單元格：全置中 */
 td {
   background: white !important;
   padding: 12px 15px !important;
@@ -163,10 +160,9 @@ td {
   text-align: center !important;
 }
 
-/* 數值類依然保持靠右顯示，以利閱讀 */
-td.text-right,
-td:has(.text-right) {
-  text-align: right !important;
+/* 針對「再平衡建議」這類長內容做微調 */
+td:has(.min-w-\[150px\]) {
+  min-width: 160px;
 }
 
 td:first-child {
@@ -176,7 +172,7 @@ td:last-child {
   border-radius: 0 20px 20px 0 !important;
 }
 
-/* 其他基礎 UI */
+/* 其他細節 */
 .prefix,
 .suffix {
   font-family: "Calibri", sans-serif !important;
