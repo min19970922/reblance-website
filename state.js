@@ -1,14 +1,13 @@
 /**
  * state.js (V21 最終修正版)
  */
-// 更新版本號為 V21，這會強制清除瀏覽器中舊有的 500,000 負債紀錄
-export const STORAGE_KEY = "INVEST_REBAL_V21_CLEAN_FINAL";
+export const STORAGE_KEY = "INVEST_REBAL_V21_CLEAN_FIX"; // 更新版本號強制清除 500,000 負債
 
 export const initialAccountTemplate = (name = "新實戰計畫") => ({
   id: "acc_" + Date.now(),
   name: name,
   currentCash: 0,
-  totalDebt: 0, // 預設負債改為 0
+  totalDebt: 0, // 修正：預設負債歸零
   cashRatio: 0,
   usdRate: 32.5,
   rebalanceAbs: 5,
@@ -20,15 +19,10 @@ export let appState = {
   activeId: "acc_default",
   isSidebarCollapsed: false,
   accounts: [
-    {
-      ...initialAccountTemplate("實戰配置"),
-      id: "acc_default",
-      assets: [],
-    },
+    { ...initialAccountTemplate("實戰配置"), id: "acc_default", assets: [] },
   ],
 };
 
-// 強化防錯：處理空字串，防止正在輸入時產生 NaN
 export function safeNum(val, def = 0) {
   if (val === null || val === undefined || val === "") return def;
   const n = parseFloat(val);
@@ -49,7 +43,7 @@ export function loadFromStorage() {
         return true;
       }
     } catch (e) {
-      console.error("載入存檔失敗:", e);
+      console.error("解析存檔失敗:", e);
     }
   }
   return false;
@@ -62,7 +56,7 @@ export function calculateAccountData(acc) {
 
   const assetsCalculated = acc.assets.map((asset) => {
     const ticker = (asset.name || "").trim().toUpperCase();
-    const isTW = /^\d{4,6}/.test(ticker);
+    const isTW = /^\d{4,6}/.test(ticker); // 台股判定
     const rawPrice = safeNum(asset.price, 0);
     const priceTwd = isTW ? rawPrice : rawPrice * safeNum(acc.usdRate, 32.5);
     const bookValue = priceTwd * safeNum(asset.shares, 0);
@@ -82,7 +76,6 @@ export function calculateAccountData(acc) {
     assetsCalculated,
     netValue,
     totalNominalExposure,
-    totalAssetBookValue,
     totalLeverage,
     maintenanceRatio:
       safeNum(acc.totalDebt) > 0
@@ -111,7 +104,7 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
     targetBookValue: targetNominal / factor,
     diffNominal,
     diffShares: Math.round(diffShares),
-    isTriggered: true, // 修正：即使偏差小也顯示建議，解決輸入位數過大的 Bug
+    isTriggered: true, // 修正：強制開啟建議，解決位數門檻問題
     absDiff: Math.abs(currentPct - targetPct),
   };
 }
