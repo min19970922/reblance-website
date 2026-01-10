@@ -1,5 +1,5 @@
 /**
- * utils.js - 終極修正相容版
+ * utils.js - 動態 Key 加強版
  */
 import { safeNum } from "./state.js";
 import { showToast } from "./ui.js";
@@ -81,10 +81,12 @@ export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
+  const showToast = window.showToast || console.log;
   const apiKey =
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
+
   if (!apiKey) {
-    showToast("❌ 請先設定 API Key");
+    showToast("❌ 請先設定並儲存 API Key");
     return;
   }
 
@@ -96,16 +98,17 @@ export async function importFromImage(e, onComplete) {
     reader.onload = () => resolve(reader.result.split(",")[1]);
   });
 
-  // 使用 v1 穩定版與標準模型路徑
-  const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  // 使用 v1beta 與完整模型路徑
+  const model = "gemini-1.5-flash";
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  // 混合式 Prompt：將規則直接寫入對話內容，確保 v1/v1beta 通用
+  // 核心修正：避開所有可能導致 400/404 的高階參數，將指令塞入內容
   const payload = {
     contents: [
       {
         parts: [
           {
-            text: '你是一位股票分析助手。請從圖片中提取持股代號(name)與股數(shares)。請嚴格只回傳 JSON 格式如下：{"assets": [{"name":"2330","shares":1000}]}',
+            text: '你是一位股票助手。請從圖片提取持股代號(name)與股數(shares)，嚴格以JSON輸出: {"assets": [{"name":"2330","shares":1000}]}',
           },
           {
             inline_data: { mime_type: file.type || "image/png", data: base64 },
@@ -124,11 +127,13 @@ export async function importFromImage(e, onComplete) {
 
     if (!response.ok) {
       const err = await response.json();
+      // 如果 404，嘗試更換模型識別碼為 gemini-1.5-flash-latest
       throw new Error(err.error?.message || "請求失敗");
     }
 
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    // 清理 Markdown
     text = text
       .replace(/```json/g, "")
       .replace(/```/g, "")
@@ -148,7 +153,7 @@ export async function importFromImage(e, onComplete) {
     );
     showToast("辨識成功！");
   } catch (err) {
-    console.error(err);
+    console.error("AI辨識錯誤:", err);
     showToast("辨識錯誤: " + err.message);
   } finally {
     e.target.value = "";
