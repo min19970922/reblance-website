@@ -1,5 +1,5 @@
 /**
- * ui.js - 老花友善大字版 (進度條強化)
+ * ui.js - 老花友善與心理預期界面
  */
 import {
   safeNum,
@@ -21,9 +21,7 @@ export function renderAccountList(appState, onSwitch, onDelete) {
     const isActive = acc.id === appState.activeId;
     const div = document.createElement("div");
     div.className = `group flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all ${
-      isActive
-        ? "bg-rose-500 text-white shadow-lg"
-        : "bg-white hover:bg-rose-50 border"
+      isActive ? "bg-rose-500 text-white shadow-lg" : "bg-white border"
     }`;
     div.innerHTML = `
       <div class="flex items-center gap-3 flex-1" onclick="${onSwitch}('${
@@ -43,6 +41,11 @@ export function renderAccountList(appState, onSwitch, onDelete) {
 
 export function renderMainUI(acc) {
   if (!acc) return;
+  document.getElementById(
+    "activeAccountTitle"
+  ).innerHTML = `${acc.name} <i class="fas fa-pen text-xl text-rose-200 ml-4"></i>`;
+
+  // 更新操作塔參數
   document.getElementById("debtInput").value = acc.totalDebt;
   document.getElementById("cashInput").value = acc.currentCash;
   document.getElementById("usdRateInput").value = acc.usdRate;
@@ -75,9 +78,8 @@ function generateAssetRowHTML(asset, index, totalAssets) {
       : "text-rose-400"
     : "text-rose-300 animate-pulse";
 
-  // 移除 w-48 等限制，改用 w-full 配合 table-layout auto
   return `
-    <td>
+    <td class="col-symbol">
       <div class="flex items-center gap-4">
         <div class="flex flex-col"><button onclick="moveAsset(${
           asset.id
@@ -102,21 +104,19 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     }" onchange="updateAsset(${
     asset.id
   },'leverage',this.value)" class="underline-input text-center text-rose-600 w-24"></td>
-    <td><div class="flex items-center gap-2 min-w-[180px]"><input type="number" value="${
+    <td><div class="flex items-center gap-2 w-full"><input type="number" value="${
       asset.price
     }" onchange="updateAsset(${
     asset.id
-  },'price',this.value)" class="underline-input font-mono-data w-full">
+  },'price',this.value)" class="underline-input font-mono-data">
       <button onclick="fetchLivePrice(${asset.id},'${
     asset.name
   }')"><i id="assetSync-${
     asset.id
   }" class="fas fa-sync-alt text-rose-200"></i></button></div></td>
-    <td><div class="min-w-[150px]"><input type="number" value="${
-      asset.shares
-    }" onchange="updateAsset(${
+    <td><input type="number" value="${asset.shares}" onchange="updateAsset(${
     asset.id
-  },'shares',this.value)" class="underline-input font-mono-data w-full"></div></td>
+  },'shares',this.value)" class="underline-input font-mono-data"></td>
     <td id="curVal-${
       asset.id
     }" class="font-mono-data text-rose-950 font-black"></td>
@@ -130,7 +130,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
   },'targetRatio',this.value)" class="underline-input text-center text-rose-900 w-24 font-black">%</td>
     <td id="targetVal-${asset.id}" class="text-center"></td>
     <td id="sugg-${asset.id}" class="text-center"></td>
-    <td class="text-right"><button onclick="removeAsset(${
+    <td><button onclick="removeAsset(${
       asset.id
     })" class="text-rose-100 hover:text-rose-600"><i class="fas fa-trash-alt text-2xl"></i></button></td>`;
 }
@@ -154,49 +154,44 @@ function updateAssetRowData(asset, acc, netValue) {
       ).toLocaleString()}</span>
     </div>`;
 
-  // 五階顏色與觸發閃爍邏輯
-  let barColor = "bg-emerald-500";
-  if (s.saturation > 0.4) barColor = "bg-lime-500";
-  if (s.saturation > 0.6) barColor = "bg-yellow-500";
-  if (s.saturation > 0.8) barColor = "bg-orange-500 pulsate-bar"; // 逼近門檻開始跳動
-  if (s.saturation >= 1) barColor = "bg-rose-600 pulsate-bar"; // 達標紅色跳動
+  // 核心心理進度條邏輯
+  let barColor = "bg-emerald-500"; // 綠
+  if (s.saturation > 0.4) barColor = "bg-lime-500"; // 淺綠
+  if (s.saturation > 0.6) barColor = "bg-yellow-500"; // 黃
+  if (s.saturation > 0.8) barColor = "bg-orange-500 pulsate-bar"; // 橘 + 脈動
+  if (s.saturation >= 1) barColor = "bg-rose-600 pulsate-bar"; // 紅 + 脈動
 
   const isBuy = s.diffNominal > 0;
   const suggCell = document.getElementById(`sugg-${asset.id}`);
 
   if (!s.isTriggered) {
-    // 未達門檻：僅顯示進度條與偏差率，不顯示建議文字
     suggCell.innerHTML = `
       <div class="flex flex-col items-center min-w-[320px]">
         <div class="w-full h-4 bg-gray-100 rounded-full mt-2 overflow-hidden border">
-          <div class="h-full ${barColor} transition-all duration-700" style="width: ${Math.min(
-      s.saturation * 100,
-      100
+          <div class="h-full ${barColor} transition-all duration-700 shadow-inner" style="width: ${Math.round(
+      s.saturation * 100
     )}%"></div>
         </div>
-        <div class="flex justify-between w-full text-sm font-black mt-2 text-rose-300 uppercase">
+        <div class="flex justify-between w-full text-sm font-black mt-2 text-rose-300">
           <span>偏差: ${s.absDiff.toFixed(1)}%</span>
-          <span>達標進度: ${Math.round(s.saturation * 100)}%</span>
+          <span>${Math.round(s.saturation * 100)}% 達標</span>
         </div>
       </div>`;
   } else {
-    // 已達門檻：顯示建議文字與脈動進度條
     suggCell.innerHTML = `
-      <div class="flex flex-col items-center min-w-[320px] scale-105 transition-transform">
+      <div class="flex flex-col items-center min-w-[320px] scale-110 transition-transform">
         <div class="flex items-center gap-4">
           <span class="${
             isBuy ? "text-emerald-500" : "text-rose-700"
-          } font-black text-2xl uppercase tracking-tighter">
-            ${isBuy ? "加碼" : "減持"} $${Math.abs(
+          } font-black text-2xl">${isBuy ? "加碼" : "減持"} $${Math.abs(
       Math.round(s.diffNominal)
-    ).toLocaleString()}
-          </span>
+    ).toLocaleString()}</span>
           <span class="text-rose-900 font-black text-2xl border-l-2 pl-4">${Math.abs(
             s.diffShares
           ).toLocaleString()} 股</span>
         </div>
         <div class="w-full h-4 bg-gray-100 rounded-full mt-2 overflow-hidden border">
-           <div class="h-full ${barColor} transition-all duration-500" style="width: 100%"></div>
+           <div class="h-full ${barColor} shadow-inner" style="width: 100%"></div>
         </div>
       </div>`;
   }
