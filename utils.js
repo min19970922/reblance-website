@@ -105,50 +105,48 @@ export async function importFromImage(e, onComplete) {
     } = await worker.recognize(file);
     await worker.terminate();
 
-    // 1. 預處理：移除千分位逗號，統一空白
-    const cleanText = text.replace(/,/g, "");
-    const tokens = cleanText.split(/\s+/);
+    // 1. 預處理：按行分割，並移除千分位逗號
+    const lines = text.split("\n");
     const newAssets = [];
 
-    // 2. 智慧掃描：尋找 [代碼] + [跳過數個] + [股數] 的模式
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
+    // 2. 逐行掃描：針對您的截圖佈局進行優化
+    lines.forEach((line) => {
+      const cleanLine = line.replace(/,/g, "");
 
-      // 判斷是否為台股/美股代碼 (4-6位數字或字母，且排除純日期)
-      const isTicker = /^[0-9A-Z]{4,6}$/.test(token) && !/\d{8}/.test(token);
+      // 搜尋 4-6 位的標的代碼 (允許代碼後面直接接名稱)
+      const tickerMatch = cleanLine.match(/([0-9A-Z]{4,6})/);
 
-      if (isTicker || token.includes("明細")) {
-        let code = isTicker ? token : tokens[i + 1];
-        if (!code) continue;
+      if (tickerMatch) {
+        const finalCode = tickerMatch[1];
 
-        // 如果是從「明細」關鍵字找起，代碼通常在後面
-        const potentialCode = code.match(/^[0-9A-Z]{4,6}/);
-        if (!potentialCode) continue;
+        // 在同一行代碼之後，尋找第一個數字 (股數)
+        // 排除掉代碼本身，從代碼位置之後開始找數字
+        const remainingText = cleanLine.substring(
+          tickerMatch.index + finalCode.length
+        );
+        const numbers = remainingText.match(/\d+/g);
 
-        const finalCode = potentialCode[0].toUpperCase();
+        if (numbers && numbers.length > 0) {
+          // 通常股數是代碼後的第一個純數字塊
+          const shares = parseInt(numbers[0]);
 
-        // 股數偵測邏輯：在代碼附近的 5 個 token 內尋找大於 0 的純整數
-        for (let j = 1; j <= 5; j++) {
-          const nextVal = parseInt(tokens[i + j]);
-          if (!isNaN(nextVal) && nextVal > 0 && nextVal % 1 === 0) {
+          if (shares > 0) {
             newAssets.push({
               id: Date.now() + Math.random(),
               name: finalCode,
               fullName: "---",
               price: 0,
-              shares: nextVal,
+              shares: shares,
               leverage: 1,
               targetRatio: 0,
             });
-            i += j; // 成功找到後跳過已處理的 token
-            break;
           }
         }
       }
-    }
+    });
 
     if (newAssets.length > 0) {
-      // 簡單去重
+      // 依據代碼去重
       const uniqueAssets = Array.from(
         new Map(newAssets.map((a) => [a.name, a])).values()
       );
@@ -158,7 +156,7 @@ export async function importFromImage(e, onComplete) {
       showToast("未能辨識有效標的，請嘗試更清晰的照片");
     }
   } catch (err) {
-    console.error(err);
+    console.error("OCR 錯誤:", err);
     showToast("辨識發生錯誤");
   } finally {
     e.target.value = "";
