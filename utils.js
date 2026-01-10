@@ -105,6 +105,7 @@ export async function importFromImage(e, onComplete) {
     } = await worker.recognize(file);
     await worker.terminate();
 
+    // 只取「明細」之後的文字，過濾標頭雜訊
     const keyword = "明細";
     const startIdx = text.indexOf(keyword);
     const relevantText =
@@ -119,28 +120,34 @@ export async function importFromImage(e, onComplete) {
 
       if (tickerMatch) {
         let finalCode = tickerMatch[1].toUpperCase();
-        if (finalCode.length === 6 && finalCode.endsWith("1")) {
+        if (finalCode.length === 6 && finalCode.endsWith("1"))
           finalCode = finalCode.slice(0, -1) + "L";
-        }
 
         const afterTicker = cleanLine.substring(
           tickerMatch.index + tickerMatch[1].length
         );
 
+        /**
+         * 股數定位邏輯優化：
+         * 1. 尋找「類別關鍵字」後的第一組數字 (跳過名稱中的50、2)
+         * 2. 股數通常大於 0 且在價格(均價)之前
+         */
         const categoryMatch = afterTicker.match(
-          /(?:現買|擔保品|融資|普通|庫存|現賣|融券)[^\d]*(\d{1,})/
+          /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買)[^\d]*(\d{1,})/
         );
 
         let shares = 0;
         if (categoryMatch && categoryMatch[1]) {
           shares = parseInt(categoryMatch[1]);
         } else {
-          // 2. 備用方案：抓取該行「最後一個」數字塊 (因為股數通常在該行末尾或偏後方)
+          // 備用方案：抓取剩餘文字中第一個長度大於1的數字 (排除單一數字的名稱干擾)
           const allNums = afterTicker.match(/\d+/g);
-          if (allNums && allNums.length > 0) {
-            shares = parseInt(allNums[allNums.length - 1]);
+          if (allNums) {
+            const found = allNums.find((n) => n.length >= 2);
+            shares = found ? parseInt(found) : parseInt(allNums[0]);
           }
         }
+
         if (shares > 0) {
           newAssets.push({
             id: Date.now() + Math.random(),
