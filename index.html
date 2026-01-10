@@ -13,7 +13,6 @@
       rel="stylesheet"
     />
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -58,15 +57,35 @@
               載入中...
             </h2>
           </div>
-          <div class="flex items-center gap-4">
+
+          <div class="flex items-center gap-3">
+            <div
+              class="flex items-center bg-white border border-rose-100 rounded-xl px-3 py-2 gap-2 shadow-sm"
+            >
+              <i class="fas fa-key text-rose-300 text-sm"></i>
+              <input
+                type="password"
+                id="apiKeyInput"
+                placeholder="Gemini Key"
+                class="outline-none text-xs w-28 font-mono"
+              />
+              <button
+                id="saveKeyBtn"
+                class="bg-rose-500 text-white text-[10px] px-2 py-1 rounded-md font-black hover:bg-rose-600"
+              >
+                儲存
+              </button>
+            </div>
+
             <button
               id="btnExport"
-              class="px-6 py-3 bg-white border border-emerald-200 text-emerald-700 font-black rounded-xl hover:bg-emerald-50 shadow-sm"
+              class="px-4 py-3 bg-white border border-emerald-200 text-emerald-700 font-black rounded-xl hover:bg-emerald-50 shadow-sm flex items-center gap-2"
             >
               <i class="fas fa-file-export"></i> 匯出
             </button>
+
             <label
-              class="px-6 py-3 bg-white border border-amber-200 text-amber-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm"
+              class="px-4 py-3 bg-white border border-amber-200 text-amber-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm hover:bg-amber-50"
             >
               <i class="fas fa-file-import"></i> 匯入
               <input
@@ -76,8 +95,9 @@
                 accept=".xlsx"
               />
             </label>
+
             <label
-              class="px-6 py-3 bg-white border border-rose-200 text-rose-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm hover:bg-rose-50"
+              class="px-4 py-3 bg-white border border-rose-200 text-rose-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm hover:bg-rose-50"
             >
               <i class="fas fa-camera"></i> 照片辨識
               <input
@@ -87,11 +107,12 @@
                 accept="image/*"
               />
             </label>
+
             <button
               id="btnDeleteAccount"
-              class="p-3 text-rose-200 hover:text-rose-600"
+              class="p-2 text-rose-200 hover:text-rose-600"
             >
-              <i class="fas fa-trash-alt text-3xl"></i>
+              <i class="fas fa-trash-alt text-2xl"></i>
             </button>
           </div>
         </div>
@@ -122,17 +143,15 @@
               <div id="maintenanceRatio" class="font-mono-data">N/A</div>
             </div>
           </div>
-
           <div class="params-row-tight">
             <div class="input-unit">
               <label>貸款/負債 (Loan)</label>
               <div class="input-box">
-                <span>$</span>
-                <input
+                <span>$</span
+                ><input
                   type="number"
                   id="debtInput"
                   class="flat-input"
-                  placeholder="0"
                   oninput="updateGlobal('totalDebt', this.value)"
                 />
               </div>
@@ -140,12 +159,11 @@
             <div class="input-unit">
               <label>現金餘額 (Cash)</label>
               <div class="input-box">
-                <span>$</span>
-                <input
+                <span>$</span
+                ><input
                   type="number"
                   id="cashInput"
                   class="flat-input"
-                  placeholder="0"
                   oninput="updateGlobal('currentCash', this.value)"
                 />
               </div>
@@ -171,8 +189,7 @@
                   step="0.1"
                   class="flat-input"
                   oninput="updateGlobal('rebalanceAbs', this.value)"
-                />
-                <span class="text-rose-200">%</span>
+                /><span class="text-rose-200">%</span>
               </div>
             </div>
             <div class="input-unit-small">
@@ -184,8 +201,7 @@
                   step="0.1"
                   class="flat-input"
                   oninput="updateGlobal('rebalanceRel', this.value)"
-                />
-                <span class="text-rose-200">%</span>
+                /><span class="text-rose-200">%</span>
               </div>
             </div>
           </div>
@@ -240,9 +256,23 @@
     >
       <i class="fas fa-bell text-rose-400"></i> <span id="toastMsg"></span>
     </div>
+
     <script>
-      // 將你的 API Key 填入此處
-      window.GEMINI_API_KEY = "AIzaSyDBVzd4MvTpjWO89W6anzIzQvZlaIGrG5k";
+      (function () {
+        const savedKey = localStorage.getItem("GEMINI_API_KEY");
+        if (savedKey) {
+          window.GEMINI_API_KEY = savedKey;
+          document.getElementById("apiKeyInput").value = savedKey;
+        }
+        document.getElementById("saveKeyBtn").addEventListener("click", () => {
+          const val = document.getElementById("apiKeyInput").value.trim();
+          if (val) {
+            localStorage.setItem("GEMINI_API_KEY", val);
+            window.GEMINI_API_KEY = val;
+            alert("API Key 已儲存至瀏覽器");
+          }
+        });
+      })();
     </script>
     <script type="module" src="main.js"></script>
   </body>

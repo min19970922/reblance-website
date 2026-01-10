@@ -1,15 +1,9 @@
 /**
- * utils.js - 終極跨裝置相容版 (v5.3)
- * 1. 徹底過濾標頭噪音 (17040 總股數)
- * 2. 智慧排除標的名稱數字 (如 50正2)
- * 3. 解決手機 7 000 斷裂與辨識位移
+ * utils.js - 動態 Key 加強版
  */
 import { safeNum } from "./state.js";
 import { showToast } from "./ui.js";
 
-/**
- * 匯出 Excel
- */
 export function exportExcel(acc) {
   if (!acc) return;
   const data = [
@@ -38,9 +32,6 @@ export function exportExcel(acc) {
   XLSX.writeFile(wb, `${acc.name}_財務快照.xlsx`);
 }
 
-/**
- * 匯入 Excel
- */
 export function importExcel(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -91,7 +82,18 @@ export async function importFromImage(e, onComplete) {
   if (!file) return;
 
   const showToast = window.showToast || console.log;
-  showToast("啟動 AI 視覺大腦辨識 (v28.2)...");
+
+  // --- 關鍵修正：優先從全域或 LocalStorage 讀取 ---
+  const apiKey =
+    window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
+
+  if (!apiKey || apiKey.length < 10) {
+    showToast("❌ 請先在上方輸入並儲存 API Key");
+    e.target.value = "";
+    return;
+  }
+
+  showToast("啟動 AI 視覺大腦辨識...");
 
   const fileToBase64 = (file) =>
     new Promise((resolve, reject) => {
@@ -103,38 +105,20 @@ export async function importFromImage(e, onComplete) {
 
   try {
     const base64Image = await fileToBase64(file);
-
-    // --- 修正點 1：確保從 window 讀取到最新值 ---
-    // 有時候因為模組化載入順序，直接用變數會抓不到，改用 window.XXX 確保讀取全域
-    const apiKey = window.GEMINI_API_KEY;
-
-    // 嚴格檢查：如果抓不到或是預設字串，直接中斷
-    if (!apiKey || apiKey === "你的_API_KEY_字串" || apiKey.length < 10) {
-      throw new Error(
-        "API Key 尚未設定。請檢查 index.html 中的 window.GEMINI_API_KEY"
-      );
-    }
-
-    // --- 修正點 2：更正模型名稱與網址 ---
-    // 確保使用 1.5 系列，不要使用 2.5 (目前不存在)
-    const model = "gemini-1.5-flash";
-    const mimeType = file.type || "image/png";
-
-    // 構建 API 網址 (確保 apiKey 有被填入)
+    const model = "gemini-1.5-flash"; // 修正模型
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    const systemPrompt = `你是一位專業的台灣證券數據分析師...`;
-    const userQuery = "請將這張截圖中的所有持股代號與股數轉換為 JSON 陣列。";
+    const systemPrompt = `你是一位專業的台灣證券數據分析師，請從圖片中提取持股代號(name)與股數(shares)，並以 JSON 格式輸出：{"assets": [{"name":"2330","shares":1000}]}`;
 
     const payload = {
       contents: [
         {
           role: "user",
           parts: [
-            { text: userQuery },
+            { text: "請分析這張截圖中的所有持股與股數。" },
             {
               inlineData: {
-                mimeType: mimeType,
+                mimeType: file.type || "image/png",
                 data: base64Image.split(",")[1],
               },
             },
@@ -142,14 +126,9 @@ export async function importFromImage(e, onComplete) {
         },
       ],
       systemInstruction: { parts: [{ text: systemPrompt }] },
-      generationConfig: {
-        responseMimeType: "application/json",
-        // 注意：如果 API 報 400 錯誤，可能是 responseSchema 格式問題，
-        // 建議先移除 responseSchema 測試，或確保格式完全正確。
-      },
+      generationConfig: { responseMimeType: "application/json" },
     };
 
-    let assets = [];
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -158,19 +137,12 @@ export async function importFromImage(e, onComplete) {
 
     if (!response.ok) {
       const errData = await response.json();
-      // 如果這裡報 403，請檢查 Google Cloud Console 裡的 API 是否已啟動
-      throw new Error(
-        errData.error?.message || `請求失敗 (${response.status})`
-      );
+      throw new Error(errData.error?.message || "請求失敗");
     }
 
     const result = await response.json();
     const rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (rawJson) {
-      const parsedData = JSON.parse(rawJson);
-      assets = parsedData.assets || [];
-    }
+    let assets = rawJson ? JSON.parse(rawJson).assets || [] : [];
 
     if (assets.length > 0) {
       const formattedAssets = assets
@@ -183,17 +155,16 @@ export async function importFromImage(e, onComplete) {
           leverage: 1,
           targetRatio: 0,
         }))
-        .filter((a) => a.name.length >= 4 && a.shares > 0);
+        .filter((a) => a.name.length >= 2 && a.shares > 0);
 
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能從圖片中辨識出有效的股號或股數");
+      showToast("AI 未能辨識出有效資產");
     }
   } catch (err) {
-    console.error("AI辨識詳細錯誤:", err);
-    // 這裡會顯示具體的錯誤原因，例如 "API Key not found"
-    showToast(`錯誤: ${err.message}`);
+    console.error("AI辨識錯誤:", err);
+    showToast(`辨識失敗: ${err.message}`);
   } finally {
     e.target.value = "";
   }
