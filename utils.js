@@ -127,26 +127,20 @@ export async function importFromImage(e, onComplete) {
           tickerMatch.index + tickerMatch[1].length
         );
 
-        /**
-         * 大師級優化：精準股數過濾器
-         * 排除名稱中的 50, 0050, 正2，專門尋找「類別關鍵字」後的數字
-         */
         const categoryMatch = afterTicker.match(
-          /(?:現買|現賣|擔保品|融資|融券|普通|庫存)\)?\s*(\d{1,})/
+          /(?:現買|擔保品|融資|普通|庫存|現賣|融券)\)?\s*(\d+)/
         );
 
         let shares = 0;
         if (categoryMatch && categoryMatch[1]) {
           shares = parseInt(categoryMatch[1]);
         } else {
-          // 備用方案：尋找該行中「非代碼」且「數值較大」的整數
-          const numbers = afterTicker.match(/\b\d{1,}\b/g);
-          if (numbers) {
-            // 排除掉長度小於 3 且不是最後一個數字的干擾項
-            shares = parseInt(numbers[numbers.length - 1]);
+          // 2. 備用方案：抓取該行「最後一個」數字塊 (因為股數通常在該行末尾或偏後方)
+          const allNums = afterTicker.match(/\d+/g);
+          if (allNums && allNums.length > 0) {
+            shares = parseInt(allNums[allNums.length - 1]);
           }
         }
-
         if (shares > 0) {
           newAssets.push({
             id: Date.now() + Math.random(),

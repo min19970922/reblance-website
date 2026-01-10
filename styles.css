@@ -115,17 +115,6 @@ main {
   letter-spacing: -1px;
 }
 
-.params-row-tight {
-  background: white;
-  border: 2px solid #fff1f2;
-  border-radius: 20px;
-  gap: 0;
-  box-shadow: 0 5px 20px -10px rgba(0, 0, 0, 0.05);
-  margin-top: 20px;
-  margin-bottom: 30px;
-  overflow: hidden;
-}
-
 /* 核心修復：自動寬度輸入框疊加邏輯 */
 .input-col-wrapper {
   position: relative;
