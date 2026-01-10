@@ -1,6 +1,6 @@
 /**
  * ui.js
- * 職責：負責所有畫面的更新、HTML 字串生成、動畫觸發與使用者互動反饋
+ * 職責：負責畫面的更新、HTML 生成、以及確保非同步抓取的資料能即時反應
  */
 import {
   safeNum,
@@ -55,10 +55,11 @@ export function renderAccountList(appState, onSwitch, onDelete) {
 export function renderMainUI(acc) {
   if (!acc) return;
 
-  // 更新基本欄位值
-  document.getElementById(
-    "activeAccountTitle"
-  ).innerHTML = `${acc.name} <i class="fas fa-pen text-2xl text-rose-300 ml-4"></i>`;
+  // 更新基本標題與全局輸入框
+  const titleEl = document.getElementById("activeAccountTitle");
+  if (titleEl)
+    titleEl.innerHTML = `${acc.name} <i class="fas fa-pen text-2xl text-rose-300 ml-4"></i>`;
+
   document.getElementById("debtInput").value = acc.totalDebt;
   document.getElementById("cashInput").value = acc.currentCash;
   document.getElementById("usdRateInput").value = acc.usdRate;
@@ -68,10 +69,8 @@ export function renderMainUI(acc) {
   const body = document.getElementById("assetBody");
   body.innerHTML = "";
 
-  // 取得 state.js 的運算結果
   const data = calculateAccountData(acc);
 
-  // ui.js 的 renderMainUI 函式中
   data.assetsCalculated.forEach((asset, index) => {
     const row = document.createElement("tr");
     row.className = "group";
@@ -82,14 +81,21 @@ export function renderMainUI(acc) {
     );
     body.appendChild(row);
 
-    // 這裡傳入的是『計算過』的 asset，裡面才有 nominalValue
+    // 更新計算出的數據 (曝險額、佔比、建議)
     updateAssetRowData(asset, acc, data.netValue);
   });
 
   updateDashboardUI(data, acc);
 }
-// 4. 輔助：生成資產列 HTML
+
+// 4. 生成資產列 HTML (重點：fullName 的顯示)
 function generateAssetRowHTML(asset, index, totalAssets) {
+  // 如果 fullName 還是空的，顯示 "正在抓取名稱..." 以便使用者知道進度
+  const displayName =
+    asset.fullName && asset.fullName !== "---"
+      ? asset.fullName
+      : "正在載入資訊...";
+
   return `
         <td class="col-symbol">
             <div class="flex items-center gap-4">
@@ -111,9 +117,9 @@ function generateAssetRowHTML(asset, index, totalAssets) {
                     }" onchange="updateAsset(${
     asset.id
   }, 'name', this.value)" class="underline-input uppercase tracking-tighter text-2xl">
-                    <span class="text-sm font-black text-rose-600 mt-1 px-1">${
-                      asset.fullName || "---"
-                    }</span>
+                    <span id="nameLabel-${
+                      asset.id
+                    }" class="text-sm font-black text-rose-600 mt-1 px-1">${displayName}</span>
                 </div>
             </div>
         </td>
@@ -170,7 +176,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     `;
 }
 
-// 5. 輔助：局部更新資產數據 (不重新繪製整列)
+// 5. 局部更新資產數據
 function updateAssetRowData(asset, acc, netValue) {
   if (netValue <= 0) return;
 
@@ -183,6 +189,7 @@ function updateAssetRowData(asset, acc, netValue) {
   document.getElementById(
     `curPct-${asset.id}`
   ).innerText = `${sugg.currentPct.toFixed(1)}%`;
+
   document.getElementById(`targetVal-${asset.id}`).innerHTML = `
         <div class="flex flex-col text-sm font-black items-center">
             <span class="text-rose-950 font-mono-data text-xl tracking-tighter">$${Math.round(
@@ -193,47 +200,25 @@ function updateAssetRowData(asset, acc, netValue) {
             ).toLocaleString()}</span>
         </div>`;
 
-  if (!sugg.isTriggered) {
-    const color =
-      sugg.triggerProgress > 80
-        ? "#f43f5e"
-        : sugg.triggerProgress > 50
-        ? "#fb923c"
-        : "#fb7185";
-    suggCell.innerHTML = `
-            <div class="flex flex-col items-center justify-center w-full px-4">
-                <div class="flex justify-between w-full text-[10px] font-black uppercase text-rose-400 tracking-widest"><span>OK</span><span>${Math.round(
-                  sugg.triggerProgress
-                )}%</span></div>
-                <div class="deviation-bar-bg"><div class="deviation-bar-fill" style="width: ${
-                  sugg.triggerProgress
-                }%; background-color: ${color}"></div></div>
-            </div>`;
-  } else {
-    const isBuy = sugg.diffNominal > 0;
-
-    // 即使沒觸發門檻(Progress < 100%)，我們也直接顯示建議
-    suggCell.innerHTML = `
-      <div class="flex flex-col items-center">
-          <div class="flex items-center gap-3">
-              <span class="${
-                isBuy ? "text-emerald-500" : "text-rose-700"
-              } text-rebalance-big font-bold tracking-tighter">
-                ${isBuy ? "加碼" : "減持"} $${Math.abs(
-      Math.round(sugg.diffNominal)
-    ).toLocaleString()}
-              </span>
-              <span class="text-rose-900 text-rebalance-big border-l-2 border-rose-100 pl-3 tracking-tighter font-bold">
-                ${Math.abs(sugg.diffShares).toLocaleString()} 股
-              </span>
-          </div>
-          <div class="text-[10px] font-black ${
-            sugg.isTriggered ? "text-rose-600" : "text-rose-300"
-          } uppercase tracking-widest mt-1">
-            偏差: ${sugg.absDiff.toFixed(1)}% / 門檻: ${acc.rebalanceAbs}%
-          </div>
-      </div>`;
-  }
+  const isBuy = sugg.diffNominal > 0;
+  suggCell.innerHTML = `
+    <div class="flex flex-col items-center">
+        <div class="flex items-center gap-3">
+            <span class="${
+              isBuy ? "text-emerald-500" : "text-rose-700"
+            } text-rebalance-big font-bold tracking-tighter">
+              ${isBuy ? "加碼" : "減持"} $${Math.abs(
+    Math.round(sugg.diffNominal)
+  ).toLocaleString()}
+            </span>
+            <span class="text-rose-900 text-rebalance-big border-l-2 border-rose-100 pl-3 tracking-tighter font-bold">
+              ${Math.abs(sugg.diffShares).toLocaleString()} 股
+            </span>
+        </div>
+        <div class="text-[10px] font-black text-rose-400 uppercase tracking-widest mt-1">
+          偏差: ${sugg.absDiff.toFixed(1)}% / 門檻: ${acc.rebalanceAbs}%
+        </div>
+    </div>`;
 }
 
 // 6. 看板數據更新
@@ -250,9 +235,10 @@ function updateDashboardUI(data, acc) {
   document.getElementById(
     "targetTotalRatio"
   ).innerText = `${data.targetTotalCombined.toFixed(1)}%`;
-  document
-    .getElementById("levBadge")
-    .classList.toggle("hidden", data.targetTotalCombined <= 100.1);
+
+  const levBadge = document.getElementById("levBadge");
+  if (levBadge)
+    levBadge.classList.toggle("hidden", data.targetTotalCombined <= 100.1);
 
   const mRatioEl = document.getElementById("maintenanceRatio");
   const mCard = document.getElementById("maintenanceCard");
@@ -272,10 +258,12 @@ function updateDashboardUI(data, acc) {
   }
 }
 
-// 7. Toast 提示動畫
+// 7. Toast 提示
 export function showToast(msg) {
   const t = document.getElementById("toast");
-  document.getElementById("toastMsg").innerText = msg;
+  const msgEl = document.getElementById("toastMsg");
+  if (!t || !msgEl) return;
+  msgEl.innerText = msg;
   t.style.opacity = "1";
   t.style.transform = "translateY(-10px)";
   setTimeout(() => {
