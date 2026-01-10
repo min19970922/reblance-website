@@ -87,13 +87,14 @@ export function importExcel(e, onComplete) {
 }
 
 /**
- * utils.js - 辨識邏輯最終修正版
+ * utils.js - 終極跨裝置辨識版 (v4.8)
+ * 解決手機截斷與電腦誤抓手續費問題
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
 
-  showToast("正在辨識資產明細...");
+  showToast("正在智慧辨識 (跨裝置最佳化)...");
 
   try {
     const worker = await Tesseract.createWorker("chi_tra+eng", 1, {
@@ -108,51 +109,50 @@ export async function importFromImage(e, onComplete) {
     } = await worker.recognize(file);
     await worker.terminate();
 
-    // 1. 數據預處理：解決手機辨識問題
-    // 合併被拆散的數字 (例如 "7 000" -> "7000")
-    let processedText = text.replace(/(\d)\s+(?=\d{3}(?!\d))/g, "$1");
-    // 移除千分位逗號
-    processedText = processedText.replace(/,/g, "");
+    // 1. 強力預處理：移除所有逗號，並將「數字+空格+數字」強行合併 (解決 7,000 變成 7 000 的問題)
+    let cleanText = text.replace(/,/g, "");
+    cleanText = cleanText.replace(/(\d)\s+(?=\d)/g, "$1");
 
-    // 2. 定位「明細」起始點
-    const startIdx = processedText.indexOf("明細");
-    const relevantText =
-      startIdx !== -1 ? processedText.substring(startIdx) : processedText;
-
-    const lines = relevantText.split("\n");
+    const lines = cleanText.split("\n");
     const newAssets = [];
 
-    // 3. 逐行分離識別
     lines.forEach((line) => {
-      // 搜尋代碼 (優先尋找「明細」後方的代碼)
-      const tickerMatch = line.match(/(?:明細)?\s*([0-9]{4,5}[A-Z1]?)/);
+      // 搜尋 4-6 位代碼
+      const tickerMatch = line.match(/([0-9]{4,5}[A-Z1]?)/);
 
       if (tickerMatch) {
         let finalCode = tickerMatch[1].toUpperCase();
-        // L/1 校正
         if (finalCode.length === 6 && finalCode.endsWith("1"))
           finalCode = finalCode.slice(0, -1) + "L";
 
+        // 截取代碼後的剩餘文字
         const afterTicker = line.substring(
-          tickerMatch.index + tickerMatch[0].length
+          tickerMatch.index + tickerMatch[1].length
         );
 
         /**
-         * 股數精準定位：
-         * 跳過名稱(如 50 正 2)，尋找「交易類別關鍵字」後的第一組數字。
-         * 如果沒抓到類別，則抓取代碼後第一個「長度 >= 2」的數字塊（避開正 2 的 2）。
+         * 股數精準抓取邏輯 (針對 125273.jpg 結構)：
+         * 我們要的是「類別」之後、「均價」之前的數字。
+         * 1. 先抓出該行所有的數字區塊
          */
-        const categoryMatch = afterTicker.match(
-          /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買)[^\d]*(\d{1,})/
-        );
+        const allNums = afterTicker.match(/\d+/g);
 
         let shares = 0;
-        if (categoryMatch && categoryMatch[1]) {
-          shares = parseInt(categoryMatch[1]);
-        } else {
-          // 備用：抓取扣除名稱後的首個有效整數
-          const allNums = afterTicker.match(/\d{2,}/g); // 至少兩位數
-          if (allNums) shares = parseInt(allNums[0]);
+        if (allNums && allNums.length >= 1) {
+          // 在券商明細中，股數通常是代碼後出現的第一個「大數字」
+          // 或者是在「現買/擔保品」關鍵字後方的第一個數字
+          const categoryMatch = afterTicker.match(
+            /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買)[^\d]*(\d+)/
+          );
+
+          if (categoryMatch && categoryMatch[1]) {
+            shares = parseInt(categoryMatch[1]);
+          } else {
+            // 備用：如果沒關鍵字，排除掉名稱中的 50 或 2 (即過濾掉值小於 10 且不是最後一個的數字)
+            // 在 125273.jpg 中，股數 7000 或 10000 一定是剩下數字裡最大的或最前面的大整數
+            const bigNums = allNums.filter((n) => parseInt(n) > 5); // 過濾掉 正2 這種干擾
+            shares = bigNums.length > 0 ? parseInt(bigNums[0]) : 0;
+          }
         }
 
         if (shares > 0) {
@@ -180,7 +180,7 @@ export async function importFromImage(e, onComplete) {
     }
   } catch (err) {
     console.error("OCR 錯誤:", err);
-    showToast("辨識發生錯誤");
+    showToast("辨識引擎發生衝突");
   } finally {
     e.target.value = "";
   }
