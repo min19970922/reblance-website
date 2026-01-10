@@ -1,58 +1,63 @@
 /**
- * api.js 修正版
+ * api.js
+ * 職責：處理外部數據通訊、更換為 v8 穩定接口、解決 CORS 阻擋
  */
 import { renderMainUI, showToast } from "./ui.js";
 import { saveToStorage } from "./state.js";
 
-// 更新代理列表：使用目前較穩定的代理服務
+// 使用您提供的參考代理列表，這是目前純前端最穩定的組合
 const PROXIES = [
-  "https://corsproxy.io/?", // 優先使用
-  "https://api.allorigins.win/get?url=", // 備用
-  "https://api.codetabs.com/v1/proxy?quest=", // 備用
+  "https://corsproxy.io/?",
+  "https://api.allorigins.win/get?url=",
 ];
 
+/**
+ * 抓取單一資產報價 (換回 v8 chart 接口)
+ */
 export async function fetchLivePrice(id, symbol, appState) {
   if (!symbol) return false;
+
   const icon = document.getElementById(`assetSync-${id}`);
   if (icon) icon.classList.add("fa-spin-fast", "text-rose-600");
 
   let ticker = symbol.trim().toUpperCase();
-  const isTaiwan = /^\d{4,6}/.test(ticker);
+  const isTaiwan = /^\d{4,6}[A-Z]?$/.test(ticker);
 
   const tryFetch = async (targetTicker) => {
-    // 加上 modules=price 以確保能抓到 longName (中文名稱)
-    const yahooUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${targetTicker}?modules=price&lang=zh-Hant-TW&region=TW`;
+    // 換回您參考版本中的 v8 chart URL
+    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d`;
 
     for (let proxy of PROXIES) {
       try {
-        // 修正編碼與請求方式
         const finalUrl = proxy.includes("allorigins")
           ? proxy + encodeURIComponent(yahooUrl)
           : proxy + yahooUrl;
 
-        const res = await fetch(finalUrl, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
-
+        const res = await fetch(finalUrl);
         if (!res.ok) continue;
 
-        const rawData = await res.json();
-        // 解析 AllOrigins 特有的 contents 封裝
-        let data = proxy.includes("allorigins")
-          ? JSON.parse(rawData.contents)
-          : rawData;
+        const json = await res.json();
 
-        const priceObj = data.quoteSummary?.result?.[0]?.price;
-        if (priceObj) {
+        // 關鍵：針對 AllOrigins 的 .contents 字串進行解析
+        let data;
+        if (proxy.includes("allorigins")) {
+          data = JSON.parse(json.contents);
+        } else {
+          data = json;
+        }
+
+        const meta = data.chart?.result?.[0]?.meta;
+        const price = meta?.regularMarketPrice || meta?.previousClose;
+
+        if (price) {
           return {
-            price:
-              priceObj.regularMarketPrice?.raw || priceObj.regularMarketPrice,
-            name: priceObj.longName || priceObj.shortName || priceObj.symbol,
+            price: price,
+            // 抓取 API 提供的名稱，若無則回傳代號
+            name: meta?.shortName || meta?.symbol || targetTicker,
           };
         }
       } catch (e) {
-        console.warn(`代理 ${proxy} 失敗`);
+        console.warn(`代理 ${proxy} 嘗試失敗`);
         continue;
       }
     }
@@ -60,46 +65,55 @@ export async function fetchLivePrice(id, symbol, appState) {
   };
 
   let result = null;
+  // 處理台股自動補完
   if (isTaiwan && !ticker.includes(".")) {
-    // 自動嘗試上市 (.TW) 與 上櫃 (.TWO)
     result =
       (await tryFetch(ticker + ".TW")) || (await tryFetch(ticker + ".TWO"));
   } else {
     result = await tryFetch(ticker);
   }
 
-  if (result && result.price) {
+  if (result) {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     const asset = acc.assets.find((a) => a.id === id);
     if (asset) {
       asset.price = result.price;
-      const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
-      if (result.name && hasChinese(result.name)) {
-        asset.fullName = result.name;
-      }
+
+      // 更新全名 (不再強制過濾中文，直接使用 API 回傳值)
+      asset.fullName = result.name;
+
       saveToStorage();
       renderMainUI(acc);
       if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
       return true;
     }
   }
+
   if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
   return false;
 }
 
+/**
+ * 批次同步所有資產報價
+ */
 export async function syncAllPrices(appState) {
   const mainSync = document.getElementById("syncIcon");
   if (mainSync) mainSync.classList.add("fa-spin-fast");
   showToast("正在更新即時報價...");
 
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
+  let successCount = 0;
+
   for (let asset of acc.assets) {
     if (asset.name) {
-      await fetchLivePrice(asset.id, asset.name, appState);
-      // 將延遲拉長到 1000ms，避開 Yahoo 的連線頻率限制
-      await new Promise((r) => setTimeout(r, 1000));
+      // 呼叫單一更新
+      const success = await fetchLivePrice(asset.id, asset.name, appState);
+      if (success) successCount++;
+      // 參考您提供的 450ms 延遲，保證不會被 Yahoo 封鎖
+      await new Promise((r) => setTimeout(r, 450));
     }
   }
+
   if (mainSync) mainSync.classList.remove("fa-spin-fast");
-  showToast("報價已同步");
+  showToast(successCount > 0 ? "報價已同步" : "報價更新失敗，請檢查網路");
 }
