@@ -78,8 +78,7 @@ export function importExcel(e, onComplete) {
 }
 
 /**
- * AI 圖片辨識匯入功能 - 終極相容解決方案 (v7.0)
- * 解決 404 模型找不到、400 格式錯誤與 403 權限問題
+ * AI 圖片辨識匯入功能 - 穩定版路徑
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
@@ -95,7 +94,7 @@ export async function importFromImage(e, onComplete) {
     return;
   }
 
-  showToast("啟動 AI 視覺大腦辨識 (診斷模式)...");
+  showToast("啟動 AI 視覺大腦辨識...");
 
   const fileToBase64 = (file) =>
     new Promise((resolve, reject) => {
@@ -108,19 +107,14 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // --- 關鍵修正 1：路徑結構 ---
-    // 改回 v1beta 並使用最標準的 gemini-1.5-flash
+    // --- 關鍵修正：改用 v1 穩定版與正確的 URL 參數形式 ---
     const model = "gemini-1.5-flash";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
 
-    // --- 關鍵修正 2：指令 Prompt ---
-    // 直接在 Prompt 要求 JSON，並避開 system_instruction 欄位以求最高相容性
-    const promptText = `你是一位專業的台灣證券數據分析師。
-    請分析這張截圖，提取所有持股代號(name)與股數(shares)。
+    const promptText = `你是一位專業分析師。請提取圖片中的持股代號(name)與股數(shares)。
     請嚴格只回傳 JSON 格式，不要有任何 Markdown 標籤或解釋文字。
     範例格式：{"assets": [{"name":"2330","shares":1000}]}`;
 
-    // --- 關鍵修正 3：payload 結構使用 snake_case (底線命名) ---
     const payload = {
       contents: [
         {
@@ -145,8 +139,6 @@ export async function importFromImage(e, onComplete) {
 
     if (!response.ok) {
       const errData = await response.json();
-      // 如果依然報 404，我們在 console 印出有用資訊
-      console.error("Gemini API 報錯詳情:", errData);
       throw new Error(
         errData.error?.message || `請求失敗 (${response.status})`
       );
@@ -155,7 +147,7 @@ export async function importFromImage(e, onComplete) {
     const result = await response.json();
     let rawJson = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // 清理 Markdown 標籤
+    // 清理 Markdown 標籤以防解析失敗
     rawJson = rawJson
       .replace(/```json/g, "")
       .replace(/```/g, "")
@@ -168,11 +160,10 @@ export async function importFromImage(e, onComplete) {
         assets = parsedData.assets || [];
       } catch (e) {
         console.error("JSON 解析失敗:", rawJson);
-        throw new Error("AI 回傳內容無法解析為 JSON");
+        throw new Error("AI 回傳格式非純 JSON，請再試一次");
       }
     }
 
-    // 格式化數據回傳
     if (assets.length > 0) {
       const formattedAssets = assets
         .map((a) => ({
@@ -191,7 +182,7 @@ export async function importFromImage(e, onComplete) {
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能辨識出有效持股內容");
+      showToast("AI 未能從圖片辨識出有效內容");
     }
   } catch (err) {
     console.error("AI辨識詳細錯誤:", err);
