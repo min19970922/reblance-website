@@ -71,7 +71,7 @@ main {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 15px;
-  margin-bottom: 5px; /* 從 25px 縮小至 10px */
+  margin-bottom: 2px !important; /* 從 25px 縮小至 10px */
 }
 
 .params-row-tight {
@@ -79,7 +79,7 @@ main {
   border: 2px solid #fff1f2;
   border-radius: 15px;
   box-shadow: 0 5px 20px -10px rgba(0, 0, 0, 0.05);
-  margin-top: 0px; /* 徹底消除與上方卡片的間距 */
+  margin-top: 0px !important;
   margin-bottom: 20px;
   display: grid;
   grid-template-columns: repeat(5, 1fr);

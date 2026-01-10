@@ -86,6 +86,9 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
+/**
+ * utils.js - 辨識邏輯最終修正版
+ */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -105,32 +108,39 @@ export async function importFromImage(e, onComplete) {
     } = await worker.recognize(file);
     await worker.terminate();
 
-    // 只取「明細」之後的文字，過濾標頭雜訊
-    const keyword = "明細";
-    const startIdx = text.indexOf(keyword);
+    // 1. 數據預處理：解決手機辨識問題
+    // 合併被拆散的數字 (例如 "7 000" -> "7000")
+    let processedText = text.replace(/(\d)\s+(?=\d{3}(?!\d))/g, "$1");
+    // 移除千分位逗號
+    processedText = processedText.replace(/,/g, "");
+
+    // 2. 定位「明細」起始點
+    const startIdx = processedText.indexOf("明細");
     const relevantText =
-      startIdx !== -1 ? text.substring(startIdx + keyword.length) : text;
+      startIdx !== -1 ? processedText.substring(startIdx) : processedText;
 
     const lines = relevantText.split("\n");
     const newAssets = [];
 
+    // 3. 逐行分離識別
     lines.forEach((line) => {
-      const cleanLine = line.replace(/,/g, "");
-      const tickerMatch = cleanLine.match(/([0-9]{4,5}[A-Z1]?)/);
+      // 搜尋代碼 (優先尋找「明細」後方的代碼)
+      const tickerMatch = line.match(/(?:明細)?\s*([0-9]{4,5}[A-Z1]?)/);
 
       if (tickerMatch) {
         let finalCode = tickerMatch[1].toUpperCase();
+        // L/1 校正
         if (finalCode.length === 6 && finalCode.endsWith("1"))
           finalCode = finalCode.slice(0, -1) + "L";
 
-        const afterTicker = cleanLine.substring(
-          tickerMatch.index + tickerMatch[1].length
+        const afterTicker = line.substring(
+          tickerMatch.index + tickerMatch[0].length
         );
 
         /**
-         * 股數定位邏輯優化：
-         * 1. 尋找「類別關鍵字」後的第一組數字 (跳過名稱中的50、2)
-         * 2. 股數通常大於 0 且在價格(均價)之前
+         * 股數精準定位：
+         * 跳過名稱(如 50 正 2)，尋找「交易類別關鍵字」後的第一組數字。
+         * 如果沒抓到類別，則抓取代碼後第一個「長度 >= 2」的數字塊（避開正 2 的 2）。
          */
         const categoryMatch = afterTicker.match(
           /(?:現買|擔保品|融資|普通|庫存|現賣|融券|現|買)[^\d]*(\d{1,})/
@@ -140,12 +150,9 @@ export async function importFromImage(e, onComplete) {
         if (categoryMatch && categoryMatch[1]) {
           shares = parseInt(categoryMatch[1]);
         } else {
-          // 備用方案：抓取剩餘文字中第一個長度大於1的數字 (排除單一數字的名稱干擾)
-          const allNums = afterTicker.match(/\d+/g);
-          if (allNums) {
-            const found = allNums.find((n) => n.length >= 2);
-            shares = found ? parseInt(found) : parseInt(allNums[0]);
-          }
+          // 備用：抓取扣除名稱後的首個有效整數
+          const allNums = afterTicker.match(/\d{2,}/g); // 至少兩位數
+          if (allNums) shares = parseInt(allNums[0]);
         }
 
         if (shares > 0) {
