@@ -79,7 +79,8 @@ export function importExcel(e, onComplete) {
 }
 
 /**
- * AI 圖片辨識匯入功能 - 穩定路徑修正版
+ * AI 圖片辨識匯入功能 - REST API 格式修正版
+ * 解決 Unknown name "systemInstruction" 與 "responseMimeType" 的問題
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
@@ -110,13 +111,14 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // --- 關鍵修正：改用 v1 穩定版端點 ---
+    // 2. API 端點與模型設定
     const model = "gemini-1.5-flash";
     const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
 
     const systemPrompt = `你是一位專業的台灣證券數據分析師，請從圖片中提取持股代號(name)與股數(shares)。
     請嚴格以 JSON 格式輸出：{"assets": [{"name":"2330","shares":1000}]}`;
 
+    // --- 核心修正：將所有 Key 改為底線命名法 (snake_case) ---
     const payload = {
       contents: [
         {
@@ -132,14 +134,18 @@ export async function importFromImage(e, onComplete) {
           ],
         },
       ],
-      // 在 v1 中建議將指令包含在 systemInstruction
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      generationConfig: {
-        responseMimeType: "application/json",
+      // 修正：systemInstruction -> system_instruction
+      system_instruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      // 修正：generationConfig -> generation_config
+      generation_config: {
+        // 修正：responseMimeType -> response_mime_type
+        response_mime_type: "application/json",
       },
     };
 
-    // 2. 執行請求
+    // 3. 執行請求
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -158,11 +164,16 @@ export async function importFromImage(e, onComplete) {
 
     let assets = [];
     if (rawJson) {
-      const parsedData = JSON.parse(rawJson);
-      assets = parsedData.assets || [];
+      try {
+        const parsedData = JSON.parse(rawJson);
+        assets = parsedData.assets || [];
+      } catch (e) {
+        console.error("JSON 解析失敗:", rawJson);
+        throw new Error("AI 回傳格式異常");
+      }
     }
 
-    // 3. 處理辨識結果
+    // 4. 處理辨識結果
     if (assets.length > 0) {
       const formattedAssets = assets
         .map((a) => ({
@@ -181,7 +192,7 @@ export async function importFromImage(e, onComplete) {
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能辨識出內容");
+      showToast("AI 未能辨識出有效資產");
     }
   } catch (err) {
     console.error("AI辨識詳細錯誤:", err);
