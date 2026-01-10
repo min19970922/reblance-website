@@ -1,6 +1,5 @@
 /**
  * ui.js
- * 修正：強化名稱顯示邏輯與載入動畫樣式
  */
 import {
   safeNum,
@@ -77,10 +76,11 @@ export function renderMainUI(acc) {
 }
 
 function generateAssetRowHTML(asset, index, totalAssets) {
-  // 判定是否已有中文名 (正則表達式判定)
-  const hasFullName = asset.fullName && /[\u4e00-\u9fa5]/.test(asset.fullName);
-  const displayName = hasFullName ? asset.fullName : "正在載入資訊...";
-  const nameColor = hasFullName
+  // 修正：如果 fullName 已經有內容（不管是代號還是中文），就直接顯示
+  const hasContent =
+    asset.fullName && asset.fullName !== "" && asset.fullName !== "---";
+  const displayName = hasContent ? asset.fullName : "正在載入資訊...";
+  const nameColor = hasContent
     ? "text-rose-600"
     : "text-rose-300 animate-pulse";
 

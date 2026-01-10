@@ -1,7 +1,7 @@
 /**
- * api.js - 終極穩定版
- * 報價：Yahoo v8 Chart (抓取報價最穩)
- * 名稱：Yahoo v7 Quote (中文全稱最準)
+ * api.js - 自動回退版
+ * 報價：Yahoo v8 Chart
+ * 名稱：Yahoo Search API (抓不到則回傳代號)
  */
 import { renderMainUI, showToast } from "./ui.js";
 import { saveToStorage } from "./state.js";
@@ -13,24 +13,28 @@ const PROXIES = [
 ];
 
 /**
- * 專職獲取繁體中文名稱 (v7 接口)
+ * 抓取繁體中文全名
  */
-async function fetchNameV7(targetTicker) {
-  const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${targetTicker}&lang=zh-Hant-TW&region=TW`;
+async function fetchChineseName(ticker) {
+  // 針對基金或債券，Search 接口通常需要乾淨的代號
+  const cleanTicker = ticker.split(".")[0];
+  const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${cleanTicker}&quotesCount=1&newsCount=0&lang=zh-Hant-TW&region=TW`;
+
   for (let proxy of PROXIES) {
     try {
       const finalUrl = proxy.includes("allorigins")
-        ? proxy + encodeURIComponent(yahooUrl)
-        : proxy + yahooUrl;
+        ? proxy + encodeURIComponent(searchUrl)
+        : proxy + searchUrl;
       const res = await fetch(finalUrl);
       if (!res.ok) continue;
-      const json = await res.json();
+
+      const rawData = await res.json();
       const data = proxy.includes("allorigins")
-        ? JSON.parse(json.contents)
-        : json;
-      const result = data.quoteResponse?.result?.[0];
-      if (result && (result.longName || result.shortName)) {
-        return result.longName || result.shortName;
+        ? JSON.parse(rawData.contents)
+        : rawData;
+
+      if (data.quotes && data.quotes.length > 0) {
+        return data.quotes[0].longname || data.quotes[0].shortname;
       }
     } catch (e) {
       continue;
@@ -39,17 +43,13 @@ async function fetchNameV7(targetTicker) {
   return null;
 }
 
-/**
- * 抓取單一資產報價 (v8) 與名稱 (v7)
- */
 export async function fetchLivePrice(id, symbol, appState) {
   if (!symbol) return false;
   const icon = document.getElementById(`assetSync-${id}`);
   if (icon) icon.classList.add("fa-spin-fast", "text-rose-600");
 
   let ticker = symbol.trim().toUpperCase();
-  // 支援台股代號與債券格式 (如 00722B)
-  const isTWStyle = /^\d{4,6}[A-Z]?$/.test(ticker);
+  const isTaiwanAsset = /^\d{4,6}[A-Z]?$/.test(ticker);
 
   const tryFetchPriceV8 = async (targetTicker) => {
     const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${targetTicker}?interval=1m&range=1d`;
@@ -80,10 +80,9 @@ export async function fetchLivePrice(id, symbol, appState) {
     return null;
   };
 
-  // 1. 執行報價抓取 (v8 優先)
+  // 1. 報價輪詢
   let result = null;
-  if (isTWStyle && !ticker.includes(".")) {
-    // 依序嘗試上市 (.TW) 與 上櫃 (.TWO)
+  if (isTaiwanAsset && !ticker.includes(".")) {
     result =
       (await tryFetchPriceV8(ticker + ".TW")) ||
       (await tryFetchPriceV8(ticker + ".TWO"));
@@ -91,35 +90,38 @@ export async function fetchLivePrice(id, symbol, appState) {
     result = await tryFetchPriceV8(ticker);
   }
 
-  // 2. 更新數據並執行 UI 連動
+  // 2. 更新數據
   if (result) {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     const asset = acc.assets.find((as) => as.id === id);
     if (asset) {
       asset.price = result.price;
-
-      // 價格更新後立刻存檔並重新計算建議文字
       saveToStorage();
       renderMainUI(acc);
 
-      // 3. 非同步抓取名稱 (v7)
-      fetchNameV7(result.finalTicker).then((name) => {
+      // 3. 名稱抓取邏輯：抓不到就回傳代號
+      fetchChineseName(result.finalTicker).then((name) => {
+        const label = document.getElementById(`nameLabel-${id}`);
         const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
+
         if (name && hasChinese(name)) {
           asset.fullName = name;
-          saveToStorage();
-
-          // 強制 DOM 直攻：直接更新 Label 內容，確保中文顯示
-          const label = document.getElementById(`nameLabel-${id}`);
           if (label) {
             label.innerText = name;
             label.classList.remove("text-rose-300", "animate-pulse");
             label.classList.add("text-rose-600");
           }
+        } else {
+          // --- 重點：抓不到名稱時，直接顯示代號並停止 Loading ---
+          asset.fullName = ticker;
+          if (label) {
+            label.innerText = ticker;
+            label.classList.remove("text-rose-300", "animate-pulse");
+            label.classList.add("text-rose-400"); // 用較淡的顏色代表這是代號
+          }
         }
+        saveToStorage();
       });
-
-      if (!asset.fullName || asset.fullName === "---") asset.fullName = ticker;
 
       if (icon) icon.classList.remove("fa-spin-fast", "text-rose-600");
       return true;
@@ -133,19 +135,15 @@ export async function fetchLivePrice(id, symbol, appState) {
 export async function syncAllPrices(appState) {
   const mainSync = document.getElementById("syncIcon");
   if (mainSync) mainSync.classList.add("fa-spin-fast");
-  showToast("正在分流抓取報價 (v8) 與名稱 (v7)...");
+  showToast("更新報價中...");
 
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
-  let successCount = 0;
-
   for (let asset of acc.assets) {
     if (asset.name) {
-      const success = await fetchLivePrice(asset.id, asset.name, appState);
-      if (success) successCount++;
-      await new Promise((r) => setTimeout(r, 1000)); // 提高延遲確保 Proxy 穩定
+      await fetchLivePrice(asset.id, asset.name, appState);
+      await new Promise((r) => setTimeout(r, 1000));
     }
   }
-
   if (mainSync) mainSync.classList.remove("fa-spin-fast");
-  showToast(successCount > 0 ? `同步完成: ${successCount} 筆` : "更新失敗");
+  showToast("同步完成");
 }
