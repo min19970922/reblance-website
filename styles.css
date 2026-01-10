@@ -14,7 +14,7 @@ body {
   overflow-x: auto;
 }
 
-/* 1. 佈局架構 - 移除寬度上限 */
+/* 1. 佈局 - 全螢幕 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
@@ -147,7 +147,7 @@ td:last-child {
   border-radius: 0 20px 20px 0;
 }
 
-/* 輸入框寬度 Auto：移除 w-full，讓寬度由文字長度決定 */
+/* 輸入框寬度 Auto：移除 w-full，讓寬度由內容長度決定 */
 .underline-input {
   background: transparent;
   border-bottom: 3px solid #fecdd3;
