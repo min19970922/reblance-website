@@ -107,119 +107,72 @@ export function importExcel(e, onComplete) {
 }
 
 /**
- * utils.js - 智投穩定版 (v50.0)
- * 解決 429 配額限制，針對 2026 模型清單進行路徑優化
+ * AI 照片辨識：修正 Base64 處理與合併邏輯
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
-
-  const showToast = window.showToast || console.log;
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
+  if (!apiKey) return showToast("❌ 請設定 API Key");
 
-  if (!apiKey || apiKey.length < 10) {
-    showToast("❌ 請先設定並儲存 API Key");
-    e.target.value = "";
-    return;
-  }
+  showToast("🚀 啟動 AI 視覺辨識(含槓桿判斷)...");
 
-  showToast("🚀 啟動 AI 視覺辨識中...");
-
-  const fileToBase64 = (file) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = (error) => reject(error);
-    });
-
-  // 指數退避重試函式，避免連續點擊導致 429 加劇
-  async function fetchWithRetry(url, options, retries = 2, delay = 5000) {
-    const res = await fetch(url, options);
-    if (res.status === 429 && retries > 0) {
-      showToast(`⏳ AI 忙碌，${delay / 1000}秒後自動重試...`);
-      await new Promise(r => setTimeout(r, delay));
-      return fetchWithRetry(url, options, retries - 1, delay * 2);
-    }
-    return res;
-  }
+  const fileToBase64 = (f) => new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(f);
+    reader.onload = () => resolve(reader.result);
+  });
 
   try {
-    const base64Image = await fileToBase64(file);
+    const base64Data = await fileToBase64(file);
+    const base64Content = base64Data.split(",")[1];
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
-    // --- 關鍵修正：使用您 2026 清單中負擔最輕的 Lite 模型 ---
-    const model = "gemini-2.0-flash-lite";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    // 重新設計指令：強制要求精確 JSON，分開辨識與邏輯
+    const promptText = `請分析此股票庫存截圖。
+    1. 提取所有持股代號(name)與總股數(shares)。
+    2. 判斷槓桿倍數(leverage)：標的含「正2」、「L」、「2X」或「兩倍」給 2.0，其餘給 1.0。
+    3. 同代號出現多次請合併股數。
+    只回傳 JSON 格式：{"assets": [{"name":"代號","shares":1000,"leverage":1.0}]}`;
 
-    // 極簡化指令：降低 Token 消耗，防止觸發 TPM 限制
-    const promptText = `Extract JSON: {"assets":[{"name":"TICKER","shares":100}]}.`;
-
-    const payload = {
-      contents: [
-        {
-          parts: [
-            { text: promptText },
-            {
-              inline_data: {
-                mime_type: file.type || "image/png",
-                data: base64Image.split(",")[1],
-              },
-            },
-          ],
-        },
-      ],
-    };
-
-    // 請求前強制冷卻 1 秒，避開 RPM 偵測
-    await new Promise(r => setTimeout(r, 1000));
-
-    const response = await fetchWithRetry(apiUrl, {
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: file.type || "image/png", data: base64Content } }] }] })
     });
-
-    if (!response.ok) {
-      const errData = await response.json();
-      if (response.status === 429) {
-        throw new Error("API 配額已乾涸。請更換 API Key 或將圖片裁減縮小後再試。");
-      }
-      throw new Error(errData.error?.message || `請求失敗 (${response.status})`);
-    }
 
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
     if (text) {
-      const parsedData = JSON.parse(text);
-      const assets = parsedData.assets || [];
-
-      if (assets.length > 0) {
-        const formattedAssets = assets.map((a) => ({
-          id: Date.now() + Math.random(),
-          name: (a.name || "").toString().toUpperCase().trim(),
-          fullName: "---",
-          price: 0,
-          shares: Math.abs(parseInt(a.shares.toString().replace(/,/g, "")) || 0),
-          leverage: 1, // 預設 1x，若有需要可在此加入槓桿判斷邏輯
-          targetRatio: 0,
-          isLocked: false
-        })).filter((a) => a.name.length >= 2 && a.shares > 0);
-
-        onComplete(formattedAssets);
-        showToast(`✅ 辨識成功！發現 ${formattedAssets.length} 筆資產`);
-      } else {
-        showToast("AI 未能辨識出有效內容");
-      }
+      const rawAssets = JSON.parse(text).assets || [];
+      const mergedMap = new Map();
+      rawAssets.forEach((a) => {
+        const name = (a.name || "").toString().toUpperCase().trim();
+        const shares = Math.abs(parseInt(a.shares.toString().replace(/,/g, "")) || 0);
+        const leverage = parseFloat(a.leverage) || 1.0;
+        if (name && shares > 0) {
+          const existing = mergedMap.get(name) || { shares: 0, leverage };
+          mergedMap.set(name, { shares: existing.shares + shares, leverage });
+        }
+      });
+      const formattedAssets = Array.from(mergedMap.entries()).map(([name, info]) => ({
+        id: Date.now() + Math.random(),
+        name,
+        fullName: "---",
+        price: 0,
+        shares: info.shares,
+        leverage: info.leverage,
+        targetRatio: 0,
+        isLocked: false
+      }));
+      onComplete(formattedAssets);
+      showToast(`✅ 辨識完成！共 ${formattedAssets.length} 筆`);
     }
   } catch (err) {
-    console.error("AI辨識錯誤:", err);
-    showToast(`❌ ${err.message}`);
-  } finally {
-    e.target.value = "";
-  }
+    showToast(`❌ 辨識失敗，請確認圖片清晰度`);
+  } finally { e.target.value = ""; }
 }
 /**
  * AI 智投建議 - 終極穩定配額版 (v45.0)
