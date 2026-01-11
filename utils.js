@@ -109,6 +109,9 @@ export function importExcel(e, onComplete) {
 /**
  * AI 照片辨識：修正 Base64 處理與合併邏輯
  */
+/**
+ * AI 照片辨識：強化槓桿因子自動識別 (v30.0)
+ */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -132,10 +135,13 @@ export async function importFromImage(e, onComplete) {
 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
-    const promptText = `你是一位專業分析師。請提取圖片中的持股代號(name)與股數(shares)。
-    注意：如果同一個標的出現多次（例如包含「現買」與「擔保品」），請務必將股數相加合併為一筆。
-    請嚴格只回傳 JSON 格式，不要有任何解釋文字。
-    格式範例：{"assets": [{"name":"2317","shares":14349}]}`;
+    // 關鍵 Prompt 優化：要求識別槓桿因子 (leverage)
+    const promptText = `你是一位專業量化分析師。請提取圖片中的持股代號(name)與股數(shares)。
+    【加強要求】：請判斷標的是否為槓桿型產品。
+    - 若為台股正2(如00631L, 00675L)或美股2倍槓桿(如TSLL)，leverage請給 2。
+    - 若為一般股票或1倍ETF，leverage請給 1。
+    注意：同一標的多筆出現請合併股數。
+    格式範例：{"assets": [{"name":"00631L","shares":5000,"leverage":2}]}`;
 
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -166,29 +172,34 @@ export async function importFromImage(e, onComplete) {
       const rawAssets = parsed.assets || [];
       const mergedMap = new Map();
 
-      // 二次強制合併邏輯：處理同一代號的不同股數
       rawAssets.forEach((a) => {
         const name = (a.name || "").toString().toUpperCase().trim();
         const shares = Math.abs(parseInt(a.shares.toString().replace(/,/g, "")) || 0);
+        const leverage = parseFloat(a.leverage) || 1; // 接收 AI 識別的槓桿
         if (name && shares > 0) {
-          mergedMap.set(name, (mergedMap.get(name) || 0) + shares);
+          if (!mergedMap.has(name)) {
+            mergedMap.set(name, { shares, leverage });
+          } else {
+            const existing = mergedMap.get(name);
+            mergedMap.set(name, { shares: existing.shares + shares, leverage });
+          }
         }
       });
 
-      const formattedAssets = Array.from(mergedMap.entries()).map(([name, shares]) => ({
+      const formattedAssets = Array.from(mergedMap.entries()).map(([name, info]) => ({
         id: Date.now() + Math.random(),
         name,
         fullName: "---",
         price: 0,
-        shares,
-        leverage: 1,
+        shares: info.shares,
+        leverage: info.leverage, // 自動代入槓桿數字
         targetRatio: 0,
         isLocked: false
       }));
 
       if (formattedAssets.length > 0) {
         onComplete(formattedAssets);
-        showToast(`✅ 辨識成功！發現 ${formattedAssets.length} 筆資產`);
+        showToast(`✅ 辨識成功！發現 ${formattedAssets.length} 筆資產(含槓桿識別)`);
       } else {
         showToast("⚠️ 未能在圖片中發現持股數據");
       }
@@ -200,9 +211,8 @@ export async function importFromImage(e, onComplete) {
     e.target.value = "";
   }
 }
-
 /**
- * AI 智投建議：強化歸一化與鎖定保護
+ * AI 智投強化版 (v30.0) - 金融邏輯注入
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -211,36 +221,39 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const data = calculateAccountData(acc);
   const netValue = data.netValue;
 
-  // 1. 計算剩餘預算：排除已鎖定的標的與現金比例
-  const lockedTotal = acc.assets.reduce((s, a) => s + (a.isLocked ? a.targetRatio : 0), 0) + acc.cashRatio;
+  // 1. 金融大師邏輯：精確計算「待分配預算」
+  const lockedTotal = acc.assets.reduce((s, a) => s + (a.isLocked ? safeNum(a.targetRatio) : 0), 0) + safeNum(acc.cashRatio);
   const remainingBudget = Math.max(0, 100 - lockedTotal);
 
-  if (remainingBudget <= 0) return showToast("❌ 剩餘預算不足 (鎖定資產已達 100%)");
+  if (remainingBudget <= 0) return showToast("❌ 預算已滿 (鎖定資產與現金已達 100%)");
 
-  // 2. 獲取「未鎖定」的資產作為 AI 分配對象
+  // 2. 準備上下文：包含標的之目前占比與槓桿因子
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 找不到未鎖定的標的供 AI 規劃");
 
   const aiAssetsInfo = aiAssets.map((a) => {
-    const currentPct = netValue > 0 ? (a.nominalValue / netValue) * 100 : 0;
-    return `- ${a.name}(${a.fullName}): 目前權重 ${currentPct.toFixed(1)}%, 槓桿因子 ${a.leverage}x`;
+    const currentPct = netValue > 0 ? (safeNum(a.nominalValue) / netValue) * 100 : 0;
+    return `- ${a.name}(${a.fullName || "---"}): 目前權重 ${currentPct.toFixed(1)}%, 槓桿因子 ${a.leverage}x`;
   }).join("\n");
 
-  showToast(`🧠 AI 智投規劃中 (預算: ${remainingBudget.toFixed(1)}%)...`);
+  showToast(`🧠 AI 智投規劃中 (待分配: ${remainingBudget.toFixed(1)}%)...`);
 
   try {
-    const promptText = `你是一位專業的基金經理。
-    【目標】總實質槓桿達成 ${targetExp}x。
-    【約束】
-    1. 現金與鎖定資產已佔用 ${lockedTotal.toFixed(1)}% 比例。
-    2. 你必須將剩餘的 ${remainingBudget.toFixed(1)}% 比例，完全分配給下列標的。
-    3. 嚴格要求：清單中的「每一個」標的都必須獲得分配，分配比例不得為 0。
-    4. 所有建議的 targetRatio 總和必須精確等於 ${remainingBudget.toFixed(1)}。
+    // 3. 強化型 Prompt：要求達成總槓桿目標且最小化變動
+    const promptText = `你是一位專業的量化基金經理。
+    【核心任務】請規劃投資組合的「目標比例(targetRatio)」，讓帳戶總名目曝險達成淨值的 ${targetExp}x。
     
-    【待規劃清單】：
+    【約束條件】
+    1. 固定預算：現金與鎖定資產已佔用 ${lockedTotal.toFixed(1)}% 比例，不可更動。
+    2. 分配預算：你必須將剩餘的 ${remainingBudget.toFixed(1)}% 比例，完全分配給待規劃標的。
+    3. 歸一化要求：分配後的 targetRatio 總和必須「精確等於」 ${remainingBudget.toFixed(1)}。
+    4. 最小化變動：參考「目前權重」進行微調，除非為了達成 ${targetExp}x 槓桿目標，否則避免大幅換倉。
+    5. 嚴格要求：清單中每個標的都必須獲得分配，分配比例不得為 0。
+
+    【待規劃標的清單】：
     ${aiAssetsInfo}
     
-    請參考目前權重進行再平衡優化，不要大幅換倉。只回傳 JSON 格式：{"suggestions": [{"name": "代號", "targetRatio": 12.5}]}`;
+    請僅回傳 JSON 格式：{"suggestions": [{"name": "代號", "targetRatio": 15.5}]}`;
 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
     const response = await fetch(apiUrl, {
@@ -256,19 +269,20 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     if (text) {
       let suggestions = JSON.parse(text).suggestions || [];
 
-      // 強制歸一化邏輯：確保 AI 建議總和完全符合剩餘預算
+      // 4. 程式大師邏輯：強制歸一化處理，確保總和絕對等於 remainingBudget
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
       if (aiSum <= 0) throw new Error("AI 回傳無效比例");
 
       const factor = remainingBudget / aiSum;
       const finalSuggestions = suggestions.map((sug) => ({
         name: sug.name,
-        targetRatio: Math.round(sug.targetRatio * factor * 10) / 10,
+        targetRatio: Math.round(sug.targetRatio * factor * 10) / 10, // 保留一位小數
       }));
 
       onComplete(finalSuggestions);
     }
   } catch (err) {
+    console.error(err);
     showToast(`❌ AI 配置失敗: ${err.message}`);
   }
 }
