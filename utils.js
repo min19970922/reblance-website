@@ -175,15 +175,15 @@ export async function importFromImage(e, onComplete) {
   } finally { e.target.value = ""; }
 }
 /**
- * utils.js - 智投穩定版 (v39.0)
- * 解決：404 節點不存在、429 頻率限制、自動重試
+ * AI 智投穩定版 (v41.0) 
+ * 整合 Gemini 2.0 Flash 正式路徑，解決 404/429 報錯
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請設定 API Key");
 
   const data = calculateAccountData(acc);
-  const lockedTotal = acc.assets.reduce((s, a) => s + (a.isLocked ? safeNum(a.targetRatio) : 0), 0) + safeNum(acc.cashRatio);
+  const lockedTotal = acc.assets.reduce((s, a) => s + (a.isLocked ? parseFloat(a.targetRatio || 0) : 0), 0) + parseFloat(acc.cashRatio || 0);
   const remainingBudget = Math.max(0, 100 - lockedTotal);
 
   if (remainingBudget <= 0) return showToast("❌ 預算已滿");
@@ -191,44 +191,33 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  // 極度壓縮數據以節省 TPM
+  // 極簡化數據：減少 Token 消耗，防止觸發 TPM 限制
   const aiAssetsInfo = aiAssets.map(a => {
-    const curP = data.netValue > 0 ? (safeNum(a.bookValue) / data.netValue) * 100 : 0;
+    const curP = data.netValue > 0 ? (parseFloat(a.bookValue || 0) / data.netValue) * 100 : 0;
     return `${a.name},${curP.toFixed(1)}%,${a.leverage}x`;
   }).join("|");
 
-  const promptText = `Task: Distribute ${remainingBudget.toFixed(1)}% budget. 
-  Goal: Total Leverage ${targetExp}x (Now: ${(data.totalLeverage || 1).toFixed(2)}x).
-  Rule: 1.Sum=${remainingBudget.toFixed(1)}. 2.Shift weight to high leverage if Target > Now. 3.NO average.
-  JSON: {"suggestions":[{"name":"ID","targetRatio":VAL}]}
-  Data: [${aiAssetsInfo}]`;
-
-  // 指數退避重試邏輯
-  async function fetchWithRetry(url, options, retries = 2, delay = 2500) {
-    const res = await fetch(url, options);
-    if (res.status === 429 && retries > 0) {
-      showToast(`⏳ 頻率受限，${delay / 1000}秒後重試...`);
-      await new Promise(r => setTimeout(r, delay));
-      return fetchWithRetry(url, options, retries - 1, delay * 2);
-    }
-    return res;
-  }
-
   try {
-    // 【核心修正】使用 v1beta 端點配上標準 1.5-flash 名稱
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const promptText = `Task: Distribute ${remainingBudget.toFixed(1)}% budget. 
+    Goal: Total Leverage ${targetExp}x (Now: ${(data.totalLeverage || 1).toFixed(2)}x).
+    Rule: 1.Sum=${remainingBudget.toFixed(1)}. 2.No average weights. 3.Output JSON ONLY.
+    Data: [${aiAssetsInfo}]`;
 
-    // 強制請求前冷卻，確保 Google API 櫃檯清空
+    // 關鍵修正：套用您清單中的正確模型名稱
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+    // 強制請求前等待 1 秒，避開 RPM 限制
     await new Promise(r => setTimeout(r, 1000));
 
-    const response = await fetchWithRetry(apiUrl, {
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
     });
 
     if (!response.ok) {
-      if (response.status === 404) throw new Error("API 模型路徑不存在，請更換模型名稱");
+      if (response.status === 404) throw new Error("路徑錯誤，請確認模型名稱");
+      if (response.status === 429) throw new Error("請求太頻繁，請等待 1 分鐘");
       throw new Error(`API 錯誤: ${response.status}`);
     }
 
@@ -241,13 +230,15 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
       const factor = remainingBudget / aiSum;
 
-      onComplete(suggestions.map(s => ({
-        name: s.name.toString().toUpperCase().trim(),
-        targetRatio: Math.round(s.targetRatio * factor * 10) / 10
-      })));
+      const finalSuggestions = suggestions.map(sug => ({
+        name: sug.name.toString().toUpperCase().trim(),
+        targetRatio: Math.round(sug.targetRatio * factor * 10) / 10,
+      }));
+
+      onComplete(finalSuggestions);
     }
   } catch (err) {
     console.error("AI Error:", err);
-    showToast(`❌ 智投建議失敗: ${err.message}`);
+    showToast(`❌ ${err.message}`);
   }
 }
