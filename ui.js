@@ -1,8 +1,6 @@
 /**
  * ui.js - 策略增強版 (v5.0)
- * 1. 整合 5/25 門檻判定：未達標顯示「監控中」
- * 2. 進度條漸層：綠(0-50%) → 黃(50-80%) → 紅(80%+)
- * 3. 動態動畫：飽和度 > 80% 自動觸發 pulse-soft
+ * 整合現金列與資產再平衡邏輯
  */
 import {
   safeNum,
@@ -13,7 +11,7 @@ import {
 import { fetchLivePrice } from "./api.js";
 
 /**
- * 側邊欄切換：解決縮回時的殘影問題
+ * 側邊欄切換
  */
 export function toggleSidebarUI(isCollapsed) {
   const container = document.getElementById("mainContainer");
@@ -24,13 +22,8 @@ export function toggleSidebarUI(isCollapsed) {
   icon.className = isCollapsed ? "fas fa-bars" : "fas fa-chevron-left";
 
   if (aside) {
-    if (isCollapsed) {
-      aside.style.visibility = "hidden";
-      aside.style.opacity = "0";
-    } else {
-      aside.style.visibility = "visible";
-      aside.style.opacity = "1";
-    }
+    aside.style.visibility = isCollapsed ? "hidden" : "visible";
+    aside.style.opacity = isCollapsed ? "0" : "1";
   }
 }
 
@@ -68,14 +61,15 @@ export function renderAccountList(appState, onSwitch, onDelete) {
 }
 
 /**
- * 渲染主介面
+ * 核心渲染函式
  */
 export function renderMainUI(acc) {
   if (!acc) return;
+
+  // 更新標題與參數
   const titleEl = document.getElementById("activeAccountTitle");
-  if (titleEl) {
+  if (titleEl)
     titleEl.innerHTML = `${acc.name} <i class="fas fa-pen text-xl text-rose-200 ml-4"></i>`;
-  }
 
   document.getElementById("debtInput").value = acc.totalDebt;
   document.getElementById("cashInput").value = acc.currentCash;
@@ -88,6 +82,8 @@ export function renderMainUI(acc) {
   body.innerHTML = "";
 
   const data = calculateAccountData(acc);
+
+  // 1. 渲染一般資產
   data.assetsCalculated.forEach((asset, index) => {
     const row = document.createElement("tr");
     row.innerHTML = generateAssetRowHTML(
@@ -98,9 +94,20 @@ export function renderMainUI(acc) {
     body.appendChild(row);
     updateAssetRowData(asset, acc, data.netValue);
   });
+
+  // 2. 渲染現金列
+  const cashRow = document.createElement("tr");
+  cashRow.className = "bg-rose-50/30";
+  cashRow.innerHTML = generateCashRowHTML(data.cashAsset);
+  body.appendChild(cashRow);
+  updateAssetRowData(data.cashAsset, acc, data.netValue);
+
   updateDashboardUI(data, acc);
 }
 
+/**
+ * 輔助元件
+ */
 const autoWidthInput = (
   assetId,
   field,
@@ -118,6 +125,32 @@ const autoWidthInput = (
   </div>
 `;
 
+function generateCashRowHTML(cash) {
+  return `
+    <td class="px-2">
+      <div class="flex flex-col items-center">
+        <span class="uppercase font-black text-2xl text-rose-500">CASH</span>
+        <span class="text-sm font-bold text-rose-400 whitespace-nowrap">${cash.fullName}</span>
+      </div>
+    </td>
+    <td class="text-center text-rose-600 font-black text-xl">1.0</td>
+    <td class="text-center font-mono-data text-xl">1.0</td>
+    <td class="text-center font-mono-data text-xl">-</td>
+    <td id="curVal-${cash.id}" class="font-mono-data text-rose-950 font-black px-4 text-xl"></td>
+    <td id="curPct-${cash.id}" class="font-mono-data text-indigo-800 text-center font-black px-4 text-xl"></td>
+    <td class="text-center">
+      <div class="flex items-center justify-center gap-1">
+        <input type="number" value="${cash.targetRatio}" 
+          onchange="updateGlobal('cashRatio', this.value)" 
+          class="underline-input text-rose-900 font-black text-xl w-16 text-center">
+        <span class="text-rose-900 font-black">%</span>
+      </div>
+    </td>
+    <td id="targetVal-${cash.id}" class="text-center px-4"></td>
+    <td id="sugg-${cash.id}" class="text-center px-4"></td>
+    <td class="text-right px-2"></td>`;
+}
+
 function generateAssetRowHTML(asset, index, totalAssets) {
   const hasContent =
     asset.fullName && asset.fullName !== "" && asset.fullName !== "---";
@@ -134,14 +167,10 @@ function generateAssetRowHTML(asset, index, totalAssets) {
         <div class="flex flex-col text-[10px] text-rose-200">
           <button onclick="moveAsset(${asset.id},-1)" class="${
     index === 0 ? "invisible" : ""
-  } hover:text-rose-500">
-            <i class="fas fa-caret-up"></i>
-          </button>
+  } hover:text-rose-500"><i class="fas fa-caret-up"></i></button>
           <button onclick="moveAsset(${asset.id},1)" class="${
     index === totalAssets - 1 ? "invisible" : ""
-  } hover:text-rose-500">
-            <i class="fas fa-caret-down"></i>
-          </button>
+  } hover:text-rose-500"><i class="fas fa-caret-down"></i></button>
         </div>
         <div class="flex flex-col items-center">
           ${autoWidthInput(
@@ -211,20 +240,14 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     <td class="text-right px-2">
       <button onclick="removeAsset(${
         asset.id
-      })" class="text-rose-100 hover:text-rose-600 transition-colors">
-        <i class="fas fa-trash-alt text-xl"></i>
-      </button>
+      })" class="text-rose-100 hover:text-rose-600 transition-colors"><i class="fas fa-trash-alt text-xl"></i></button>
     </td>`;
 }
 
-/**
- * 更新單列數據與建議 (策略增強版)
- */
 export function updateAssetRowData(asset, acc, netValue) {
   if (netValue <= 0) return;
   const s = getRebalanceSuggestion(asset, acc, netValue);
 
-  // 1. 更新目前市值與目前佔比
   const curValEl = document.getElementById(`curVal-${asset.id}`);
   if (curValEl)
     curValEl.innerText = `$${Math.round(asset.nominalValue).toLocaleString()}`;
@@ -232,7 +255,6 @@ export function updateAssetRowData(asset, acc, netValue) {
   const curPctEl = document.getElementById(`curPct-${asset.id}`);
   if (curPctEl) curPctEl.innerText = `${s.currentPct.toFixed(1)}%`;
 
-  // 2. 更新目標數值
   const targetValEl = document.getElementById(`targetVal-${asset.id}`);
   if (targetValEl) {
     targetValEl.innerHTML = `
@@ -246,29 +268,23 @@ export function updateAssetRowData(asset, acc, netValue) {
       </div>`;
   }
 
-  // 3. 更新再平衡建議 (重點修改區)
   const suggCell = document.getElementById(`sugg-${asset.id}`);
   if (suggCell) {
-    // 漸層顏色邏輯：綠(0-50%) -> 黃(50-80%) -> 紅(80%+)
     let barColor = "bg-emerald-400";
     let animateClass = "";
-
     if (s.saturation > 0.5) barColor = "bg-amber-400";
     if (s.saturation > 0.8) {
       barColor = "bg-rose-500";
-      animateClass = "animate-pulse-soft"; // 觸發 CSS 定義的呼吸燈
+      animateClass = "animate-pulse-soft";
     }
 
     const isBuy = s.diffNominal > 0;
-
-    // 判定顯示文字：未達門檻(isTriggered 為 false)則顯示監控中
     const actionText = s.isTriggered
       ? `${isBuy ? "加碼" : "減持"} $${Math.abs(
           Math.round(s.diffNominal)
         ).toLocaleString()}`
       : "監控中";
 
-    // 狀態類別樣式 (對應 CSS 中的縮放與灰階效果)
     const statusClass = s.isTriggered
       ? "status-triggered"
       : "status-monitoring";
@@ -286,7 +302,7 @@ export function updateAssetRowData(asset, acc, netValue) {
             ${actionText}
           </span>
           <span class="text-rose-950 font-black text-sm ${
-            s.isTriggered ? "" : "hidden"
+            s.isTriggered && asset.name !== "CASH" ? "" : "hidden"
           }">
             約 ${Math.abs(s.diffShares).toLocaleString()} 股
           </span>
@@ -304,9 +320,6 @@ export function updateAssetRowData(asset, acc, netValue) {
   }
 }
 
-/**
- * 更新數據看板
- */
 export function updateDashboardUI(data, acc) {
   document.getElementById("totalNetValue").innerText = `$${Math.round(
     data.netValue
@@ -317,9 +330,16 @@ export function updateDashboardUI(data, acc) {
   document.getElementById(
     "leverageDisplay"
   ).innerText = `${data.totalLeverage.toFixed(2)}x`;
-  document.getElementById(
-    "targetTotalRatio"
-  ).innerText = `${data.targetTotalCombined.toFixed(1)}%`;
+
+  const targetEl = document.getElementById("targetTotalRatio");
+  if (targetEl) {
+    targetEl.innerText = `${data.targetTotalCombined.toFixed(1)}%`;
+    // 如果總比例不等於 100%，標示為警告色
+    targetEl.className =
+      Math.abs(data.targetTotalCombined - 100) > 0.1
+        ? "font-mono-data text-rose-600"
+        : "font-mono-data text-indigo-600";
+  }
 
   const mRatioEl = document.getElementById("maintenanceRatio");
   if (mRatioEl) {
@@ -335,18 +355,13 @@ export function updateDashboardUI(data, acc) {
   }
 }
 
-/**
- * 彈出通知系統
- */
 export function showToast(msg) {
   const t = document.getElementById("toast");
   const msgEl = document.getElementById("toastMsg");
   if (!t || !msgEl) return;
-
   msgEl.innerText = msg;
   t.style.opacity = "1";
   t.style.transform = "translateY(-10px)";
-
   setTimeout(() => {
     t.style.opacity = "0";
     t.style.transform = "translateY(0)";

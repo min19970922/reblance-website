@@ -56,11 +56,16 @@ export function loadFromStorage() {
 /**
  * 計算帳戶即時數據：包含資產換算台幣、名目曝險、淨值與槓桿
  */
+/**
+ * 計算帳戶即時數據：包含資產換算台幣、名目曝險、淨值與槓桿
+ * 核心修復：整合現金為虛擬資產以支援再平衡邏輯
+ */
 export function calculateAccountData(acc) {
   if (!acc) return null;
   let totalAssetBookValue = 0;
   let totalNominalExposure = 0;
 
+  // 1. 計算所有實體資產的數據
   const assetsCalculated = acc.assets.map((asset) => {
     // 判定是否為台股 (代號為 4-6 位數字)
     const isTW = /^\d{4,6}[A-Z]?$/.test(
@@ -77,12 +82,31 @@ export function calculateAccountData(acc) {
     return { ...asset, isTW, priceTwd, bookValue, nominalValue };
   });
 
+  // 2. 計算帳戶核心指標
   const netValue =
     totalAssetBookValue + safeNum(acc.currentCash) - safeNum(acc.totalDebt);
   const totalLeverage = netValue > 0 ? totalNominalExposure / netValue : 0;
 
+  // 3. 核心修復：建立「現金虛擬資產」對象
+  // 現金的 nominalValue 即為 (現金 - 負債)，leverage 永遠為 1
+  const cashNetValue = safeNum(acc.currentCash) - safeNum(acc.totalDebt);
+  const cashAsset = {
+    id: "cash-row",
+    name: "CASH",
+    fullName: "可用現金 (扣除負債)",
+    price: 1,
+    priceTwd: 1,
+    shares: cashNetValue,
+    leverage: 1,
+    targetRatio: safeNum(acc.cashRatio), // 這裡對應 state.js 的初始屬性
+    nominalValue: cashNetValue,
+    bookValue: cashNetValue,
+    isTW: true,
+  };
+
   return {
     assetsCalculated,
+    cashAsset, // 新增：回傳現金虛擬資產
     netValue,
     totalNominalExposure,
     totalLeverage,
@@ -95,7 +119,6 @@ export function calculateAccountData(acc) {
       safeNum(acc.cashRatio),
   };
 }
-
 /**
  * 再平衡核心邏輯：根據動態門檻判定是否觸發建議
  */
