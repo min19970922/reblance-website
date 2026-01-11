@@ -40,8 +40,8 @@ export function renderAccountList(appState, onSwitch, onDelete) {
     const isActive = acc.id === appState.activeId;
     const div = document.createElement("div");
     div.className = `group flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all ${isActive
-        ? "bg-rose-500 text-white shadow-lg"
-        : "bg-white hover:bg-rose-50 border"
+      ? "bg-rose-500 text-white shadow-lg"
+      : "bg-white hover:bg-rose-50 border"
       }`;
     div.innerHTML = `
       <div class="flex items-center gap-3 flex-1" onclick="${onSwitch}('${acc.id
@@ -210,8 +210,7 @@ export function updateAssetRowData(asset, acc, netValue) {
   const s = getRebalanceSuggestion(asset, acc, netValue);
 
   const curValEl = document.getElementById(`curVal-${asset.id}`);
-  if (curValEl)
-    curValEl.innerText = `$${Math.round(asset.nominalValue).toLocaleString()}`;
+  if (curValEl) curValEl.innerText = `$${Math.round(asset.nominalValue).toLocaleString()}`;
 
   const curPctEl = document.getElementById(`curPct-${asset.id}`);
   if (curPctEl) curPctEl.innerText = `${s.currentPct.toFixed(1)}%`;
@@ -220,12 +219,8 @@ export function updateAssetRowData(asset, acc, netValue) {
   if (targetValEl) {
     targetValEl.innerHTML = `
       <div class="flex flex-col font-black">
-        <span class="text-xl text-rose-950 font-mono-data">$${Math.round(
-      s.targetNominal
-    ).toLocaleString()}</span>
-        <span class="text-[10px] text-rose-300 uppercase tracking-tighter">預算: $${Math.round(
-      s.targetBookValue
-    ).toLocaleString()}</span>
+        <span class="text-rose-950 asset-data-text">$${Math.round(s.targetNominal).toLocaleString()}</span>
+        <span class="text-[12px] text-rose-300 uppercase tracking-tighter">預算: $${Math.round(s.targetBookValue).toLocaleString()}</span>
       </div>`;
   }
 
@@ -237,16 +232,14 @@ export function updateAssetRowData(asset, acc, netValue) {
 
     const isBuy = s.diffNominal > 0;
     const actionText = s.isTriggered
-      ? `${isBuy ? "加碼" : "減持"} $${Math.abs(
-        Math.round(s.diffNominal)
-      ).toLocaleString()}`
+      ? `${isBuy ? "加碼" : "減持"} $${Math.abs(Math.round(s.diffNominal)).toLocaleString()}`
       : "監控中";
 
     suggCell.innerHTML = `
       <div class="flex flex-col items-center min-w-[200px] ${s.isTriggered ? "status-triggered" : "status-monitoring"}">
-        <div class="flex flex-row items-center gap-2 font-black leading-tight">
+        <div class="flex flex-row items-center gap-2 font-black leading-tight sugg-text-group">
            <span class="${s.isTriggered ? (isBuy ? "text-emerald-500" : "text-rose-700") : "text-gray-400"}">${actionText}</span>
-           <span class="text-rose-950 ${s.isTriggered ? "" : "hidden"}">(${Math.abs(s.diffShares).toLocaleString()} 股)</span>
+           <span class="text-rose-900 ${s.isTriggered ? "" : "hidden"}">(${Math.abs(s.diffShares).toLocaleString()} 股)</span>
         </div>
         <div class="rebalance-bar-bg"><div class="h-full ${barColor} transition-all duration-700" style="width: ${Math.min(100, s.saturation * 100)}%"></div></div>
       </div>`;

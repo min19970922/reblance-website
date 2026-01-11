@@ -1,5 +1,4 @@
-/* styles.css - 終極視覺優化與圖示修正版 V30.1 */
-
+/* styles.css - 視覺比例校準版 V31.0 */
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 
 :root {
@@ -10,7 +9,6 @@
   --panel-border: #fff1f2;
 }
 
-/* --- 全域設定 --- */
 body,
 input,
 button {
@@ -25,18 +23,6 @@ button {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
   min-height: 100vh;
-  transition: all 0.3s ease;
-}
-
-/* --- 側邊欄邏輯 --- */
-.dashboard-container.sidebar-collapsed {
-  grid-template-columns: 0px 1fr;
-}
-
-.dashboard-container.sidebar-collapsed aside {
-  width: 0px !important;
-  visibility: hidden;
-  opacity: 0;
 }
 
 aside {
@@ -45,13 +31,10 @@ aside {
   border-right: 1px solid var(--panel-border);
   display: flex;
   flex-direction: column;
-  z-index: 10;
-  overflow: hidden;
 }
 
 main {
-  padding: clamp(15px, 3vw, 30px);
-  box-sizing: border-box;
+  padding: 30px;
   overflow-y: auto;
 }
 
@@ -61,12 +44,11 @@ main {
   padding-bottom: 10px;
 }
 
-/* --- 核心看板與參數佈局 --- */
+/* 核心看板 */
 .master-params-grid {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  width: 100%;
   min-width: 1000px;
 }
 
@@ -77,12 +59,6 @@ main {
   box-shadow: 0 10px 30px -15px rgba(0, 0, 0, 0.08);
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  width: 100%;
-}
-
-.dashboard-header-style {
-  background: linear-gradient(to bottom, #ffffff, #fffafb);
-  border-top: 6px solid var(--primary-pink) !important;
 }
 
 .grid-unit {
@@ -94,32 +70,22 @@ main {
   min-height: 100px;
 }
 
-.grid-unit:last-child {
-  border-right: none;
-}
-
 .grid-unit label {
   font-size: 1.1rem;
-  /* 配合您的調整，維持標籤清晰度 */
   font-weight: 900;
   color: var(--primary-pink);
   margin-bottom: 4px;
   text-transform: uppercase;
 }
 
-.font-mono-data {
+/* 上方看板數據字體 */
+.data-header {
   font-family: "Calibri", sans-serif !important;
   font-weight: 900;
-}
-
-/* 看板數據字體 */
-.data-header {
   font-size: 2rem !important;
   letter-spacing: -1px;
-  line-height: 1.1;
 }
 
-/* 參數輸入格字體 */
 .flat-input {
   border: none;
   outline: none;
@@ -128,14 +94,9 @@ main {
   width: 100%;
   background: transparent;
   text-align: right;
-  color: #1a0005;
 }
 
-.highlight-bg {
-  background: rgba(255, 241, 242, 0.6);
-}
-
-/* --- 表格輸入格修正 --- */
+/* --- 表格內容比例修正 (重點) --- */
 .input-col-wrapper {
   position: relative;
   display: inline-grid;
@@ -147,57 +108,66 @@ main {
 .input-mirror {
   grid-area: 1 / 1;
   visibility: hidden;
-  opacity: 0 !important;
+  opacity: 0;
   white-space: pre;
-  padding: 0 12px;
-  pointer-events: none;
+  padding: 0 10px;
   font-family: inherit;
-  font-size: 1.8rem;
   font-weight: 900;
+  font-size: 1.8rem;
+  /* 調降至 1.8rem 使其協調 */
 }
 
-/* 個股輸入框文字數字大小 (報價、股數、目標比) */
+/* 個股輸入框大小 */
 .underline-input {
   grid-area: 1 / 1;
   width: 100%;
-  min-width: 100px;
+  min-width: 80px;
   background: transparent !important;
   border: none;
   border-bottom: 2px solid #fecdd3;
   outline: none;
   text-align: center;
   font-weight: 900;
-  z-index: 5;
   color: inherit;
   font-family: inherit;
-  font-size: 2.2rem;
-  /* 調大輸入字體，增加厚度 */
-}
-
-/* 建議欄文字專用 (因為金額股數同排，不宜過大以免破版) */
-td#sugg-content,
-.flex-row.font-black {
   font-size: 1.8rem;
-  /* 建議欄文字稍小於主數據，但比原本大 */
 }
 
-/* --- 修正：表格圖示大小專用設定 --- */
+/* 表格純顯示文字與數字 (名目曝險、目前%) */
+td {
+  padding: 12px 10px;
+  text-align: center;
+  font-weight: 900;
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 1.8rem;
+  /* 統一為 1.8rem */
+}
+
+/* 標題文字大小 */
+.auto-table th {
+  padding: 15px 10px;
+  font-size: 1.2rem;
+  color: #9d174d;
+  border-bottom: 3px solid #fecdd3;
+  text-align: center !important;
+}
+
+/* 建議欄文字 (加碼金額 + 股數) */
+.sugg-text-group {
+  font-size: 1.4rem !important;
+}
+
+/* 調降建議文字大小，避免遮擋進度條 */
+
+/* 修正圖示大小 */
 td button i.fa-sync-alt,
 td button i.fa-lock,
 td button i.fa-lock-open {
-  font-size: 1.2rem !important;
-  /* 強制縮小圖示，不受 td 文字大小影響 */
+  font-size: 1.1rem !important;
   vertical-align: middle;
 }
 
-td button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-}
-
-/* --- 表格標題與內容置中優化 --- */
+/* 表格與空間分配 */
 .auto-table {
   width: 100%;
   border-collapse: collapse;
@@ -205,24 +175,6 @@ td button {
   white-space: nowrap;
 }
 
-.auto-table th {
-  padding: 20px 10px;
-  font-size: 1.3rem;
-  color: #9d174d;
-  background: var(--bg-main);
-  border-bottom: 3px solid #fecdd3;
-  text-align: center !important;
-}
-
-td {
-  padding: 15px 10px;
-  text-align: center;
-  font-size: 2rem;
-  font-weight: 900;
-  border-bottom: 1px solid var(--panel-border);
-}
-
-/* 核心邏輯：空間分配給建議欄 */
 .auto-table th:nth-last-child(2),
 .auto-table td:nth-last-child(2) {
   width: 100%;
@@ -232,28 +184,22 @@ td {
 .rebalance-bar-bg {
   width: 100%;
   min-width: 150px;
-  max-width: 300px;
-  height: 12px;
+  max-width: 250px;
+  height: 10px;
   background: #f1f5f9;
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid #e2e8f0;
-  margin: 8px auto 0;
+  margin: 6px auto 0;
 }
 
-/* 其他 UI 元件 */
 .btn-pink {
   background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
   color: white;
   font-weight: 900;
-  border-radius: 12px;
-  padding: 10px 25px;
+  border-radius: 10px;
+  padding: 8px 20px;
   border: none;
   cursor: pointer;
-  font-size: 1.1rem;
-}
-
-#toast {
-  z-index: 100;
-  transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  font-size: 1rem;
 }
