@@ -1,4 +1,4 @@
-/* styles.css - 專業交易面板 V28.8 (視覺厚度與間距優化版) */
+/* styles.css - 終極修正與響應式優化版 V29.0 */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 
@@ -10,7 +10,7 @@
   --panel-border: #fff1f2;
 }
 
-/* --- 全域設定 --- */
+/* --- 全域設定：響應式基礎 --- */
 body,
 input,
 button {
@@ -18,7 +18,7 @@ button {
   background-color: var(--bg-main);
   color: #1a0005;
   margin: 0;
-  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .dashboard-container {
@@ -26,6 +26,7 @@ button {
   grid-template-columns: var(--sidebar-width) 1fr;
   min-height: 100vh;
   transition: all 0.3s ease;
+  max-width: 100vw;
 }
 
 /* --- 側邊欄邏輯 --- */
@@ -35,11 +36,8 @@ button {
 
 .dashboard-container.sidebar-collapsed aside {
   width: 0px !important;
-  min-width: 0px !important;
   visibility: hidden;
   opacity: 0;
-  border: none;
-  padding: 0;
 }
 
 aside {
@@ -54,60 +52,54 @@ aside {
 }
 
 main {
-  padding: 30px;
+  padding: clamp(15px, 3vw, 30px);
+  /* 隨螢幕縮放邊距 */
   box-sizing: border-box;
   overflow-y: auto;
+  max-width: 100%;
 }
 
+/* --- 滾動包裝：確保窄螢幕可滾動但寬螢幕填滿 --- */
 .main-scroll-wrapper {
   overflow-x: auto;
   width: 100%;
-  padding-bottom: 15px;
+  padding-bottom: 10px;
 }
 
-/* --- 核心 6x6 一體化佈局修正 --- */
+/* --- 核心一體化佈局：改為彈性容器以適應螢幕 --- */
 .master-params-grid {
-  min-width: 1100px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  /* 這裡產生了看板與參數列之間的厚度間距 */
+  gap: clamp(10px, 2vw, 20px);
+  width: 100%;
+  min-width: 900px;
+  /* 降低最小寬度限制，減少橫向負擔 */
 }
 
 .params-row-tight {
   background: white;
   border: 2px solid var(--panel-border);
   border-radius: 20px;
-  /* 恢復圓角，不再相連 */
   box-shadow: 0 10px 30px -15px rgba(0, 0, 0, 0.08);
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  overflow: hidden;
   width: 100%;
+  overflow: hidden;
 }
 
-/* --- 頂部看板樣式 (即時數據) --- */
+/* 看板 header 樣式 */
 .dashboard-header-style {
   background: linear-gradient(to bottom, #ffffff, #fffafb);
   border-top: 6px solid var(--primary-pink) !important;
-  /* 強化頂部線條感 */
-}
-
-/* --- 下方參數樣式 (輸入控制) --- */
-.dashboard-params-style {
-  background: white;
-  border: 2px solid var(--panel-border);
 }
 
 .grid-unit {
   display: flex;
   flex-direction: column;
-  padding: 20px 25px;
-  /* 增加內距產生厚度與專業感 */
+  padding: 15px clamp(10px, 2vw, 22px);
   border-right: 2px solid var(--panel-border);
   justify-content: center;
-  min-height: 110px;
-  /* 確保最小高度一致 */
+  min-height: 100px;
 }
 
 .grid-unit:last-child {
@@ -115,46 +107,31 @@ main {
 }
 
 .grid-unit label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 900;
   color: var(--primary-pink);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   text-transform: uppercase;
-  letter-spacing: 1px;
 }
 
 /* --- 數據字體優化 --- */
 .font-mono-data {
   font-family: "Calibri", sans-serif !important;
   font-weight: 900;
-  color: #1a0005;
 }
 
 .data-header {
-  font-size: 2.3rem !important;
-  /* 恢復震撼的大數字 */
-  letter-spacing: -1.5px;
-  line-height: 1;
+  font-size: clamp(1.5rem, 2.5vw, 2.3rem) !important;
+  /* 動態調整大數字大小 */
+  letter-spacing: -1px;
+  line-height: 1.1;
 }
 
-/* --- 輸入框樣式 --- */
-.input-box {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.input-box span {
-  font-weight: 900;
-  color: #fecdd3;
-  font-size: 1.4rem;
-}
-
+/* --- 參數區輸入框 --- */
 .flat-input {
   border: none;
   outline: none;
-  font-size: 2.1rem;
-  /* 與數據看板對齊 */
+  font-size: clamp(1.5rem, 2.5vw, 2.1rem);
   font-weight: 900;
   width: 100%;
   background: transparent;
@@ -164,19 +141,66 @@ main {
 
 .highlight-bg {
   background: rgba(255, 241, 242, 0.6);
-  /* AI 規劃區淡淡的高亮色 */
 }
 
-/* --- 表格與資產清單 --- */
+/* --- 修正：表格內輸入格文字重疊 (鏡像邏輯修正) --- */
+.input-col-wrapper {
+  position: relative;
+  display: inline-grid;
+  vertical-align: middle;
+  justify-items: center;
+  align-items: center;
+  min-width: 20px;
+}
+
+/* 確保鏡像文字完全透明且不影響顯示，但維持撐開寬度 */
+.input-mirror {
+  grid-area: 1 / 1;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  white-space: pre;
+  padding: 0 8px;
+  pointer-events: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/* 表格內的下劃線輸入框 */
+.underline-input {
+  grid-area: 1 / 1;
+  width: 100%;
+  min-width: 50px;
+  background: transparent !important;
+  border: none;
+  border-bottom: 2px solid #fecdd3;
+  outline: none;
+  text-align: center;
+  padding: 0;
+  font-weight: 900;
+  z-index: 5;
+  transition: border-color 0.2s;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.underline-input:focus {
+  border-bottom-color: var(--primary-pink);
+}
+
+/* --- 表格樣式：自動寬度優化 --- */
 .auto-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: auto;
+  /* 改為 Auto，讓欄寬隨文字內容變動 */
   white-space: nowrap;
 }
 
 .auto-table th {
-  padding: 20px 15px;
-  font-size: 1rem;
+  padding: 12px 10px;
+  font-size: 0.9rem;
   color: #9d174d;
   background: var(--bg-main);
   border-bottom: 2px solid #fecdd3;
@@ -184,22 +208,25 @@ main {
 }
 
 td {
-  padding: 18px 15px;
+  padding: 12px 10px;
+  /* 縮減 padding 減少寬度 */
   text-align: center;
-  font-size: 1.2rem;
+  font-size: clamp(1rem, 1.2vw, 1.2rem);
   font-weight: 900;
   border-bottom: 1px solid var(--panel-border);
 }
 
+/* --- UI 元件 --- */
 .btn-pink {
   background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
   color: white;
   font-weight: 900;
-  border-radius: 18px;
-  padding: 12px 28px;
+  border-radius: 15px;
+  padding: clamp(8px, 1.5vw, 12px) clamp(15px, 2.5vw, 28px);
   border: none;
   cursor: pointer;
   transition: all 0.3s ease;
+  white-space: nowrap;
 }
 
 .btn-pink:hover {
@@ -207,7 +234,19 @@ td {
   box-shadow: 0 5px 15px rgba(225, 29, 72, 0.3);
 }
 
-/* --- 再平衡動畫與進度條 --- */
+.rebalance-bar-bg {
+  width: 100%;
+  max-width: 150px;
+  /* 限制再平衡條的最大寬度 */
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  margin: 6px auto 0;
+}
+
+/* 狀態動畫 */
 @keyframes pulse-soft {
 
   0%,
@@ -223,17 +262,7 @@ td {
 }
 
 .animate-pulse-soft {
-  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-.rebalance-bar-bg {
-  width: 100%;
-  height: 10px;
-  background: #f1f5f9;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid #e2e8f0;
-  margin-top: 8px;
+  animation: pulse-soft 2s infinite;
 }
 
 #toast {
