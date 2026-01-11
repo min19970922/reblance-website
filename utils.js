@@ -175,43 +175,45 @@ export async function importFromImage(e, onComplete) {
   } finally { e.target.value = ""; }
 }
 /**
- * AI 智投極簡穩定版 (v34.0) 
- * 修正：404 URL 錯誤、429 頻率限制、差異化分配邏輯
+ * AI 智投穩定強化版 (v36.0) 
+ * 修正：404 模型路徑、429 頻率限制、強化差異化分配
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請設定 API Key");
 
   const data = calculateAccountData(acc);
+  // 1. 計算剩餘預算：100% - 鎖定資產% - 現金%
   const lockedTotal = acc.assets.reduce((s, a) => s + (a.isLocked ? safeNum(a.targetRatio) : 0), 0) + safeNum(acc.cashRatio);
   const remainingBudget = Math.max(0, 100 - lockedTotal);
 
-  if (remainingBudget <= 0) return showToast("❌ 預算已滿");
+  if (remainingBudget <= 0) return showToast("❌ 預算已滿 (鎖定項與現金已達 100%)");
 
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
-  if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
+  if (aiAssets.length === 0) return showToast("❌ 無可規劃標的 (請確認是否全部鎖定)");
 
-  // 極簡化數據：標的名稱,目前佔比,槓桿倍數
+  // 2. 極簡化上下文數據：降低 Token 消耗
+  // 格式：名稱,目前淨值佔比,槓桿倍數
   const aiAssetsInfo = aiAssets.map(a => {
     const curP = data.netValue > 0 ? (safeNum(a.bookValue) / data.netValue) * 100 : 0;
     return `${a.name},${curP.toFixed(1)}%,${a.leverage}x`;
   }).join("|");
 
-  try {
-    // 強化金融邏輯：明確告知目標是增槓桿還是降槓桿
-    const action = targetExp > (data.totalLeverage || 1) ? "Leverage UP (focus on 2x)" : "De-leverage (focus on 1x)";
+  showToast(`🧠 正在根據 ${targetExp}x 目標優化權重...`);
 
+  try {
+    // 3. 強化指令：要求 AI 根據槓桿倍數進行不平均分配
     const promptText = `Task: Distribute ${remainingBudget.toFixed(1)}% budget. 
     Status: Current Lev ${(data.totalLeverage || 1).toFixed(2)}x, Target ${targetExp}x.
-    Strategy: ${action}.
-    Rule: 1.Sum exact. 2.No average weight. 3.Output JSON ONLY.
+    Rule: 1.Sum exact. 2.No average weights. 3.Heavy weight on 2x assets if Target > Current.
+    Output JSON ONLY: {"suggestions":[{"name":"ID","targetRatio":VAL}]}.
     Data: [${aiAssetsInfo}]`;
 
-    // 【核心修復】404 錯誤主因：URL 模型路徑修正
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // 【核心修復】使用您 2026 年模型清單中的正確路徑
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
-    // 強制冷卻 1 秒防止 429
-    await new Promise(r => setTimeout(r, 1000));
+    // 強制冷卻 1.5 秒，確保 Google 伺服器請求佇列清空
+    await new Promise(r => setTimeout(r, 1500));
 
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -220,8 +222,8 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     });
 
     if (!response.ok) {
-      if (response.status === 404) throw new Error("API 路徑錯誤 (404)，請檢查模型名稱");
-      if (response.status === 429) throw new Error("Google 頻率限制，請稍後再試");
+      if (response.status === 404) throw new Error("API 模型路徑錯誤 (404)");
+      if (response.status === 429) throw new Error("Google 頻率限制 (429)，請等待 1 分鐘");
       throw new Error(`API 錯誤: ${response.status}`);
     }
 
@@ -232,8 +234,11 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     if (text) {
       const suggestions = JSON.parse(text).suggestions || [];
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
-      const factor = remainingBudget / aiSum;
 
+      if (aiSum <= 0) throw new Error("AI 回傳無效建議");
+
+      // 4. 強制歸一化：確保結果總和絕對等於 remainingBudget
+      const factor = remainingBudget / aiSum;
       const finalSuggestions = suggestions.map(sug => ({
         name: sug.name.toString().toUpperCase().trim(),
         targetRatio: Math.round(sug.targetRatio * factor * 10) / 10,
