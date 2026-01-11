@@ -175,7 +175,8 @@ export async function importFromImage(e, onComplete) {
   } finally { e.target.value = ""; }
 }
 /**
- * utils.js - 智投強化與 429 防禦版 (v38.0)
+ * utils.js - 智投穩定版 (v39.0)
+ * 解決：404 節點不存在、429 頻率限制、自動重試
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -190,33 +191,35 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  // 極簡化數據，節省 TPM
+  // 極度壓縮數據以節省 TPM
   const aiAssetsInfo = aiAssets.map(a => {
     const curP = data.netValue > 0 ? (safeNum(a.bookValue) / data.netValue) * 100 : 0;
     return `${a.name},${curP.toFixed(1)}%,${a.leverage}x`;
   }).join("|");
 
-  // 強化分配邏輯：明確告訴 AI 目前與目標的缺口
   const promptText = `Task: Distribute ${remainingBudget.toFixed(1)}% budget. 
-  Goal: Total Leverage ${targetExp}x (Current: ${data.totalLeverage.toFixed(2)}x).
-  Logic: 1.Sum=${remainingBudget.toFixed(1)}. 2.Priority HIGH leverage if Target>Current. 3.NO AVERAGE.
-  JSON ONLY: {"suggestions":[{"name":"ID","targetRatio":VAL}]}
+  Goal: Total Leverage ${targetExp}x (Now: ${(data.totalLeverage || 1).toFixed(2)}x).
+  Rule: 1.Sum=${remainingBudget.toFixed(1)}. 2.Shift weight to high leverage if Target > Now. 3.NO average.
+  JSON: {"suggestions":[{"name":"ID","targetRatio":VAL}]}
   Data: [${aiAssetsInfo}]`;
 
-  // 指數退避重試函式
-  async function fetchWithRetry(url, options, retries = 2, backoff = 2000) {
+  // 指數退避重試邏輯
+  async function fetchWithRetry(url, options, retries = 2, delay = 2500) {
     const res = await fetch(url, options);
     if (res.status === 429 && retries > 0) {
-      showToast(`⏳ 伺服器忙碌，${backoff / 1000}秒後重試...`);
-      await new Promise(r => setTimeout(r, backoff));
-      return fetchWithRetry(url, options, retries - 1, backoff * 2);
+      showToast(`⏳ 頻率受限，${delay / 1000}秒後重試...`);
+      await new Promise(r => setTimeout(r, delay));
+      return fetchWithRetry(url, options, retries - 1, delay * 2);
     }
     return res;
   }
 
   try {
-    // 改用 flash-8b 模型，配額更寬鬆
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${apiKey}`;
+    // 【核心修正】使用 v1beta 端點配上標準 1.5-flash 名稱
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+    // 強制請求前冷卻，確保 Google API 櫃檯清空
+    await new Promise(r => setTimeout(r, 1000));
 
     const response = await fetchWithRetry(apiUrl, {
       method: "POST",
@@ -224,7 +227,10 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
       body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
     });
 
-    if (!response.ok) throw new Error(`API 錯誤: ${response.status}`);
+    if (!response.ok) {
+      if (response.status === 404) throw new Error("API 模型路徑不存在，請更換模型名稱");
+      throw new Error(`API 錯誤: ${response.status}`);
+    }
 
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -234,12 +240,14 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
       const suggestions = JSON.parse(text).suggestions || [];
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
       const factor = remainingBudget / aiSum;
+
       onComplete(suggestions.map(s => ({
         name: s.name.toString().toUpperCase().trim(),
         targetRatio: Math.round(s.targetRatio * factor * 10) / 10
       })));
     }
   } catch (err) {
-    showToast(`❌ 智投失敗: ${err.message}`);
+    console.error("AI Error:", err);
+    showToast(`❌ 智投建議失敗: ${err.message}`);
   }
 }
