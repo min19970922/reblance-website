@@ -175,10 +175,10 @@ export async function importFromImage(e, onComplete) {
   } finally { e.target.value = ""; }
 }
 /**
- * AI 智投建議 - 極限配額相容版 (v44.0)
+ * AI 智投建議 - 終極穩定配額版 (v45.0)
  * 解決 429 (Too Many Requests) 報錯
- * 1. 使用 gemini-2.0-flash-lite 避開標準版 0 配額限制
- * 2. 強化指數退避 (Exponential Backoff) 重試邏輯
+ * 1. 使用 gemini-1.5-flash 避開 2.0 系列的 0 配額封鎖
+ * 2. 指令極簡化，節省 Token 消耗
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -188,18 +188,14 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const lockedTotal = acc.assets.reduce((s, a) => s + (a.isLocked ? parseFloat(a.targetRatio || 0) : 0), 0) + parseFloat(acc.cashRatio || 0);
   const remainingBudget = Math.max(0, 100 - lockedTotal);
 
-  if (remainingBudget <= 0) return showToast("❌ 預算已滿，無剩餘權重可分配");
+  if (remainingBudget <= 0) return showToast("❌ 預算已滿");
 
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無未鎖定標的");
 
-  /**
-   * 強化版重試機制：專門對付 429
-   */
-  async function fetchWithRetry(url, options, retries = 3, backoff = 5000) {
+  async function fetchWithRetry(url, options, retries = 2, backoff = 10000) {
     const res = await fetch(url, options);
     if (res.status === 429 && retries > 0) {
-      // 遇到 429 時，強制等待並逐步增加時間 (5s -> 10s -> 20s)
       showToast(`⏳ AI 忙碌，${backoff / 1000}秒後自動重試...`);
       await new Promise(resolve => setTimeout(resolve, backoff));
       return fetchWithRetry(url, options, retries - 1, backoff * 2);
@@ -208,19 +204,13 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   }
 
   try {
-    const aiAssetsInfo = aiAssets.map(a => {
-      const curP = data.netValue > 0 ? (parseFloat(a.bookValue || 0) / data.netValue) * 100 : 0;
-      return `${a.name},目前${curP.toFixed(1)}%,槓桿${a.leverage}x`;
-    }).join("|");
+    const aiAssetsInfo = aiAssets.map(a => `${a.name},${a.leverage}x`).join("|");
 
-    const promptText = `Task: Assign ${remainingBudget.toFixed(1)}% budget to assets. 
-    Goal: Target Total Portfolio Leverage ${targetExp}x (Now: ${data.totalLeverage.toFixed(2)}x).
-    Rule: Sum must be ${remainingBudget.toFixed(1)}. JSON ONLY.
-    Data: [${aiAssetsInfo}]
-    Format: {"suggestions": [{"name":"TICKER","targetRatio":20}]}`;
+    // 極簡提示詞，降低 TP (Tokens per Request)
+    const promptText = `Assign ${remainingBudget.toFixed(1)}% weight. Goal: Total Leverage ${targetExp}x. Data: [${aiAssetsInfo}]. JSON ONLY: {"suggestions": [{"name":"TICKER","targetRatio":20}]}`;
 
-    // --- 關鍵修正：改用診斷清單中配額最穩定的 Lite 模型 ---
-    const model = "gemini-2.0-flash-lite";
+    // --- 核心修正：換成 1.5 穩定版路徑 ---
+    const model = "gemini-1.5-flash";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const response = await fetchWithRetry(apiUrl, {
@@ -234,6 +224,9 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
 
     if (!response.ok) {
       const err = await response.json();
+      if (response.status === 429) {
+        throw new Error("AI 配額已滿，請等待 1 分鐘後再試。");
+      }
       throw new Error(err.error?.message || `API 錯誤: ${response.status}`);
     }
 
@@ -255,6 +248,6 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     }
   } catch (err) {
     console.error("AI Error:", err);
-    showToast(`❌ AI 智投暫時失效: ${err.message}`);
+    showToast(`❌ AI 建議暫時失效: ${err.message}`);
   }
 }
