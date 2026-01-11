@@ -1,315 +1,227 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
-    <title>股市再平衡 - 專業資產配置系統</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-      rel="stylesheet"
-    />
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <div class="dashboard-container" id="mainContainer">
-      <aside>
-        <div class="p-5 flex flex-col h-full">
-          <div class="mb-10 text-center pt-8">
-            <h1 class="text-3xl font-black text-rose-500 tracking-tighter">
-              <i class="fas fa-heart mr-2"></i>REBALANCE
-            </h1>
-            <p
-              class="text-[11px] text-rose-400 font-black mt-1 uppercase tracking-[0.3em]"
-            >
-              Precision Control
-            </p>
-          </div>
-          <div class="flex-1 space-y-3" id="accountList"></div>
-          <div class="mt-8 pt-6 border-t">
-            <button
-              id="btnCreateAccount"
-              class="w-full py-4 rounded-xl bg-rose-50 text-rose-700 font-black hover:bg-rose-100 flex items-center justify-center gap-2 text-lg"
-            >
-              <i class="fas fa-plus-circle"></i> 新增計畫
-            </button>
-          </div>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>股市再平衡 - 專業資產配置系統</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="dashboard-container" id="mainContainer">
+    <aside>
+      <div class="p-5 flex flex-col h-full">
+        <div class="mb-10 text-center pt-8">
+          <h1 class="text-3xl font-black text-rose-500 tracking-tighter">
+            <i class="fas fa-heart mr-2"></i>REBALANCE
+          </h1>
+          <p class="text-[11px] text-rose-400 font-black mt-1 uppercase tracking-[0.3em]">
+            Precision Control
+          </p>
         </div>
-      </aside>
+        <div class="flex-1 space-y-3" id="accountList"></div>
+        <div class="mt-8 pt-6 border-t">
+          <button id="btnCreateAccount"
+            class="w-full py-4 rounded-xl bg-rose-50 text-rose-700 font-black hover:bg-rose-100 flex items-center justify-center gap-2 text-lg">
+            <i class="fas fa-plus-circle"></i> 新增計畫
+          </button>
+        </div>
+      </div>
+    </aside>
 
-      <main class="bg-[#fffafb] flex flex-col min-h-screen">
-        <div class="flex items-center justify-between mb-8">
-          <div class="flex items-center gap-6">
-            <button
-              id="btnToggleSidebar"
-              class="w-12 h-12 flex items-center justify-center bg-white border-2 border-rose-100 rounded-xl text-rose-500 hover:bg-rose-50"
-            >
-              <i id="toggleIcon" class="fas fa-chevron-left text-lg"></i>
-            </button>
-            <h2
-              id="activeAccountTitle"
-              class="text-5xl font-black text-rose-900 cursor-pointer hover:text-rose-600 transition-colors"
-            >
-              載入中...
-            </h2>
-          </div>
-
-          <div class="flex items-center gap-3">
-            <div
-              class="flex items-center bg-white border border-rose-100 rounded-xl px-3 py-2 gap-2 shadow-sm"
-            >
-              <i class="fas fa-key text-rose-300 text-sm"></i>
-              <input
-                type="password"
-                id="apiKeyInput"
-                placeholder="Gemini Key"
-                class="outline-none text-xs w-28 font-mono"
-              />
-              <button
-                id="saveKeyBtn"
-                class="bg-rose-500 text-white text-[10px] px-2 py-1 rounded-md font-black hover:bg-rose-600"
-              >
-                儲存
-              </button>
-            </div>
-            <button
-              id="btnExport"
-              class="px-4 py-3 bg-white border border-emerald-200 text-emerald-700 font-black rounded-xl hover:bg-emerald-50 shadow-sm flex items-center gap-2"
-            >
-              <i class="fas fa-file-export"></i> 匯出
-            </button>
-            <label
-              class="px-4 py-3 bg-white border border-amber-200 text-amber-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm hover:bg-amber-50"
-            >
-              <i class="fas fa-file-import"></i> 匯入
-              <input
-                type="file"
-                id="inputImport"
-                class="hidden"
-                accept=".xlsx"
-              />
-            </label>
-            <label
-              class="px-4 py-3 bg-white border border-rose-200 text-rose-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm hover:bg-rose-50"
-            >
-              <i class="fas fa-camera"></i> 照片辨識
-              <input
-                type="file"
-                id="inputCamera"
-                class="hidden"
-                accept="image/*"
-              />
-            </label>
-            <button
-              id="btnDeleteAccount"
-              class="p-2 text-rose-200 hover:text-rose-600"
-            >
-              <i class="fas fa-trash-alt text-2xl"></i>
-            </button>
-          </div>
+    <main class="bg-[#fffafb] flex flex-col min-h-screen">
+      <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center gap-6">
+          <button id="btnToggleSidebar"
+            class="w-12 h-12 flex items-center justify-center bg-white border-2 border-rose-100 rounded-xl text-rose-500 hover:bg-rose-50">
+            <i id="toggleIcon" class="fas fa-chevron-left text-lg"></i>
+          </button>
+          <h2 id="activeAccountTitle"
+            class="text-5xl font-black text-rose-900 cursor-pointer hover:text-rose-600 transition-colors">
+            載入中...
+          </h2>
         </div>
 
-        <div class="main-scroll-wrapper">
-          <div class="dashboard-grid !grid-cols-6">
-            <div class="glass-card border-t-[6px] border-t-rose-500">
-              <span>帳戶淨值 (Net)</span>
-              <div id="totalNetValue" class="font-mono-data">$0</div>
+        <div class="flex items-center gap-3">
+          <div class="flex items-center bg-white border border-rose-100 rounded-xl px-3 py-2 gap-2 shadow-sm">
+            <i class="fas fa-key text-rose-300 text-sm"></i>
+            <input type="password" id="apiKeyInput" placeholder="Gemini Key"
+              class="outline-none text-xs w-28 font-mono" />
+            <button id="saveKeyBtn"
+              class="bg-rose-500 text-white text-[10px] px-2 py-1 rounded-md font-black hover:bg-rose-600">
+              儲存
+            </button>
+          </div>
+          <button id="btnExport"
+            class="px-4 py-3 bg-white border border-emerald-200 text-emerald-700 font-black rounded-xl hover:bg-emerald-50 shadow-sm flex items-center gap-2">
+            <i class="fas fa-file-export"></i> 匯出
+          </button>
+          <label
+            class="px-4 py-3 bg-white border border-amber-200 text-amber-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm hover:bg-amber-50">
+            <i class="fas fa-file-import"></i> 匯入計畫
+            <input type="file" id="inputImport" class="hidden" accept=".xlsx" />
+          </label>
+          <label
+            class="px-4 py-3 bg-white border border-rose-200 text-rose-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm hover:bg-rose-50">
+            <i class="fas fa-camera"></i> 照片辨識
+            <input type="file" id="inputCamera" class="hidden" accept="image/*" />
+          </label>
+          <button id="btnDeleteAccount" class="p-2 text-rose-200 hover:text-rose-600">
+            <i class="fas fa-trash-alt text-2xl"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="main-scroll-wrapper">
+        <div class="master-params-grid">
+          <div class="params-row-tight dashboard-header-style">
+            <div class="grid-unit">
+              <label>帳戶淨值 (Net)</label>
+              <div id="totalNetValue" class="font-mono-data data-header">$0</div>
             </div>
-            <div class="glass-card border-t-[6px] border-t-pink-500">
-              <span>總曝險額 (Exp)</span>
-              <div id="totalExposure" class="font-mono-data">$0</div>
+            <div class="grid-unit">
+              <label>總曝險額 (Exp)</label>
+              <div id="totalExposure" class="font-mono-data data-header">$0</div>
             </div>
-            <div class="glass-card border-t-[6px] border-t-amber-500">
-              <span>實質槓桿 (Lev)</span>
-              <div id="leverageDisplay" class="font-mono-data">1.00x</div>
+            <div class="grid-unit">
+              <label>實質槓桿 (Lev)</label>
+              <div id="leverageDisplay" class="font-mono-data data-header">1.00x</div>
             </div>
-            <div
-              class="glass-card border-t-[6px] border-t-rose-400 relative overflow-hidden"
-            >
-              <span>目標總槓桿 (Target Exp)</span>
+            <div class="grid-unit highlight-bg">
+              <label class="!text-rose-600">目標總槓桿 (Target Exp)</label>
               <div class="flex items-baseline gap-2 mt-1">
-                <input
-                  type="text"
-                  id="targetExpInput"
-                  inputmode="decimal"
-                  class="bg-rose-50 border-b-2 border-rose-200 outline-none font-mono-data w-24 text-rose-900 px-2 rounded-t-md focus:border-rose-500 transition-colors"
-                  onchange="updateGlobal('targetExp', this.value)"
-                  onclick="this.select()"
-                />
-                <span class="text-xl font-black text-rose-300">x</span>
+                <input type="text" id="targetExpInput" inputmode="decimal" class="flat-input data-header !text-left"
+                  onchange="updateGlobal('targetExp', this.value)" onclick="this.select()" />
+                <span class="text-rose-300 font-black text-2xl">x</span>
               </div>
-              <i
-                class="fas fa-crosshairs absolute -right-2 -bottom-2 text-rose-50/20 text-5xl"
-              ></i>
             </div>
-            <div class="glass-card border-t-[6px] border-t-rose-600">
-              <span>預算總計 (Goal)</span>
-              <div id="targetTotalRatio" class="font-mono-data">0.0%</div>
+            <div class="grid-unit">
+              <label>預算總計 (Goal)</label>
+              <div id="targetTotalRatio" class="font-mono-data data-header">0.0%</div>
             </div>
-            <div
-              class="glass-card border-t-[6px] border-t-indigo-600"
-              id="maintenanceCard"
-            >
-              <span>質押維持率</span>
-              <div id="maintenanceRatio" class="font-mono-data">N/A</div>
+            <div class="grid-unit" id="maintenanceCard">
+              <label>質押維持率</label>
+              <div id="maintenanceRatio" class="font-mono-data data-header">N/A</div>
             </div>
           </div>
 
-          <div
-            class="params-row-tight !grid-cols-6 border-t-4 border-t-rose-500 bg-white/30 rounded-b-2xl shadow-sm"
-          >
-            <div class="input-unit">
+          <div class="params-row-tight dashboard-params-style">
+            <div class="grid-unit">
               <label>貸款/負債 (Debt)</label>
               <div class="input-box">
-                <span>$</span
-                ><input
-                  type="number"
-                  id="debtInput"
-                  class="flat-input"
-                  oninput="updateGlobal('totalDebt', this.value)"
-                />
+                <span>$</span><input type="number" id="debtInput" class="flat-input"
+                  oninput="updateGlobal('totalDebt', this.value)" />
               </div>
             </div>
-            <div class="input-unit">
+            <div class="grid-unit">
               <label>現金餘額 (Cash)</label>
               <div class="input-box">
-                <span>$</span
-                ><input
-                  type="number"
-                  id="cashInput"
-                  class="flat-input"
-                  oninput="updateGlobal('currentCash', this.value)"
-                />
+                <span>$</span><input type="number" id="cashInput" class="flat-input"
+                  oninput="updateGlobal('currentCash', this.value)" />
               </div>
             </div>
-            <div class="input-unit-small">
+            <div class="grid-unit">
               <label>現金目標 %</label>
               <div class="input-box">
-                <input
-                  type="number"
-                  id="cashRatioInput"
-                  class="flat-input"
-                  oninput="updateGlobal('cashRatio', this.value)"
-                /><span class="text-rose-200">%</span>
+                <input type="number" id="cashRatioInput" class="flat-input"
+                  oninput="updateGlobal('cashRatio', this.value)" /><span class="text-rose-200">%</span>
               </div>
             </div>
-            <div class="input-unit-small">
+            <div class="grid-unit">
               <label>匯率 (USD/TWD)</label>
               <div class="input-box">
-                <input
-                  type="number"
-                  id="usdRateInput"
-                  step="0.1"
-                  class="flat-input"
-                  oninput="updateGlobal('usdRate', this.value)"
-                />
+                <input type="number" id="usdRateInput" step="0.1" class="flat-input"
+                  oninput="updateGlobal('usdRate', this.value)" />
               </div>
             </div>
-            <div class="input-unit-small">
+            <div class="grid-unit">
               <label>絕對門檻</label>
               <div class="input-box">
-                <input
-                  type="number"
-                  id="rebalanceAbsInput"
-                  step="0.1"
-                  class="flat-input"
-                  oninput="updateGlobal('rebalanceAbs', this.value)"
-                /><span class="text-rose-200">%</span>
+                <input type="number" id="rebalanceAbsInput" step="0.1" class="flat-input"
+                  oninput="updateGlobal('rebalanceAbs', this.value)" /><span class="text-rose-200">%</span>
               </div>
             </div>
-            <div class="input-unit-small">
+            <div class="grid-unit">
               <label>相對門檻</label>
               <div class="input-box">
-                <input
-                  type="number"
-                  id="rebalanceRelInput"
-                  step="0.1"
-                  class="flat-input"
-                  oninput="updateGlobal('rebalanceRel', this.value)"
-                /><span class="text-rose-200">%</span>
+                <input type="number" id="rebalanceRelInput" step="0.1" class="flat-input"
+                  oninput="updateGlobal('rebalanceRel', this.value)" /><span class="text-rose-200">%</span>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="mt-6 px-2">
-          <div class="flex justify-between items-center mb-6">
-            <h3 class="text-3xl font-black text-rose-900">
-              <i class="fas fa-layer-group mr-4 text-rose-500"></i>標的實時監控
-            </h3>
-            <div class="flex items-center gap-4">
-              <button
-                id="btnAiOptimize"
-                class="px-6 py-4 bg-gradient-to-r from-indigo-600 to-rose-500 text-white font-black rounded-2xl shadow-xl hover:scale-105 transition-all flex items-center gap-3"
-              >
-                <i class="fas fa-robot"></i> AI 智投建議
-              </button>
-              <button
-                id="btnSyncAll"
-                class="px-8 py-4 bg-white border-2 border-rose-300 text-rose-700 font-black rounded-2xl hover:bg-rose-50 flex items-center gap-3"
-              >
-                <i id="syncIcon" class="fas fa-sync-alt"></i> 更新報價
-              </button>
-              <button
-                id="btnAddAsset"
-                class="px-10 py-4 btn-pink rounded-2xl shadow-xl flex items-center gap-3"
-              >
-                <i class="fas fa-plus"></i> 新增標的
-              </button>
-            </div>
-          </div>
-          <div class="bg-white rounded-3xl p-4 shadow-sm overflow-x-auto">
-            <table class="auto-table">
-              <thead>
-                <tr class="text-rose-400 font-black text-xl">
-                  <th>標的 / 名稱</th>
-                  <th>槓桿</th>
-                  <th>目前單價</th>
-                  <th>持有股數</th>
-                  <th>名目曝險</th>
-                  <th class="text-indigo-700">目前 %</th>
-                  <th class="text-rose-800">目標 %</th>
-                  <th>理想配置</th>
-                  <th>再平衡建議</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="assetBody"></tbody>
-            </table>
+      <div class="mt-6 px-2">
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="text-3xl font-black text-rose-900">
+            <i class="fas fa-layer-group mr-4 text-rose-500"></i>標的實時監控
+          </h3>
+          <div class="flex items-center gap-4">
+            <button id="btnAiOptimize"
+              class="px-6 py-4 bg-gradient-to-r from-indigo-600 to-rose-500 text-white font-black rounded-2xl shadow-xl hover:scale-105 transition-all flex items-center gap-3">
+              <i class="fas fa-robot"></i> AI 智投建議
+            </button>
+            <button id="btnSyncAll"
+              class="px-8 py-4 bg-white border-2 border-rose-300 text-rose-700 font-black rounded-2xl hover:bg-rose-50 flex items-center gap-3">
+              <i id="syncIcon" class="fas fa-sync-alt"></i> 更新報價
+            </button>
+            <button id="btnAddAsset" class="px-10 py-4 btn-pink rounded-2xl shadow-xl flex items-center gap-3">
+              <i class="fas fa-plus"></i> 新增標的
+            </button>
           </div>
         </div>
-      </main>
-    </div>
+        <div class="bg-white rounded-3xl p-4 shadow-sm overflow-x-auto">
+          <table class="auto-table">
+            <thead>
+              <tr class="text-rose-400 font-black text-xl">
+                <th>標的 / 名稱</th>
+                <th>槓桿</th>
+                <th>目前單價</th>
+                <th>持有股數</th>
+                <th>名目曝險</th>
+                <th class="text-indigo-700">目前 %</th>
+                <th class="text-rose-800">目標 %</th>
+                <th>理想配置</th>
+                <th>再平衡建議</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="assetBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
 
-    <div
-      id="toast"
-      class="fixed bottom-10 right-10 px-10 py-5 bg-rose-950 text-white rounded-2xl shadow-2xl opacity-0 z-50 pointer-events-none flex items-center gap-4 font-black text-xl"
-    >
-      <i class="fas fa-bell text-rose-400"></i> <span id="toastMsg"></span>
-    </div>
+  <div id="toast"
+    class="fixed bottom-10 right-10 px-10 py-5 bg-rose-950 text-white rounded-2xl shadow-2xl opacity-0 z-50 pointer-events-none flex items-center gap-4 font-black text-xl">
+    <i class="fas fa-bell text-rose-400"></i> <span id="toastMsg"></span>
+  </div>
 
-    <script>
-      (function () {
-        const savedKey = localStorage.getItem("GEMINI_API_KEY");
-        if (savedKey) {
-          window.GEMINI_API_KEY = savedKey;
-          const input = document.getElementById("apiKeyInput");
-          if (input) input.value = savedKey;
+  <script>
+    (function () {
+      const savedKey = localStorage.getItem("GEMINI_API_KEY");
+      if (savedKey) {
+        window.GEMINI_API_KEY = savedKey;
+        const input = document.getElementById("apiKeyInput");
+        if (input) input.value = savedKey;
+      }
+      document.getElementById("saveKeyBtn").addEventListener("click", () => {
+        const val = document.getElementById("apiKeyInput").value.trim();
+        if (val) {
+          localStorage.setItem("GEMINI_API_KEY", val);
+          window.GEMINI_API_KEY = val;
+          alert("AI API Key 已儲存至瀏覽器儲存空間");
         }
-        document.getElementById("saveKeyBtn").addEventListener("click", () => {
-          const val = document.getElementById("apiKeyInput").value.trim();
-          if (val) {
-            localStorage.setItem("GEMINI_API_KEY", val);
-            window.GEMINI_API_KEY = val;
-            alert("AI API Key 已儲存至瀏覽器儲存空間");
-          }
-        });
-      })();
-    </script>
-    <script type="module" src="main.js"></script>
-  </body>
+      });
+    })();
+  </script>
+  <script type="module" src="main.js"></script>
+</body>
+
 </html>

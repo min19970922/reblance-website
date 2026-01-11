@@ -1,4 +1,4 @@
-/* styles.css - 終極穩定策略修正版 (V24.1) */
+/* styles.css - 專業交易面板 V28.8 (視覺厚度與間距優化版) */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 
@@ -6,10 +6,8 @@
   --primary-pink: #fb7185;
   --accent-pink: #e11d48;
   --sidebar-width: 260px;
-  --bg-soft-pink: #fffafb;
-  --font-size-base: 1rem;
-  --font-size-data: 1.8rem;
-  --font-size-table: 1.2rem;
+  --bg-main: #fffafb;
+  --panel-border: #fff1f2;
 }
 
 /* --- 全域設定 --- */
@@ -17,17 +15,10 @@ body,
 input,
 button {
   font-family: "Calibri", "Microsoft JhengHei", sans-serif !important;
-  background-color: var(--bg-soft-pink);
+  background-color: var(--bg-main);
   color: #1a0005;
   margin: 0;
   overflow-x: hidden;
-}
-
-.font-mono-data,
-.flat-input,
-.underline-input,
-.glass-card div {
-  font-family: "Calibri", sans-serif !important;
 }
 
 .dashboard-container {
@@ -41,6 +32,7 @@ button {
 .dashboard-container.sidebar-collapsed {
   grid-template-columns: 0px 1fr;
 }
+
 .dashboard-container.sidebar-collapsed aside {
   width: 0px !important;
   min-width: 0px !important;
@@ -53,7 +45,7 @@ button {
 aside {
   width: var(--sidebar-width);
   background: white;
-  border-right: 1px solid #fff1f2;
+  border-right: 1px solid var(--panel-border);
   display: flex;
   flex-direction: column;
   z-index: 10;
@@ -67,140 +59,115 @@ main {
   overflow-y: auto;
 }
 
-/* --- 看板與參數區 --- */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 15px;
-  margin-bottom: 10px !important;
+.main-scroll-wrapper {
+  overflow-x: auto;
+  width: 100%;
+  padding-bottom: 15px;
+}
+
+/* --- 核心 6x6 一體化佈局修正 --- */
+.master-params-grid {
+  min-width: 1100px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  /* 這裡產生了看板與參數列之間的厚度間距 */
 }
 
 .params-row-tight {
   background: white;
-  border: 2px solid #fff1f2;
-  border-radius: 15px;
-  box-shadow: 0 5px 20px -10px rgba(0, 0, 0, 0.05);
-  margin-bottom: 20px;
+  border: 2px solid var(--panel-border);
+  border-radius: 20px;
+  /* 恢復圓角，不再相連 */
+  box-shadow: 0 10px 30px -15px rgba(0, 0, 0, 0.08);
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   overflow: hidden;
   width: 100%;
-  min-width: 900px;
 }
 
-.main-scroll-wrapper {
-  overflow-x: auto;
-  width: 100%;
-  padding-bottom: 10px;
+/* --- 頂部看板樣式 (即時數據) --- */
+.dashboard-header-style {
+  background: linear-gradient(to bottom, #ffffff, #fffafb);
+  border-top: 6px solid var(--primary-pink) !important;
+  /* 強化頂部線條感 */
 }
 
-.glass-card {
+/* --- 下方參數樣式 (輸入控制) --- */
+.dashboard-params-style {
   background: white;
-  border-radius: 20px;
-  border: 1px solid rgba(251, 113, 133, 0.2);
-  padding: 10px 15px;
-  box-shadow: 0 5px 15px -5px rgba(251, 113, 133, 0.08);
+  border: 2px solid var(--panel-border);
 }
 
-.glass-card span {
-  font-size: 0.9rem;
-  font-weight: 900;
-  color: #9d174d;
-  display: block;
-  margin-bottom: 5px;
-}
-
-.glass-card div {
-  font-size: var(--font-size-data) !important;
-  font-weight: 900;
-  letter-spacing: -1px;
-}
-
-/* --- 核心修復：頂部參數列佈局 --- */
-.input-unit,
-.input-unit-small {
+.grid-unit {
   display: flex;
   flex-direction: column;
-  padding: 8px 15px;
-  border-right: 2px solid #fff1f2;
+  padding: 20px 25px;
+  /* 增加內距產生厚度與專業感 */
+  border-right: 2px solid var(--panel-border);
+  justify-content: center;
+  min-height: 110px;
+  /* 確保最小高度一致 */
 }
 
-.input-unit:last-child,
-.input-unit-small:last-child {
+.grid-unit:last-child {
   border-right: none;
 }
 
-.input-unit label,
-.input-unit-small label {
+.grid-unit label {
   font-size: 0.85rem;
   font-weight: 900;
   color: var(--primary-pink);
-  margin-bottom: 2px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
-/* 確保符號與數字在同一行 */
+/* --- 數據字體優化 --- */
+.font-mono-data {
+  font-family: "Calibri", sans-serif !important;
+  font-weight: 900;
+  color: #1a0005;
+}
+
+.data-header {
+  font-size: 2.3rem !important;
+  /* 恢復震撼的大數字 */
+  letter-spacing: -1.5px;
+  line-height: 1;
+}
+
+/* --- 輸入框樣式 --- */
 .input-box {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .input-box span {
   font-weight: 900;
   color: #fecdd3;
-  font-size: 1.2rem;
+  font-size: 1.4rem;
 }
 
 .flat-input {
   border: none;
   outline: none;
-  font-size: 1.6rem;
+  font-size: 2.1rem;
+  /* 與數據看板對齊 */
   font-weight: 900;
   width: 100%;
   background: transparent;
   text-align: right;
   color: #1a0005;
-  flex: 1; /* 佔滿剩餘空間 */
-  min-width: 0;
 }
 
-/* --- 輸入框自動寬度鏡像邏輯 (表格內用) --- */
-.input-col-wrapper {
-  position: relative;
-  display: inline-grid;
-  vertical-align: middle;
-  justify-items: center;
-  align-items: center;
+.highlight-bg {
+  background: rgba(255, 241, 242, 0.6);
+  /* AI 規劃區淡淡的高亮色 */
 }
 
-.input-mirror {
-  grid-area: 1 / 1;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  white-space: pre;
-  padding: 0 10px;
-  pointer-events: none;
-}
-
-.underline-input {
-  grid-area: 1 / 1;
-  width: 100%;
-  background: white !important;
-  border: none;
-  border-bottom: 2px solid #fecdd3;
-  outline: none;
-  text-align: center;
-  padding: 0 10px;
-  font-weight: 900;
-  z-index: 5;
-  transition: border-color 0.2s;
-}
-
-.underline-input:focus {
-  border-bottom-color: var(--primary-pink);
-}
-
-/* --- 表格與按鈕 --- */
+/* --- 表格與資產清單 --- */
 .auto-table {
   width: 100%;
   border-collapse: collapse;
@@ -208,39 +175,47 @@ main {
 }
 
 .auto-table th {
-  padding: 15px 12px;
-  font-size: 0.9rem;
+  padding: 20px 15px;
+  font-size: 1rem;
   color: #9d174d;
-  background: #fffafb;
+  background: var(--bg-main);
   border-bottom: 2px solid #fecdd3;
+  text-align: center;
 }
 
 td {
-  padding: 15px 12px;
+  padding: 18px 15px;
   text-align: center;
-  font-size: var(--font-size-table);
+  font-size: 1.2rem;
   font-weight: 900;
-  border-bottom: 1px solid #fff1f2;
+  border-bottom: 1px solid var(--panel-border);
 }
 
 .btn-pink {
   background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
   color: white;
   font-weight: 900;
-  border-radius: 15px;
-  padding: 10px 25px;
+  border-radius: 18px;
+  padding: 12px 28px;
   border: none;
   cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-/* --- 2026 再平衡策略動態樣式 --- */
+.btn-pink:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(225, 29, 72, 0.3);
+}
 
+/* --- 再平衡動畫與進度條 --- */
 @keyframes pulse-soft {
+
   0%,
   100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.7;
     transform: scale(0.98);
@@ -251,29 +226,17 @@ td {
   animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-.status-monitoring {
-  opacity: 0.4;
-  filter: grayscale(100%);
-  transition: all 0.4s ease;
-}
-
-.status-triggered {
-  opacity: 1;
-  filter: grayscale(0%);
-  transform: scale(1.05);
-  transition: all 0.4s ease;
-}
-
 .rebalance-bar-bg {
   width: 100%;
-  height: 8px;
+  height: 10px;
   background: #f1f5f9;
-  border-radius: 999px;
+  border-radius: 10px;
   overflow: hidden;
   border: 1px solid #e2e8f0;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 #toast {
   transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  z-index: 100;
 }
