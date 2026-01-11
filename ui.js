@@ -254,8 +254,10 @@ export function updateAssetRowData(asset, acc, netValue) {
            <span class="${s.isTriggered ? (isBuy ? "text-emerald-500" : "text-rose-700") : "text-gray-400"}">${actionText}</span>
            <span class="text-rose-900 ${s.isTriggered ? "" : "hidden"}">(${Math.abs(s.diffShares).toLocaleString()} 股)</span>
         </div>
-        <div class="rebalance-bar-bg"><div class="h-full ${barColor} transition-all duration-700" style="width: ${Math.min(100, s.saturation * 100)}%"></div></div>
-      </div>`;
+        <div class="rebalance-bar-bg">
+    <div class="h-full ${barColor} transition-all duration-700" style="width: ${Math.min(100, s.saturation * 100)}%"></div>
+  </div>
+`;
   }
 }
 export function updateDashboardUI(data, acc) {
