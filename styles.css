@@ -99,7 +99,7 @@ main {
 }
 
 .grid-unit label {
-  font-size: 0.85rem;
+  font-size: 1.1rem;
   font-weight: 900;
   color: var(--primary-pink);
   margin-bottom: 4px;
@@ -113,7 +113,7 @@ main {
 
 /* 看板數據字體 */
 .data-header {
-  font-size: 2.3rem !important;
+  font-size: 2rem !important;
   letter-spacing: -1px;
   line-height: 1.1;
 }
@@ -122,7 +122,7 @@ main {
 .flat-input {
   border: none;
   outline: none;
-  font-size: 2.1rem;
+  font-size: 2rem;
   font-weight: 900;
   width: 100%;
   background: transparent;
@@ -186,7 +186,7 @@ main {
 
 .auto-table th {
   padding: 20px 10px;
-  font-size: 1.1rem;
+  font-size: 1.8rem;
   /* 標題文字調大 */
   color: #9d174d;
   background: var(--bg-main);
@@ -198,7 +198,7 @@ main {
 td {
   padding: 15px 10px;
   text-align: center;
-  font-size: 1.6rem;
+  font-size: 1.8rem;
   /* 內容數據文字調大，增加厚度感 */
   font-weight: 900;
   border-bottom: 1px solid var(--panel-border);
@@ -233,7 +233,7 @@ td {
   padding: 10px 25px;
   border: none;
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 1.8rem;
 }
 
 #toast {
