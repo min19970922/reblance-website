@@ -175,7 +175,8 @@ export async function importFromImage(e, onComplete) {
   } finally { e.target.value = ""; }
 }
 /**
- * AI 智投極簡版 (v33.0) - 專治 429 頻率限制
+ * AI 智投極簡穩定版 (v34.0) 
+ * 修正：404 URL 錯誤、429 頻率限制、差異化分配邏輯
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -190,22 +191,26 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  // 【優化 1】極簡數據格式：減少 Token 消耗，防止觸發 TPM 限制
+  // 極簡化數據：標的名稱,目前佔比,槓桿倍數
   const aiAssetsInfo = aiAssets.map(a => {
     const curP = data.netValue > 0 ? (safeNum(a.bookValue) / data.netValue) * 100 : 0;
     return `${a.name},${curP.toFixed(1)}%,${a.leverage}x`;
   }).join("|");
 
   try {
-    // 【優化 2】極簡指令：直接餵數據，減少 AI 思考成本
+    // 強化金融邏輯：明確告知目標是增槓桿還是降槓桿
+    const action = targetExp > (data.totalLeverage || 1) ? "Leverage UP (focus on 2x)" : "De-leverage (focus on 1x)";
+
     const promptText = `Task: Distribute ${remainingBudget.toFixed(1)}% budget. 
-    Status: Total Leverage ${data.totalLeverage.toFixed(2)}x, Goal ${targetExp}x.
-    Rule: 1. Sum must be exact. 2. No average. 3. Output JSON ONLY: {"suggestions":[{"name":"ID","targetRatio":VAL}]}.
+    Status: Current Lev ${(data.totalLeverage || 1).toFixed(2)}x, Target ${targetExp}x.
+    Strategy: ${action}.
+    Rule: 1.Sum exact. 2.No average weight. 3.Output JSON ONLY.
     Data: [${aiAssetsInfo}]`;
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+    // 【核心修復】404 錯誤主因：URL 模型路徑修正
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-    // 【優化 3】強制冷卻：請求前強制等待 1 秒，確保 Google 伺服器佇列清空
+    // 強制冷卻 1 秒防止 429
     await new Promise(r => setTimeout(r, 1000));
 
     const response = await fetch(apiUrl, {
@@ -215,7 +220,8 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     });
 
     if (!response.ok) {
-      if (response.status === 429) throw new Error("Google 頻率限制，請等待 1 分鐘後再按一次");
+      if (response.status === 404) throw new Error("API 路徑錯誤 (404)，請檢查模型名稱");
+      if (response.status === 429) throw new Error("Google 頻率限制，請稍後再試");
       throw new Error(`API 錯誤: ${response.status}`);
     }
 
@@ -226,9 +232,8 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     if (text) {
       const suggestions = JSON.parse(text).suggestions || [];
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
-      if (aiSum <= 0) throw new Error("AI 回傳無效建議");
-
       const factor = remainingBudget / aiSum;
+
       const finalSuggestions = suggestions.map(sug => ({
         name: sug.name.toString().toUpperCase().trim(),
         targetRatio: Math.round(sug.targetRatio * factor * 10) / 10,
