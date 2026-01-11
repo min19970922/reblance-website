@@ -1,4 +1,4 @@
-/* styles.css - 終極表格佈局優化版 V29.5 */
+/* styles.css - 終極表格視覺與響應式優化版 V30.0 */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 
@@ -47,14 +47,12 @@ aside {
   flex-direction: column;
   z-index: 10;
   overflow: hidden;
-  transition: all 0.3s ease;
 }
 
 main {
   padding: clamp(15px, 3vw, 30px);
   box-sizing: border-box;
   overflow-y: auto;
-  max-width: 100%;
 }
 
 .main-scroll-wrapper {
@@ -63,13 +61,13 @@ main {
   padding-bottom: 10px;
 }
 
-/* --- 看板與參數佈局 --- */
+/* --- 核心看板與參數佈局 --- */
 .master-params-grid {
   display: flex;
   flex-direction: column;
   gap: 20px;
   width: 100%;
-  min-width: 950px;
+  min-width: 1000px;
 }
 
 .params-row-tight {
@@ -101,7 +99,7 @@ main {
 }
 
 .grid-unit label {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 900;
   color: var(--primary-pink);
   margin-bottom: 4px;
@@ -113,16 +111,18 @@ main {
   font-weight: 900;
 }
 
+/* 看板數據字體 */
 .data-header {
-  font-size: clamp(1.6rem, 2.2vw, 2.3rem) !important;
+  font-size: 2.3rem !important;
   letter-spacing: -1px;
   line-height: 1.1;
 }
 
+/* 參數輸入格字體 */
 .flat-input {
   border: none;
   outline: none;
-  font-size: clamp(1.6rem, 2.2vw, 2.1rem);
+  font-size: 2.1rem;
   font-weight: 900;
   width: 100%;
   background: transparent;
@@ -134,35 +134,35 @@ main {
   background: rgba(255, 241, 242, 0.6);
 }
 
-/* --- 表格輸入鏡像與縮減寬度修正 --- */
+/* --- 表格輸入格修正：徹底解決鏡像與切斷問題 --- */
 .input-col-wrapper {
   position: relative;
   display: inline-grid;
   vertical-align: middle;
   justify-items: center;
   align-items: center;
-  min-width: 10px;
-  /* 預設寬度縮到最小 */
 }
 
+/* 修正：鏡像文字僅用於撐開寬度，絕對不能被看見 */
 .input-mirror {
   grid-area: 1 / 1;
-  display: block;
-  height: 0;
-  overflow: hidden;
+  visibility: hidden;
   opacity: 0 !important;
-  visibility: hidden !important;
   white-space: pre;
-  padding: 0 4px;
-  /* 縮減間距 */
+  padding: 0 12px;
+  /* 增加邊距防止文字貼邊 */
   pointer-events: none;
+  /* 關鍵：字體必須與 input 完全一致，否則撐開的寬度會不準 */
+  font-family: inherit;
+  font-size: 1.8rem;
+  font-weight: 900;
 }
 
+/* 表格內的輸入框文字大小調大，與上方對齊 */
 .underline-input {
   grid-area: 1 / 1;
   width: 100%;
-  min-width: 40px;
-  /* 縮短輸入框預設寬度 */
+  min-width: 80px;
   background: transparent !important;
   border: none;
   border-bottom: 2px solid #fecdd3;
@@ -172,87 +172,71 @@ main {
   z-index: 5;
   color: inherit;
   font-family: inherit;
-  font-size: inherit;
+  font-size: 1.8rem;
+  /* 調大至與參數列相近的厚度感 */
 }
 
-/* --- 表格寬度與空間最大化利用 --- */
+/* --- 表格標題與內容置中優化 --- */
 .auto-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: auto;
-  /* 自動識別最長文字 */
   white-space: nowrap;
 }
 
-.auto-table th,
-.auto-table td {
-  padding: 12px 8px;
-  border-bottom: 1px solid var(--panel-border);
-}
-
-/* 核心邏輯：將剩餘所有空間分配給「再平衡建議」欄位 */
-.auto-table th:nth-last-child(2),
-.auto-table td:nth-last-child(2) {
-  width: 100%;
-  /* 讓此欄位（再平衡建議）吃掉所有剩餘寬度 */
-  text-align: left;
-}
-
 .auto-table th {
-  font-size: 0.9rem;
+  padding: 20px 10px;
+  font-size: 1.1rem;
+  /* 標題文字調大 */
   color: #9d174d;
   background: var(--bg-main);
-  border-bottom: 2px solid #fecdd3;
+  border-bottom: 3px solid #fecdd3;
+  text-align: center !important;
+  /* 強制標題置中 */
 }
 
 td {
-  font-size: 1.15rem;
+  padding: 15px 10px;
+  text-align: center;
+  font-size: 1.6rem;
+  /* 內容數據文字調大，增加厚度感 */
   font-weight: 900;
+  border-bottom: 1px solid var(--panel-border);
 }
 
+/* 核心邏輯：空間分配給建議欄，且內容置中 */
+.auto-table th:nth-last-child(2),
+.auto-table td:nth-last-child(2) {
+  width: 100%;
+  text-align: center;
+}
+
+.rebalance-bar-bg {
+  width: 100%;
+  min-width: 150px;
+  max-width: 300px;
+  height: 12px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  margin: 8px auto 0;
+  /* 置中 */
+}
+
+/* 其他 UI 元件保持 */
 .btn-pink {
   background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
   color: white;
   font-weight: 900;
   border-radius: 12px;
-  padding: 8px 20px;
+  padding: 10px 25px;
   border: none;
   cursor: pointer;
-  transition: transform 0.2s;
-}
-
-.rebalance-bar-bg {
-  width: 100%;
-  min-width: 120px;
-  max-width: 250px;
-  /* 在剩餘空間中限制建議條的最大長度 */
-  height: 10px;
-  background: #f1f5f9;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid #e2e8f0;
-  margin-top: 6px;
+  font-size: 1.1rem;
 }
 
 #toast {
   z-index: 100;
   transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-}
-
-@keyframes pulse-soft {
-
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.7;
-    transform: scale(0.98);
-  }
-}
-
-.animate-pulse-soft {
-  animation: pulse-soft 2s infinite;
 }
