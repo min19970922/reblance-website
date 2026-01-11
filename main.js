@@ -142,9 +142,13 @@ window.updateAsset = (id, key, val) => {
 };
 
 window.moveAsset = (assetId, direction) => {
-  const acc = appState.accounts.find((a) => a.id === assetId);
+  // 修正：應尋找目前啟動中的帳戶，而不是用 assetId 去找帳戶
+  const acc = appState.accounts.find((a) => a.id === appState.activeId);
+  if (!acc) return;
+
   const index = acc.assets.findIndex((a) => a.id === assetId);
   const newIndex = index + direction;
+
   if (newIndex >= 0 && newIndex < acc.assets.length) {
     [acc.assets[index], acc.assets[newIndex]] = [
       acc.assets[newIndex],
@@ -231,33 +235,55 @@ function bindGlobalEvents() {
     };
   }
 
-  // AI 智投建議配置按鈕
+
+  // AI 智投建議配置按鈕 (優化版：防止連續點擊觸發 429 錯誤)
   const btnAiOptimize = document.getElementById("btnAiOptimize");
+  let isAiProcessing = false; // 狀態鎖定旗標
+
   if (btnAiOptimize) {
     btnAiOptimize.onclick = async () => {
+      // 防止重複點擊
+      if (isAiProcessing) return;
+
       const acc = appState.accounts.find((a) => a.id === appState.activeId);
       if (!acc) return;
 
       const targetExp = acc.targetExp || 1.0;
 
-      await generateAiAllocation(acc, targetExp, (suggestions) => {
-        // 關鍵：先記錄原本未鎖定的標的，若 AI 漏掉建議，則維持原狀或設為最小比例
-        suggestions.forEach((sug) => {
-          const asset = acc.assets.find((a) =>
-            a.name.toUpperCase().includes(sug.name) ||
-            sug.name.includes(a.name.toUpperCase())
-          );
-          if (asset && !asset.isLocked) {
-            asset.targetRatio = sug.targetRatio;
-          }
+      // 進入處理狀態
+      isAiProcessing = true;
+      btnAiOptimize.disabled = true;
+      btnAiOptimize.classList.add("opacity-50", "cursor-not-allowed");
+      btnAiOptimize.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 計算中...`;
+
+      try {
+        await generateAiAllocation(acc, targetExp, (suggestions) => {
+          suggestions.forEach((sug) => {
+            // 模糊匹配邏輯：確保代號能對應
+            const asset = acc.assets.find((a) =>
+              a.name.toUpperCase().includes(sug.name) ||
+              sug.name.includes(a.name.toUpperCase())
+            );
+            if (asset && !asset.isLocked) {
+              asset.targetRatio = sug.targetRatio;
+            }
+          });
+          saveToStorage();
+          refreshAll();
+          showToast(`✅ 已根據 ${targetExp}x 目標優化權重`);
         });
-        saveToStorage();
-        refreshAll();
-        showToast(`✅ 已根據 ${targetExp}x 目標優化權重`);
-      });
+      } catch (err) {
+        // 錯誤訊息通常已在 generateAiAllocation 顯示 toast
+        console.error("AI 智投執行失敗:", err);
+      } finally {
+        // 解除鎖定
+        isAiProcessing = false;
+        btnAiOptimize.disabled = false;
+        btnAiOptimize.classList.remove("opacity-50", "cursor-not-allowed");
+        btnAiOptimize.innerHTML = `<i class="fas fa-robot"></i> AI 智投建議`;
+      }
     };
   }
-
   document.getElementById("btnSyncAll").onclick = () => syncAllPrices(appState);
 
   document.getElementById("btnAddAsset").onclick = () => {

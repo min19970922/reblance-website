@@ -176,43 +176,46 @@ export async function importFromImage(e, onComplete) {
 }
 
 /**
- * AI 智投強化版 - 解決匹配失敗、平均分配與歸一化問題
+ * AI 智投強化版 (v32.5) 
+ * 解決：匹配失敗、平均分配、429 頻率限制報錯、及歸一化精準度
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請設定 API Key");
 
   const data = calculateAccountData(acc);
-  // 計算鎖定資產與現金佔用的比例
+
+  // 1. 精確計算預算：100% - 鎖定% - 現金%
   const lockedTotal = acc.assets.reduce((s, a) => s + (a.isLocked ? safeNum(a.targetRatio) : 0), 0) + safeNum(acc.cashRatio);
   const remainingBudget = Math.max(0, 100 - lockedTotal);
 
-  if (remainingBudget <= 0) return showToast("❌ 預算已滿 (鎖定項已達100%)");
+  if (remainingBudget <= 0) return showToast("❌ 預算已滿 (鎖定項與現金已達 100%)");
 
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
-  if (aiAssets.length === 0) return showToast("❌ 找不到可規劃的非鎖定標的");
+  if (aiAssets.length === 0) return showToast("❌ 找不到可規劃標的 (請檢查是否全部鎖定)");
 
-  // 1. 提供詳細上下文：包含目前槓桿現狀與每個標的的槓桿特性
+  // 2. 準備上下文：讓 AI 看到「現況」與「目標」的差距
   const currentTotalLev = data.totalLeverage || 1.0;
   const aiAssetsInfo = aiAssets.map((a) => {
+    // 這裡使用 bookValue (淨值) 計算目前的資金占比，確保與 targetRatio 邏輯一致
     const currentPct = data.netValue > 0 ? (safeNum(a.bookValue) / data.netValue) * 100 : 0;
     return `- 代號: ${a.name}, 目前權重: ${currentPct.toFixed(1)}%, 標的倍數: ${a.leverage}x`;
   }).join("\n");
 
-  showToast(`🧠 AI 正在優化權重 (目標: ${targetExp}x)...`);
+  showToast(`🧠 正在根據 ${targetExp}x 目標優化權重...`);
 
   try {
     const promptText = `你是一位專業的量化基金經理。
-    【背景】帳戶目前總實質槓桿為 ${currentTotalLev.toFixed(2)}x，目標是達成 ${targetExp}x。
+    【背景】帳戶目前實質槓桿 ${currentTotalLev.toFixed(2)}x，目標是達成 ${targetExp}x。
     【任務】請分配剩餘的 ${remainingBudget.toFixed(1)}% 預算給待規劃標的。
     【分配準則】
-    1. 必須將 ${remainingBudget.toFixed(1)}% 預算分配完畢，targetRatio 總和需精確等於此數。
-    2. 根據「標的倍數」分配：若要拉高總槓桿，應分配更多權重給倍數高的標的(如2x)。
-    3. 拒絕平均分配！參考「目前權重」做最小化變動的優化。
-    4. 回傳代號必須與清單一致。
+    1. 必須將 ${remainingBudget.toFixed(1)}% 全部用完，targetRatio 總和需精確。
+    2. 槓桿導向：若目標槓桿 > 目前，請優先加碼「標的倍數」高的標的；反之則減碼。
+    3. 拒絕平均分配：請根據倍數差異化配置權重。
+    4. 穩定性：參考目前權重微調，避免無意義的大幅換倉。
+    5. 回傳代號必須與清單完全一致。
     
-    請嚴格只回傳 JSON 格式，不要解釋：
-    {"suggestions": [{"name": "代號", "targetRatio": 數值}]}`;
+    請嚴格只回傳 JSON：{"suggestions": [{"name": "代號", "targetRatio": 數值}]}`;
 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
     const response = await fetch(apiUrl, {
@@ -221,23 +224,26 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
       body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
     });
 
-    if (!response.ok) throw new Error(`API 請求失敗: ${response.status}`);
+    // 處理 429 頻率限制
+    if (!response.ok) {
+      if (response.status === 429) throw new Error("API 請求太頻繁，請等待 1 分鐘後再試");
+      throw new Error(`API 請求失敗: ${response.status}`);
+    }
 
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    // 清理 Markdown 標記
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
     if (text) {
       const suggestions = JSON.parse(text).suggestions || [];
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
 
-      if (aiSum <= 0) throw new Error("AI 回傳無效建議值");
+      if (aiSum <= 0) throw new Error("AI 回傳無效建議");
 
-      // 2. 核心修正：強制歸一化，確保總和絕對正確
+      // 3. 強制歸一化：確保結果總和絕對等於 remainingBudget
       const factor = remainingBudget / aiSum;
       const finalSuggestions = suggestions.map((sug) => ({
-        // 模糊匹配修正：轉大寫並去除空白
+        // 模糊匹配處理：統一格式以利 main.js 匹配
         name: sug.name.toString().toUpperCase().trim(),
         targetRatio: Math.round(sug.targetRatio * factor * 10) / 10,
       }));
