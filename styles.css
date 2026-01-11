@@ -1,4 +1,4 @@
-/* styles.css - 終極穩定策略版 (V24) */
+/* styles.css - 終極穩定策略修正版 (V24.1) */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 
@@ -116,7 +116,55 @@ main {
   letter-spacing: -1px;
 }
 
-/* --- 輸入框自動寬度鏡像邏輯 --- */
+/* --- 核心修復：頂部參數列佈局 --- */
+.input-unit,
+.input-unit-small {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 15px;
+  border-right: 2px solid #fff1f2;
+}
+
+.input-unit:last-child,
+.input-unit-small:last-child {
+  border-right: none;
+}
+
+.input-unit label,
+.input-unit-small label {
+  font-size: 0.85rem;
+  font-weight: 900;
+  color: var(--primary-pink);
+  margin-bottom: 2px;
+}
+
+/* 確保符號與數字在同一行 */
+.input-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.input-box span {
+  font-weight: 900;
+  color: #fecdd3;
+  font-size: 1.2rem;
+}
+
+.flat-input {
+  border: none;
+  outline: none;
+  font-size: 1.6rem;
+  font-weight: 900;
+  width: 100%;
+  background: transparent;
+  text-align: right;
+  color: #1a0005;
+  flex: 1; /* 佔滿剩餘空間 */
+  min-width: 0;
+}
+
+/* --- 輸入框自動寬度鏡像邏輯 (表格內用) --- */
 .input-col-wrapper {
   position: relative;
   display: inline-grid;
@@ -199,19 +247,16 @@ td {
   }
 }
 
-/* 呼吸燈效果：用於飽和度 > 80% */
 .animate-pulse-soft {
   animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* 監控中：灰階且半透明 */
 .status-monitoring {
   opacity: 0.4;
   filter: grayscale(100%);
   transition: all 0.4s ease;
 }
 
-/* 觸發建議：高亮且稍微放大 */
 .status-triggered {
   opacity: 1;
   filter: grayscale(0%);
@@ -219,7 +264,6 @@ td {
   transition: all 0.4s ease;
 }
 
-/* 進度條容器樣式 */
 .rebalance-bar-bg {
   width: 100%;
   height: 8px;
@@ -230,7 +274,6 @@ td {
   margin-top: 6px;
 }
 
-/* 吐司通知系統 */
 #toast {
   transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
 }
