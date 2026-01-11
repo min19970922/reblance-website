@@ -1,18 +1,22 @@
 /**
- * state.js - 金融大師策略增強版 (V24)
- * 1. 支援動態偏離門檻 (絕對 Abs / 相對 Rel)
- * 2. 新增 10,000 元台幣金額偏差觸發邏輯
- * 3. 強化飽和度 (Saturation) 計算，供 UI 呈現綠/黃/紅漸層
+ * state.js - 金融大師策略增強版 (V25)
+ * 1. 支援目標總槓桿 (targetExp) 參數設定
+ * 2. 支援動態偏離門檻 (絕對 Abs / 相對 Rel)
+ * 3. 強化飽和度 (Saturation) 計算與維持率監控
  */
 
 export const STORAGE_KEY = "REBALANCE_MASTER_PRO_V23";
 
+/**
+ * 初始帳戶範本
+ */
 export const initialAccountTemplate = (name = "新計畫") => ({
   id: "acc_" + Date.now(),
   name: name,
   currentCash: 0,
   totalDebt: 0,
   cashRatio: 0,
+  targetExp: 1.0, // 新增：目標總槓桿，預設為 1.0x
   usdRate: 32.5,
   rebalanceAbs: 5, // 預設絕對門檻 5%
   rebalanceRel: 25, // 預設相對門檻 25%
@@ -27,12 +31,18 @@ export let appState = {
   ],
 };
 
+/**
+ * 安全數值轉換
+ */
 export function safeNum(val, def = 0) {
   if (val === null || val === undefined || val === "") return def;
   const n = parseFloat(val);
   return isNaN(n) ? def : n;
 }
 
+/**
+ * 儲存與讀取邏輯
+ */
 export function saveToStorage() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
 }
@@ -43,6 +53,10 @@ export function loadFromStorage() {
     try {
       const parsed = JSON.parse(saved);
       if (parsed && parsed.accounts) {
+        // 確保舊資料升級時也能擁有新的 targetExp 屬性
+        parsed.accounts.forEach((acc) => {
+          if (acc.targetExp === undefined) acc.targetExp = 1.0;
+        });
         Object.assign(appState, parsed);
         return true;
       }
@@ -55,10 +69,6 @@ export function loadFromStorage() {
 
 /**
  * 計算帳戶即時數據：包含資產換算台幣、名目曝險、淨值與槓桿
- */
-/**
- * 計算帳戶即時數據：包含資產換算台幣、名目曝險、淨值與槓桿
- * 核心修復：整合現金為虛擬資產以支援再平衡邏輯
  */
 export function calculateAccountData(acc) {
   if (!acc) return null;
@@ -87,8 +97,7 @@ export function calculateAccountData(acc) {
     totalAssetBookValue + safeNum(acc.currentCash) - safeNum(acc.totalDebt);
   const totalLeverage = netValue > 0 ? totalNominalExposure / netValue : 0;
 
-  // 3. 核心修復：建立「現金虛擬資產」對象
-  // 現金的 nominalValue 即為 (現金 - 負債)，leverage 永遠為 1
+  // 3. 現金虛擬資產對象 (主要用於顯示，leverage 永遠為 1)
   const cashNetValue = safeNum(acc.currentCash) - safeNum(acc.totalDebt);
   const cashAsset = {
     id: "cash-row",
@@ -98,7 +107,7 @@ export function calculateAccountData(acc) {
     priceTwd: 1,
     shares: cashNetValue,
     leverage: 1,
-    targetRatio: safeNum(acc.cashRatio), // 這裡對應 state.js 的初始屬性
+    targetRatio: safeNum(acc.cashRatio),
     nominalValue: cashNetValue,
     bookValue: cashNetValue,
     isTW: true,
@@ -106,7 +115,7 @@ export function calculateAccountData(acc) {
 
   return {
     assetsCalculated,
-    cashAsset, // 新增：回傳現金虛擬資產
+    cashAsset,
     netValue,
     totalNominalExposure,
     totalLeverage,
@@ -119,6 +128,7 @@ export function calculateAccountData(acc) {
       safeNum(acc.cashRatio),
   };
 }
+
 /**
  * 再平衡核心邏輯：根據動態門檻判定是否觸發建議
  */
@@ -136,7 +146,7 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
   const tAbs = safeNum(acc.rebalanceAbs, 5);
   const tRel = safeNum(acc.rebalanceRel, 25) / 100;
 
-  // 3. 計算差額金額
+  // 3. 計算差額金額 (以淨值為準)
   const targetNominal = netValue * (targetPct / 100);
   const diffNominal = targetNominal - safeNum(asset.nominalValue);
 
@@ -149,8 +159,7 @@ export function getRebalanceSuggestion(asset, acc, netValue) {
   const diffShares =
     priceTwd * factor > 0 ? diffNominal / (priceTwd * factor) : 0;
 
-  // 6. 計算飽和度 (0.0 ~ 1.0)，用於 UI 判斷進度條顏色
-  // 取「絕對偏離/門檻」與「相對偏離/門檻」的較大者
+  // 6. 計算飽和度 (0.0 ~ 1.0)
   const saturation = Math.min(1, Math.max(absDiff / tAbs, relDiff / tRel));
 
   return {

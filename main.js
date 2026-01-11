@@ -1,6 +1,6 @@
 /**
- * main.js - 核心邏輯終極版 (v15.0)
- * 整合：全域函式掛載、頂部參數區連動、AI 合併後自動價格同步
+ * main.js - 核心邏輯終極版 (v25.3)
+ * 整合：全域函式掛載、頂部參數區連動、AI 合併、自動報價、以及 AI 智投建議功能
  */
 import {
   appState,
@@ -16,7 +16,12 @@ import {
   showToast,
 } from "./ui.js";
 import { syncAllPrices, fetchLivePrice } from "./api.js";
-import { exportExcel, importExcel, importFromImage } from "./utils.js";
+import {
+  exportExcel,
+  importExcel,
+  importFromImage,
+  generateAiAllocation,
+} from "./utils.js";
 
 /**
  * 系統初始化
@@ -66,6 +71,12 @@ function refreshAll() {
       }
     };
   }
+
+  // 同步目標總槓桿輸入框數值
+  const targetExpInput = document.getElementById("targetExpInput");
+  if (targetExpInput) {
+    targetExpInput.value = activeAcc.targetExp || 1.0;
+  }
 }
 
 // --- 全域函式掛載區 (供 HTML inline 事件呼叫) ---
@@ -87,14 +98,14 @@ window.deleteAccount = (id) => {
 };
 
 /**
- * 更新頂部參數區 (包含現金比例、負債、現金餘額等)
+ * 更新頂部參數區 (包含現金比例、負債、目標槓桿等)
  */
 window.updateGlobal = (key, val) => {
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   if (acc) {
     acc[key] = safeNum(val);
     saveToStorage();
-    refreshAll(); // 關鍵：參數改變後必須立即重新計算 Dashboard 與標的目前%
+    refreshAll(); // 參數改變後立即重新計算數據
   }
 };
 
@@ -105,11 +116,9 @@ window.updateAsset = (id, key, val) => {
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   const asset = acc.assets.find((as) => as.id === id);
   if (asset) {
-    // 處理代號轉換大寫
     asset[key] = key === "name" ? val.toUpperCase().trim() : safeNum(val);
     saveToStorage();
 
-    // 如果修改的是名稱/代號且長度符合，觸發單一報價同步
     if (key === "name" && asset.name.length >= 4) {
       window.fetchLivePrice(id, asset.name);
     } else {
@@ -145,7 +154,6 @@ window.fetchLivePrice = (id, symbol) => {
 
 // --- DOM 事件綁定 ---
 function bindGlobalEvents() {
-  // 側邊欄切換
   const btnToggle = document.getElementById("btnToggleSidebar");
   if (btnToggle) {
     btnToggle.onclick = () => {
@@ -155,7 +163,6 @@ function bindGlobalEvents() {
     };
   }
 
-  // 新增計畫
   const btnCreate = document.getElementById("btnCreateAccount");
   if (btnCreate) {
     btnCreate.onclick = () => {
@@ -167,13 +174,11 @@ function bindGlobalEvents() {
     };
   }
 
-  // 刪除目前計畫
   const btnDelete = document.getElementById("btnDeleteAccount");
   if (btnDelete) {
     btnDelete.onclick = () => window.deleteAccount(appState.activeId);
   }
 
-  // 匯出 Excel
   const btnExport = document.getElementById("btnExport");
   if (btnExport) {
     btnExport.onclick = () => {
@@ -182,7 +187,6 @@ function bindGlobalEvents() {
     };
   }
 
-  // 匯入 Excel
   const inputImport = document.getElementById("inputImport");
   if (inputImport) {
     inputImport.onchange = (e) => {
@@ -199,31 +203,46 @@ function bindGlobalEvents() {
     inputCamera.onchange = (e) => {
       importFromImage(e, (newAssets) => {
         const acc = appState.accounts.find((a) => a.id === appState.activeId);
-
-        // 遍歷 AI 辨識到的標的 (已在 utils.js 完成合併相加)
         newAssets.forEach((asset) => {
           const existing = acc.assets.find((a) => a.name === asset.name);
           if (existing) {
-            // 如果代號已存在，更新股數即可
             existing.shares = asset.shares;
           } else {
-            // 不存在則新增
             acc.assets.push(asset);
           }
         });
-
         saveToStorage();
         refreshAll();
-        // 辨識完成後，自動執行一次全域同步更新報價
         syncAllPrices(appState);
       });
     };
   }
 
-  // 全域更新報價按鈕
+  // AI 智投建議配置按鈕
+  const btnAiOptimize = document.getElementById("btnAiOptimize");
+  if (btnAiOptimize) {
+    btnAiOptimize.onclick = async () => {
+      const acc = appState.accounts.find((a) => a.id === appState.activeId);
+      if (!acc) return;
+
+      const targetExp = acc.targetExp || 1.0;
+
+      await generateAiAllocation(acc, targetExp, (suggestions) => {
+        suggestions.forEach((sug) => {
+          const asset = acc.assets.find((a) => a.name === sug.name);
+          if (asset) {
+            asset.targetRatio = sug.targetRatio;
+          }
+        });
+        saveToStorage();
+        refreshAll();
+        showToast("✅ AI 建議配置已套用 (已保留一位小數)");
+      });
+    };
+  }
+
   document.getElementById("btnSyncAll").onclick = () => syncAllPrices(appState);
 
-  // 手動新增標的
   document.getElementById("btnAddAsset").onclick = () => {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     acc.assets.push({
@@ -239,5 +258,4 @@ function bindGlobalEvents() {
   };
 }
 
-// 啟動程式
 init();

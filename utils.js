@@ -1,9 +1,12 @@
 /**
- * utils.js - 動態 Key 加強版
+ * utils.js - 核心工具與 AI 智投邏輯版 (V25.2)
  */
-import { safeNum } from "./state.js";
+import { safeNum, calculateAccountData } from "./state.js";
 import { showToast } from "./ui.js";
 
+/**
+ * 匯出 Excel
+ */
 export function exportExcel(acc) {
   if (!acc) return;
   const data = [
@@ -13,6 +16,7 @@ export function exportExcel(acc) {
     ["負債總額", acc.totalDebt],
     ["絕對門檻", acc.rebalanceAbs],
     ["相對門檻", acc.rebalanceRel],
+    ["目標總槓桿", acc.targetExp || 1.0],
     [],
     ["代號", "標的全稱", "目前單價", "持有股數", "槓桿倍數", "目標權重%"],
   ];
@@ -32,6 +36,9 @@ export function exportExcel(acc) {
   XLSX.writeFile(wb, `${acc.name}_財務快照.xlsx`);
 }
 
+/**
+ * 匯入 Excel
+ */
 export function importExcel(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -51,9 +58,10 @@ export function importExcel(e, onComplete) {
         totalDebt: safeNum(rows[3][1]),
         rebalanceAbs: safeNum(rows[4][1], 5),
         rebalanceRel: safeNum(rows[5][1], 25),
+        targetExp: safeNum(rows[6][1], 1.0),
         assets: [],
       };
-      for (let i = 7; i < rows.length; i++) {
+      for (let i = 8; i < rows.length; i++) {
         const r = rows[i];
         if (r && r[0])
           newAcc.assets.push({
@@ -78,47 +86,31 @@ export function importExcel(e, onComplete) {
 }
 
 /**
- * utils.js - 終極修復穩定版 (v12.1)
- * 解決 429 配額限制問題，並新增同標的自動合併相加邏輯
- */
-/**
- * utils.js - 核心辨識功能
- * 從圖片辨識持股並自動合併相同標的 (支援現買/擔保品加總)
+ * AI 視覺辨識：從圖片提取持股並合併重複標的
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
-
-  const showToast = window.showToast || console.log;
   const apiKey =
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
-
-  // 1. 檢查 API Key 狀態
   if (!apiKey || apiKey.length < 10) {
     showToast("❌ 請先設定並儲存 API Key");
     e.target.value = "";
     return;
   }
-
   showToast("啟動 AI 視覺辨識中...");
-
-  // 2. 圖片轉換為 Base64 格式
-  const fileToBase64 = (file) =>
+  const fileToBase64 = (f) =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(f);
       reader.onload = () => resolve(reader.result);
       reader.onerror = (error) => reject(error);
     });
 
   try {
     const base64Image = await fileToBase64(file);
-
-    // 3. 設定模型與 API 網址 (維持 gemini-flash-latest 以避開配額限制)
     const model = "gemini-flash-latest";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    // 4. 強化 Prompt：要求 AI 對同標的進行合併
     const promptText = `你是一位專業分析師。請提取圖片中的持股代號(name)與股數(shares)。
     注意：如果同一個標的出現多次（例如包含「現買」與「擔保品」），請務必將股數相加合併為一筆。
     請嚴格只回傳 JSON 格式，不要有任何解釋文字。
@@ -140,84 +132,132 @@ export async function importFromImage(e, onComplete) {
       ],
     };
 
-    // 5. 發送 AI 辨識請求
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    // 6. 處理配額限制與錯誤
-    if (!response.ok) {
-      const errData = await response.json();
-      if (response.status === 429) {
-        throw new Error("AI 配額已滿，請等待 60 秒後再試。");
-      }
-      throw new Error(
-        errData.error?.message || `請求失敗 (${response.status})`
-      );
-    }
-
+    if (!response.ok) throw new Error("AI 請求失敗");
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    // 7. 清理 Markdown 標籤以解析 JSON
     text = text
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
 
-    let rawAssets = [];
     if (text) {
-      const parsedData = JSON.parse(text);
-      rawAssets = parsedData.assets || [];
-    }
-
-    // 8. 核心合併邏輯：在 JS 端執行二次合併，確保數據精準
-    if (rawAssets.length > 0) {
+      const rawAssets = JSON.parse(text).assets || [];
       const mergedMap = new Map();
-
       rawAssets.forEach((a) => {
         const name = (a.name || "").toString().toUpperCase().trim();
-        // 清理數字中的逗號並取絕對值
         const shares = Math.abs(
           parseInt(a.shares.toString().replace(/,/g, "")) || 0
         );
-
         if (name && shares > 0) {
-          if (mergedMap.has(name)) {
-            mergedMap.set(name, mergedMap.get(name) + shares);
-          } else {
-            mergedMap.set(name, shares);
-          }
+          mergedMap.set(name, (mergedMap.get(name) || 0) + shares);
         }
       });
-
-      // 9. 轉換為系統內部格式並回傳
       const formattedAssets = Array.from(mergedMap.entries()).map(
         ([name, shares]) => ({
           id: Date.now() + Math.random(),
-          name: name,
+          name,
           fullName: "---",
           price: 0,
-          shares: shares,
-          leverage: 1, // 預設槓桿倍數為 1
-          targetRatio: 0, // 初始目標權重設為 0，等待使用者調整
+          shares,
+          leverage: 1,
+          targetRatio: 0,
         })
       );
-
       onComplete(formattedAssets);
-      showToast(
-        `AI 辨識成功！已合併重複標的，共發現 ${formattedAssets.length} 筆資產`
-      );
-    } else {
-      showToast("AI 未能辨識出內容");
+      showToast(`AI 辨識成功！已合併重複項，共 ${formattedAssets.length} 筆`);
     }
   } catch (err) {
-    console.error("AI辨識錯誤:", err);
     showToast(`辨識失敗: ${err.message}`);
   } finally {
-    // 10. 重置 input 狀態，允許重複辨識同一張圖
     e.target.value = "";
+  }
+}
+
+/**
+ * AI 智投智配：根據目標槓桿規劃剩餘比例 (精確至一位小數)
+ */
+export async function generateAiAllocation(acc, targetExp, onComplete) {
+  const apiKey =
+    window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
+  if (!apiKey) return showToast("❌ 請先設定 API Key");
+
+  // 1. 計算剩餘預算：排除「手動已輸入目標比」的標的與「現金目標」
+  const manualTotal =
+    acc.assets.reduce(
+      (s, a) => s + (a.targetRatio > 0 ? a.targetRatio : 0),
+      0
+    ) + acc.cashRatio;
+  const remainingBudget = Math.max(0, 100 - manualTotal);
+
+  if (remainingBudget <= 0) {
+    showToast("❌ 已無剩餘預算可分配 (目標比總和已達 100%)");
+    return;
+  }
+
+  // 2. 準備待分配資產清單 (targetRatio 為 0 的標的)
+  const aiAssets = acc.assets.filter((a) => a.targetRatio === 0);
+  if (aiAssets.length === 0) {
+    showToast("❌ 找不到 targetRatio 為 0 的待規劃標的");
+    return;
+  }
+
+  showToast("AI 智投專家分析中...");
+
+  try {
+    const promptText = `你是一位專業的量化基金經理。
+    【現狀】目標總實質槓桿：${targetExp}x。
+    【預算】已手動分配比例總計：${manualTotal}% (含現金 ${acc.cashRatio}%)。
+    【任務】請將剩餘的 ${remainingBudget.toFixed(
+      1
+    )}% 比例，精準分配給下列待規劃標的。
+    【待規劃清單】：
+    ${aiAssets.map((a) => `- ${a.name} (${a.fullName})`).join("\n")}
+    
+    【核心規則】：
+    1. 建議的 targetRatio 總和必須嚴格等於 ${remainingBudget.toFixed(1)}。
+    2. 風險控制：對於槓桿型 ETF (如正2) 分配應保守；權值股可較穩健。
+    3. 產業分散：避免資金過度集中。
+    4. 回傳格式：僅回傳 JSON，數值保留一位小數。範例：{"suggestions": [{"name": "2330", "targetRatio": 12.5}]}`;
+
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] }),
+    });
+
+    if (!response.ok) throw new Error("AI 分析請求失敗");
+    const result = await response.json();
+    let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    text = text
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    if (text) {
+      const suggestions = JSON.parse(text).suggestions || [];
+
+      // 歸一化處理 (Normalization)：確保總和剛好等於剩餘預算
+      const aiSum = suggestions.reduce(
+        (s, a) => s + parseFloat(a.targetRatio),
+        0
+      );
+      const factor = remainingBudget / aiSum;
+
+      const finalSuggestions = suggestions.map((sug) => ({
+        name: sug.name,
+        targetRatio: Math.round(sug.targetRatio * factor * 10) / 10,
+      }));
+
+      onComplete(finalSuggestions);
+    }
+  } catch (err) {
+    showToast(`AI 配置失敗: ${err.message}`);
   }
 }
