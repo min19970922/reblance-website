@@ -262,8 +262,8 @@ export function updateDashboardUI(data, acc) {
     targetEl.innerText = `${data.targetTotalCombined.toFixed(1)}%`;
     targetEl.className =
       Math.abs(data.targetTotalCombined - 100) > 0.1
-        ? "font-mono-data text-rose-600"
-        : "font-mono-data text-indigo-600";
+        ? "font-mono-data data-header text-rose-600"
+        : "font-mono-data data-header text-indigo-600";
   }
 
   const mRatioEl = document.getElementById("maintenanceRatio");
@@ -272,10 +272,11 @@ export function updateDashboardUI(data, acc) {
       mRatioEl.innerText = `${Math.round(data.maintenanceRatio)}%`;
       mRatioEl.className =
         data.maintenanceRatio < 140
-          ? "font-mono-data text-rose-600 animate-pulse"
-          : "font-mono-data text-indigo-600";
+          ? "font-mono-data data-header text-rose-600 animate-pulse"
+          : "font-mono-data data-header text-indigo-600";
     } else {
       mRatioEl.innerText = "N/A";
+      mRatioEl.className = "font-mono-data data-header text-gray-400";
     }
   }
 }

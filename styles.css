@@ -98,10 +98,12 @@ main {
 .grid-unit {
   display: flex;
   flex-direction: column;
-  padding: 15px clamp(10px, 2vw, 20px);
+  /* 修正 1：將 padding 從 15px 調降至 10px 左右，縮減垂直空間 */
+  padding: 10px clamp(8px, 1.5vw, 15px);
   border-right: 2px solid var(--panel-border);
   justify-content: center;
-  min-height: 100px;
+  /* 修正 2：將 min-height 從 100px/110px 調降，讓高度隨內容縮減 */
+  min-height: 80px;
 }
 
 .grid-unit:last-child {
@@ -122,6 +124,13 @@ main {
   font-weight: 900;
   font-size: 2rem !important;
   letter-spacing: -1px;
+  line-height: 1.1;
+  /* 縮減行高 */
+}
+
+#targetTotalRatio.font-mono-data {
+  display: block;
+  margin-top: 4px;
 }
 
 .flat-input {
@@ -132,6 +141,8 @@ main {
   width: 100%;
   background: transparent;
   text-align: right;
+  line-height: 1.1;
+  /* 縮減行高 */
 }
 
 /* --- 表格數據字體與厚度 (統一 1.8rem) --- */
