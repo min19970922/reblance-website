@@ -99,7 +99,7 @@ main {
 }
 
 .grid-unit label {
-  font-size: 1.1rem;
+  font-size: 1.8rem;
   font-weight: 900;
   color: var(--primary-pink);
   margin-bottom: 4px;
@@ -186,7 +186,7 @@ main {
 
 .auto-table th {
   padding: 20px 10px;
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   /* 標題文字調大 */
   color: #9d174d;
   background: var(--bg-main);
