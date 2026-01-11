@@ -175,8 +175,7 @@ export async function importFromImage(e, onComplete) {
   } finally { e.target.value = ""; }
 }
 /**
- * AI 智投穩定強化版 (v37.0) 
- * 解決：429 頻率限制、強化分配差異化
+ * utils.js - 智投強化與 429 防禦版 (v38.0)
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -191,39 +190,41 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  // 【優化】極度壓縮數據，節省 Token 防止 429
-  // 格式：代號,現有%,槓桿倍數
+  // 極簡化數據，節省 TPM
   const aiAssetsInfo = aiAssets.map(a => {
     const curP = data.netValue > 0 ? (safeNum(a.bookValue) / data.netValue) * 100 : 0;
     return `${a.name},${curP.toFixed(1)}%,${a.leverage}x`;
   }).join("|");
 
-  showToast(`🧠 權重優化中 (目標: ${targetExp}x)...`);
+  // 強化分配邏輯：明確告訴 AI 目前與目標的缺口
+  const promptText = `Task: Distribute ${remainingBudget.toFixed(1)}% budget. 
+  Goal: Total Leverage ${targetExp}x (Current: ${data.totalLeverage.toFixed(2)}x).
+  Logic: 1.Sum=${remainingBudget.toFixed(1)}. 2.Priority HIGH leverage if Target>Current. 3.NO AVERAGE.
+  JSON ONLY: {"suggestions":[{"name":"ID","targetRatio":VAL}]}
+  Data: [${aiAssetsInfo}]`;
+
+  // 指數退避重試函式
+  async function fetchWithRetry(url, options, retries = 2, backoff = 2000) {
+    const res = await fetch(url, options);
+    if (res.status === 429 && retries > 0) {
+      showToast(`⏳ 伺服器忙碌，${backoff / 1000}秒後重試...`);
+      await new Promise(r => setTimeout(r, backoff));
+      return fetchWithRetry(url, options, retries - 1, backoff * 2);
+    }
+    return res;
+  }
 
   try {
-    // 【重點】強化指令：明確要求槓桿導向，禁止平均分配
-    const promptText = `Task: Assign ${remainingBudget.toFixed(1)}% budget. 
-    CurrentTotalLev: ${(data.totalLeverage || 1).toFixed(2)}x, Goal: ${targetExp}x.
-    Strategy: If Goal > Current, shift more weight to assets with higher leverage (e.g., 2x).
-    Rules: 1.Sum must be exactly ${remainingBudget.toFixed(1)}. 2.No average allocation. 3.Output JSON ONLY: {"suggestions":[{"name":"ID","targetRatio":VAL}]}.
-    Data: [${aiAssetsInfo}]`;
+    // 改用 flash-8b 模型，配額更寬鬆
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${apiKey}`;
 
-    // 使用清單編號 4 的穩定路徑
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-    // 強制請求前冷卻 2 秒，確保清除 Google 伺服器的 TPM 計數器
-    await new Promise(r => setTimeout(r, 2000));
-
-    const response = await fetch(apiUrl, {
+    const response = await fetchWithRetry(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
     });
 
-    if (!response.ok) {
-      if (response.status === 429) throw new Error("API 頻率限制 (429)，請等待 60 秒後再試一次");
-      throw new Error(`API 錯誤: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`API 錯誤: ${response.status}`);
 
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -232,18 +233,13 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     if (text) {
       const suggestions = JSON.parse(text).suggestions || [];
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
-      if (aiSum <= 0) throw new Error("AI 回傳無效建議");
-
       const factor = remainingBudget / aiSum;
-      const finalSuggestions = suggestions.map(sug => ({
-        name: sug.name.toString().toUpperCase().trim(),
-        targetRatio: Math.round(sug.targetRatio * factor * 10) / 10,
-      }));
-
-      onComplete(finalSuggestions);
+      onComplete(suggestions.map(s => ({
+        name: s.name.toString().toUpperCase().trim(),
+        targetRatio: Math.round(s.targetRatio * factor * 10) / 10
+      })));
     }
   } catch (err) {
-    console.error("AI Error:", err);
-    showToast(`❌ ${err.message}`);
+    showToast(`❌ 智投失敗: ${err.message}`);
   }
 }
