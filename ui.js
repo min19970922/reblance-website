@@ -1,6 +1,8 @@
 /**
- * ui.js - 策略增強版 (v5.0)
- * 整合現金列與資產再平衡邏輯
+ * ui.js - 策略增強版 (v5.1)
+ * 1. 整合 5/25 門檻判定：未達標顯示「監控中」
+ * 2. 移除表格內現金列，改與頂部參數區同步
+ * 3. 強化視覺反饋：進度條漸層與動態動畫
  */
 import {
   safeNum,
@@ -61,18 +63,23 @@ export function renderAccountList(appState, onSwitch, onDelete) {
 }
 
 /**
- * 核心渲染函式
+ * 核心渲染函式 - 已移除表格內的現金列
  */
 export function renderMainUI(acc) {
   if (!acc) return;
 
-  // 更新標題與參數
+  // 更新標題與全域參數
   const titleEl = document.getElementById("activeAccountTitle");
   if (titleEl)
     titleEl.innerHTML = `${acc.name} <i class="fas fa-pen text-xl text-rose-200 ml-4"></i>`;
 
   document.getElementById("debtInput").value = acc.totalDebt;
   document.getElementById("cashInput").value = acc.currentCash;
+
+  // 同步頂部參數區的現金目標百分比
+  const cashRatioInput = document.getElementById("cashRatioInput");
+  if (cashRatioInput) cashRatioInput.value = acc.cashRatio || 0;
+
   document.getElementById("usdRateInput").value = acc.usdRate;
   document.getElementById("rebalanceAbsInput").value = acc.rebalanceAbs;
   document.getElementById("rebalanceRelInput").value = acc.rebalanceRel;
@@ -83,7 +90,7 @@ export function renderMainUI(acc) {
 
   const data = calculateAccountData(acc);
 
-  // 1. 渲染一般資產
+  // 1. 渲染一般資產 (不包含現金)
   data.assetsCalculated.forEach((asset, index) => {
     const row = document.createElement("tr");
     row.innerHTML = generateAssetRowHTML(
@@ -95,18 +102,12 @@ export function renderMainUI(acc) {
     updateAssetRowData(asset, acc, data.netValue);
   });
 
-  // 2. 渲染現金列
-  const cashRow = document.createElement("tr");
-  cashRow.className = "bg-rose-50/30";
-  cashRow.innerHTML = generateCashRowHTML(data.cashAsset);
-  body.appendChild(cashRow);
-  updateAssetRowData(data.cashAsset, acc, data.netValue);
-
+  // 2. 更新儀表板數據
   updateDashboardUI(data, acc);
 }
 
 /**
- * 輔助元件
+ * 輔助元件：自動適應寬度的輸入框
  */
 const autoWidthInput = (
   assetId,
@@ -125,32 +126,9 @@ const autoWidthInput = (
   </div>
 `;
 
-function generateCashRowHTML(cash) {
-  return `
-    <td class="px-2">
-      <div class="flex flex-col items-center">
-        <span class="uppercase font-black text-2xl text-rose-500">CASH</span>
-        <span class="text-sm font-bold text-rose-400 whitespace-nowrap">${cash.fullName}</span>
-      </div>
-    </td>
-    <td class="text-center text-rose-600 font-black text-xl">1.0</td>
-    <td class="text-center font-mono-data text-xl">1.0</td>
-    <td class="text-center font-mono-data text-xl">-</td>
-    <td id="curVal-${cash.id}" class="font-mono-data text-rose-950 font-black px-4 text-xl"></td>
-    <td id="curPct-${cash.id}" class="font-mono-data text-indigo-800 text-center font-black px-4 text-xl"></td>
-    <td class="text-center">
-      <div class="flex items-center justify-center gap-1">
-        <input type="number" value="${cash.targetRatio}" 
-          onchange="updateGlobal('cashRatio', this.value)" 
-          class="underline-input text-rose-900 font-black text-xl w-16 text-center">
-        <span class="text-rose-900 font-black">%</span>
-      </div>
-    </td>
-    <td id="targetVal-${cash.id}" class="text-center px-4"></td>
-    <td id="sugg-${cash.id}" class="text-center px-4"></td>
-    <td class="text-right px-2"></td>`;
-}
-
+/**
+ * 產生一般資產列 HTML
+ */
 function generateAssetRowHTML(asset, index, totalAssets) {
   const hasContent =
     asset.fullName && asset.fullName !== "" && asset.fullName !== "---";
@@ -244,6 +222,9 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     </td>`;
 }
 
+/**
+ * 更新單列數據與建議
+ */
 export function updateAssetRowData(asset, acc, netValue) {
   if (netValue <= 0) return;
   const s = getRebalanceSuggestion(asset, acc, netValue);
@@ -302,7 +283,7 @@ export function updateAssetRowData(asset, acc, netValue) {
             ${actionText}
           </span>
           <span class="text-rose-950 font-black text-sm ${
-            s.isTriggered && asset.name !== "CASH" ? "" : "hidden"
+            s.isTriggered ? "" : "hidden"
           }">
             約 ${Math.abs(s.diffShares).toLocaleString()} 股
           </span>
@@ -320,6 +301,9 @@ export function updateAssetRowData(asset, acc, netValue) {
   }
 }
 
+/**
+ * 更新數據看板
+ */
 export function updateDashboardUI(data, acc) {
   document.getElementById("totalNetValue").innerText = `$${Math.round(
     data.netValue
@@ -355,6 +339,9 @@ export function updateDashboardUI(data, acc) {
   }
 }
 
+/**
+ * 顯示通知
+ */
 export function showToast(msg) {
   const t = document.getElementById("toast");
   const msgEl = document.getElementById("toastMsg");

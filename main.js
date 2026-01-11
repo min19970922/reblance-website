@@ -1,5 +1,6 @@
 /**
- * main.js - 核心邏輯補完版
+ * main.js - 核心邏輯終極版 (v15.0)
+ * 整合：全域函式掛載、頂部參數區連動、AI 合併後自動價格同步
  */
 import {
   appState,
@@ -15,15 +16,19 @@ import {
   showToast,
 } from "./ui.js";
 import { syncAllPrices, fetchLivePrice } from "./api.js";
-import { exportExcel, importExcel, importFromImage } from "./utils.js"; // 移除了不存在的 parsePastedText
+import { exportExcel, importExcel, importFromImage } from "./utils.js";
 
+/**
+ * 系統初始化
+ */
 function init() {
   loadFromStorage();
 
-  // 修正點：將 UI 函式掛載至 window，解決循環引用問題
+  // 將 UI 通知函式掛載至 window 供其他模組調用
   window.renderMainUI = renderMainUI;
   window.showToast = showToast;
 
+  // 確保有有效的啟動計畫
   if (
     !appState.activeId ||
     !appState.accounts.find((a) => a.id === appState.activeId)
@@ -31,12 +36,16 @@ function init() {
     appState.activeId = appState.accounts[0].id;
   }
 
+  // 側邊欄狀態恢復
   if (appState.isSidebarCollapsed) toggleSidebarUI(true);
 
   refreshAll();
   bindGlobalEvents();
 }
 
+/**
+ * 刷新全域 UI 並重新綁定標題點擊事件
+ */
 function refreshAll() {
   const activeAcc = appState.accounts.find((a) => a.id === appState.activeId);
   if (!activeAcc) return;
@@ -44,6 +53,7 @@ function refreshAll() {
   renderAccountList(appState, "switchAccount", "deleteAccount");
   renderMainUI(activeAcc);
 
+  // 計畫名稱修改邏輯
   const titleEl = document.getElementById("activeAccountTitle");
   if (titleEl) {
     titleEl.onclick = () => {
@@ -58,7 +68,7 @@ function refreshAll() {
   }
 }
 
-// --- 新增：全域函式掛載區 (修正輸入無效問題) ---
+// --- 全域函式掛載區 (供 HTML inline 事件呼叫) ---
 
 window.switchAccount = (id) => {
   appState.activeId = id;
@@ -76,24 +86,32 @@ window.deleteAccount = (id) => {
   }
 };
 
+/**
+ * 更新頂部參數區 (包含現金比例、負債、現金餘額等)
+ */
 window.updateGlobal = (key, val) => {
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   if (acc) {
     acc[key] = safeNum(val);
     saveToStorage();
-    refreshAll(); // 參數改變後重新計算 UI
+    refreshAll(); // 關鍵：參數改變後必須立即重新計算 Dashboard 與標的目前%
   }
 };
 
+/**
+ * 更新標的單列數據
+ */
 window.updateAsset = (id, key, val) => {
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   const asset = acc.assets.find((as) => as.id === id);
   if (asset) {
-    asset[key] = key === "name" ? val.toUpperCase() : safeNum(val);
+    // 處理代號轉換大寫
+    asset[key] = key === "name" ? val.toUpperCase().trim() : safeNum(val);
     saveToStorage();
-    // 如果是改代號，自動同步一次價格
-    if (key === "name" && val.length >= 4) {
-      window.fetchLivePrice(id, val);
+
+    // 如果修改的是名稱/代號且長度符合，觸發單一報價同步
+    if (key === "name" && asset.name.length >= 4) {
+      window.fetchLivePrice(id, asset.name);
     } else {
       refreshAll();
     }
@@ -125,8 +143,9 @@ window.fetchLivePrice = (id, symbol) => {
   fetchLivePrice(id, symbol, appState);
 };
 
-// --- 事件綁定 ---
+// --- DOM 事件綁定 ---
 function bindGlobalEvents() {
+  // 側邊欄切換
   const btnToggle = document.getElementById("btnToggleSidebar");
   if (btnToggle) {
     btnToggle.onclick = () => {
@@ -136,6 +155,7 @@ function bindGlobalEvents() {
     };
   }
 
+  // 新增計畫
   const btnCreate = document.getElementById("btnCreateAccount");
   if (btnCreate) {
     btnCreate.onclick = () => {
@@ -147,11 +167,13 @@ function bindGlobalEvents() {
     };
   }
 
+  // 刪除目前計畫
   const btnDelete = document.getElementById("btnDeleteAccount");
   if (btnDelete) {
     btnDelete.onclick = () => window.deleteAccount(appState.activeId);
   }
 
+  // 匯出 Excel
   const btnExport = document.getElementById("btnExport");
   if (btnExport) {
     btnExport.onclick = () => {
@@ -160,6 +182,7 @@ function bindGlobalEvents() {
     };
   }
 
+  // 匯入 Excel
   const inputImport = document.getElementById("inputImport");
   if (inputImport) {
     inputImport.onchange = (e) => {
@@ -170,24 +193,37 @@ function bindGlobalEvents() {
     };
   }
 
+  // 照片辨識與標的自動合併
   const inputCamera = document.getElementById("inputCamera");
   if (inputCamera) {
     inputCamera.onchange = (e) => {
       importFromImage(e, (newAssets) => {
         const acc = appState.accounts.find((a) => a.id === appState.activeId);
+
+        // 遍歷 AI 辨識到的標的 (已在 utils.js 完成合併相加)
         newAssets.forEach((asset) => {
           const existing = acc.assets.find((a) => a.name === asset.name);
-          if (existing) existing.shares = asset.shares;
-          else acc.assets.push(asset);
+          if (existing) {
+            // 如果代號已存在，更新股數即可
+            existing.shares = asset.shares;
+          } else {
+            // 不存在則新增
+            acc.assets.push(asset);
+          }
         });
+
         saveToStorage();
         refreshAll();
+        // 辨識完成後，自動執行一次全域同步更新報價
         syncAllPrices(appState);
       });
     };
   }
 
+  // 全域更新報價按鈕
   document.getElementById("btnSyncAll").onclick = () => syncAllPrices(appState);
+
+  // 手動新增標的
   document.getElementById("btnAddAsset").onclick = () => {
     const acc = appState.accounts.find((a) => a.id === appState.activeId);
     acc.assets.push({
@@ -203,4 +239,5 @@ function bindGlobalEvents() {
   };
 }
 
+// 啟動程式
 init();

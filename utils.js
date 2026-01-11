@@ -78,8 +78,12 @@ export function importExcel(e, onComplete) {
 }
 
 /**
- * utils.js - 終極修復穩定版 (v12.0)
- * 解決 429 配額限制問題，使用穩定別名網址
+ * utils.js - 終極修復穩定版 (v12.1)
+ * 解決 429 配額限制問題，並新增同標的自動合併相加邏輯
+ */
+/**
+ * utils.js - 核心辨識功能
+ * 從圖片辨識持股並自動合併相同標的 (支援現買/擔保品加總)
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
@@ -89,6 +93,7 @@ export async function importFromImage(e, onComplete) {
   const apiKey =
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
 
+  // 1. 檢查 API Key 狀態
   if (!apiKey || apiKey.length < 10) {
     showToast("❌ 請先設定並儲存 API Key");
     e.target.value = "";
@@ -97,6 +102,7 @@ export async function importFromImage(e, onComplete) {
 
   showToast("啟動 AI 視覺辨識中...");
 
+  // 2. 圖片轉換為 Base64 格式
   const fileToBase64 = (file) =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -108,13 +114,15 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // --- 關鍵修正：換回最穩定的別名，避開 2.0 版本的 0 額度限制 ---
+    // 3. 設定模型與 API 網址 (維持 gemini-flash-latest 以避開配額限制)
     const model = "gemini-flash-latest";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
+    // 4. 強化 Prompt：要求 AI 對同標的進行合併
     const promptText = `你是一位專業分析師。請提取圖片中的持股代號(name)與股數(shares)。
+    注意：如果同一個標的出現多次（例如包含「現買」與「擔保品」），請務必將股數相加合併為一筆。
     請嚴格只回傳 JSON 格式，不要有任何解釋文字。
-    範例格式：{"assets": [{"name":"2330","shares":1000}]}`;
+    範例格式：{"assets": [{"name":"2317","shares":14349}]}`;
 
     const payload = {
       contents: [
@@ -132,12 +140,14 @@ export async function importFromImage(e, onComplete) {
       ],
     };
 
+    // 5. 發送 AI 辨識請求
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
+    // 6. 處理配額限制與錯誤
     if (!response.ok) {
       const errData = await response.json();
       if (response.status === 429) {
@@ -151,35 +161,55 @@ export async function importFromImage(e, onComplete) {
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // 清理 Markdown 標籤
+    // 7. 清理 Markdown 標籤以解析 JSON
     text = text
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
 
-    let assets = [];
+    let rawAssets = [];
     if (text) {
       const parsedData = JSON.parse(text);
-      assets = parsedData.assets || [];
+      rawAssets = parsedData.assets || [];
     }
 
-    if (assets.length > 0) {
-      const formattedAssets = assets
-        .map((a) => ({
+    // 8. 核心合併邏輯：在 JS 端執行二次合併，確保數據精準
+    if (rawAssets.length > 0) {
+      const mergedMap = new Map();
+
+      rawAssets.forEach((a) => {
+        const name = (a.name || "").toString().toUpperCase().trim();
+        // 清理數字中的逗號並取絕對值
+        const shares = Math.abs(
+          parseInt(a.shares.toString().replace(/,/g, "")) || 0
+        );
+
+        if (name && shares > 0) {
+          if (mergedMap.has(name)) {
+            mergedMap.set(name, mergedMap.get(name) + shares);
+          } else {
+            mergedMap.set(name, shares);
+          }
+        }
+      });
+
+      // 9. 轉換為系統內部格式並回傳
+      const formattedAssets = Array.from(mergedMap.entries()).map(
+        ([name, shares]) => ({
           id: Date.now() + Math.random(),
-          name: (a.name || "").toString().toUpperCase().trim(),
+          name: name,
           fullName: "---",
           price: 0,
-          shares: Math.abs(
-            parseInt(a.shares.toString().replace(/,/g, "")) || 0
-          ),
-          leverage: 1,
-          targetRatio: 0,
-        }))
-        .filter((a) => a.name.length >= 2 && a.shares > 0);
+          shares: shares,
+          leverage: 1, // 預設槓桿倍數為 1
+          targetRatio: 0, // 初始目標權重設為 0，等待使用者調整
+        })
+      );
 
       onComplete(formattedAssets);
-      showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
+      showToast(
+        `AI 辨識成功！已合併重複標的，共發現 ${formattedAssets.length} 筆資產`
+      );
     } else {
       showToast("AI 未能辨識出內容");
     }
@@ -187,6 +217,7 @@ export async function importFromImage(e, onComplete) {
     console.error("AI辨識錯誤:", err);
     showToast(`辨識失敗: ${err.message}`);
   } finally {
+    // 10. 重置 input 狀態，允許重複辨識同一張圖
     e.target.value = "";
   }
 }
