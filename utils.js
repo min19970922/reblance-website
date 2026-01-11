@@ -106,8 +106,18 @@ export function importExcel(e, onComplete) {
   reader.readAsArrayBuffer(file);
 }
 
+async function fetchWithAiRetry(url, options, retries = 2, backoff = 15000) {
+  const res = await fetch(url, options);
+  if (res.status === 429 && retries > 0) {
+    showToast(`⏳ AI 忙碌中，${backoff / 1000}秒後自動重試...`);
+    await new Promise(resolve => setTimeout(resolve, backoff));
+    return fetchWithAiRetry(url, options, retries - 1, backoff * 1.5);
+  }
+  return res;
+}
+
 /**
- * AI 照片辨識：修正 Base64 處理與合併邏輯
+ * AI 照片辨識：對接 gemini-2.0-flash-lite
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
@@ -115,7 +125,7 @@ export async function importFromImage(e, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請設定 API Key");
 
-  showToast("🚀 啟動 AI 視覺辨識(含槓桿判斷)...");
+  showToast("🚀 啟動 AI 視覺辨識 (2.0 Lite)...");
 
   const fileToBase64 = (f) => new Promise((resolve) => {
     const reader = new FileReader();
@@ -126,20 +136,21 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Data = await fileToBase64(file);
     const base64Content = base64Data.split(",")[1];
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
-    // 重新設計指令：強制要求精確 JSON，分開辨識與邏輯
-    const promptText = `請分析此股票庫存截圖。
-    1. 提取所有持股代號(name)與總股數(shares)。
-    2. 判斷槓桿倍數(leverage)：標的含「正2」、「L」、「2X」或「兩倍」給 2.0，其餘給 1.0。
-    3. 同代號出現多次請合併股數。
-    只回傳 JSON 格式：{"assets": [{"name":"代號","shares":1000,"leverage":1.0}]}`;
+    // 關鍵修復：改用清單編號 8 的 gemini-2.0-flash-lite
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
 
-    const response = await fetch(apiUrl, {
+    const promptText = `Analyze image. 1. Extract tickers(name) & shares. 2. If name contains '2x','正2','L' set leverage 2.0, else 1.0. JSON ONLY: {"assets": [{"name":"TICKER","shares":100,"leverage":1.0}]}`;
+
+    const response = await fetchWithAiRetry(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: file.type || "image/png", data: base64Content } }] }] })
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: file.type || "image/png", data: base64Content } }] }]
+      })
     });
+
+    if (!response.ok) throw new Error("AI 服務配額耗盡，請等 1 分鐘後再試");
 
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -171,14 +182,12 @@ export async function importFromImage(e, onComplete) {
       showToast(`✅ 辨識完成！共 ${formattedAssets.length} 筆`);
     }
   } catch (err) {
-    showToast(`❌ 辨識失敗，請確認圖片清晰度`);
+    showToast(`❌ 辨識失敗: ${err.message}`);
   } finally { e.target.value = ""; }
 }
+
 /**
- * AI 智投建議 - 終極穩定配額版 (v45.0)
- * 解決 429 (Too Many Requests) 報錯
- * 1. 使用 gemini-1.5-flash 避開 2.0 系列的 0 配額封鎖
- * 2. 指令極簡化，節省 Token 消耗
+ * AI 智投建議：對接 gemini-2.0-flash-lite
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -193,27 +202,14 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無未鎖定標的");
 
-  async function fetchWithRetry(url, options, retries = 2, backoff = 10000) {
-    const res = await fetch(url, options);
-    if (res.status === 429 && retries > 0) {
-      showToast(`⏳ AI 忙碌，${backoff / 1000}秒後自動重試...`);
-      await new Promise(resolve => setTimeout(resolve, backoff));
-      return fetchWithRetry(url, options, retries - 1, backoff * 2);
-    }
-    return res;
-  }
-
   try {
     const aiAssetsInfo = aiAssets.map(a => `${a.name},${a.leverage}x`).join("|");
+    const promptText = `Distribute ${remainingBudget.toFixed(1)}%. Goal Leverage ${targetExp}x. Data: [${aiAssetsInfo}]. JSON ONLY: {"suggestions": [{"name":"TICKER","targetRatio":20}]}`;
 
-    // 極簡提示詞，降低 TP (Tokens per Request)
-    const promptText = `Assign ${remainingBudget.toFixed(1)}% weight. Goal: Total Leverage ${targetExp}x. Data: [${aiAssetsInfo}]. JSON ONLY: {"suggestions": [{"name":"TICKER","targetRatio":20}]}`;
+    // 關鍵修復：同樣使用 lite 模型以節省配額
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
 
-    // --- 核心修正：換成 1.5 穩定版路徑 ---
-    const model = "gemini-1.5-flash";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    const response = await fetchWithRetry(apiUrl, {
+    const response = await fetchWithAiRetry(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -222,13 +218,7 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
       })
     });
 
-    if (!response.ok) {
-      const err = await response.json();
-      if (response.status === 429) {
-        throw new Error("AI 配額已滿，請等待 1 分鐘後再試。");
-      }
-      throw new Error(err.error?.message || `API 錯誤: ${response.status}`);
-    }
+    if (!response.ok) throw new Error("AI 配額已滿");
 
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -243,11 +233,9 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
         name: sug.name.toString().toUpperCase().trim(),
         targetRatio: Math.round(sug.targetRatio * factor * 10) / 10,
       }));
-
       onComplete(finalSuggestions);
     }
   } catch (err) {
-    console.error("AI Error:", err);
     showToast(`❌ AI 建議暫時失效: ${err.message}`);
   }
 }
