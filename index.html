@@ -127,18 +127,26 @@
               <span>實質槓桿 (Lev)</span>
               <div id="leverageDisplay" class="font-mono-data">1.00x</div>
             </div>
-            <div class="glass-card border-t-[6px] border-t-rose-400">
-              <span>目標總槓桿 (Target)</span>
-              <div class="flex items-baseline gap-1">
+            <div
+              class="glass-card border-t-[6px] border-t-rose-400 relative overflow-hidden"
+            >
+              <span>目標總槓桿 (Target Exp)</span>
+              <div class="flex items-baseline gap-2 mt-1">
                 <input
                   type="number"
                   id="targetExpInput"
                   step="0.1"
-                  class="bg-transparent border-none outline-none font-mono-data w-24 text-rose-900"
+                  min="1.0"
+                  max="3.0"
+                  class="bg-rose-50 border-b-2 border-rose-200 outline-none font-mono-data w-24 text-rose-900 px-2 rounded-t-md focus:border-rose-500 transition-colors"
                   oninput="updateGlobal('targetExp', this.value)"
+                  onclick="this.select()"
                 />
                 <span class="text-xl font-black text-rose-300">x</span>
               </div>
+              <i
+                class="fas fa-crosshairs absolute -right-2 -bottom-2 text-rose-50/20 text-5xl"
+              ></i>
             </div>
             <div class="glass-card border-t-[6px] border-t-rose-600">
               <span>預算總計 (Goal)</span>
