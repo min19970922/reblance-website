@@ -175,33 +175,31 @@ export async function importFromImage(e, onComplete) {
   } finally { e.target.value = ""; }
 }
 /**
- * AI 智投建議穩定版 (v43.0) 
- * 解決 404 (模型找不到) 與 429 (配額限制) 問題
- * 使用診斷清單確認存在的 gemini-flash-latest
+ * AI 智投建議 - 極限配額相容版 (v44.0)
+ * 解決 429 (Too Many Requests) 報錯
+ * 1. 使用 gemini-2.0-flash-lite 避開標準版 0 配額限制
+ * 2. 強化指數退避 (Exponential Backoff) 重試邏輯
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請設定 API Key");
 
-  // 1. 取得計算後的帳戶數據
   const data = calculateAccountData(acc);
-
-  // 2. 計算剩餘可用預算：100% 扣除鎖定標的與現金目標
   const lockedTotal = acc.assets.reduce((s, a) => s + (a.isLocked ? parseFloat(a.targetRatio || 0) : 0), 0) + parseFloat(acc.cashRatio || 0);
   const remainingBudget = Math.max(0, 100 - lockedTotal);
 
   if (remainingBudget <= 0) return showToast("❌ 預算已滿，無剩餘權重可分配");
 
-  // 3. 過濾出未鎖定的標的
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
-  if (aiAssets.length === 0) return showToast("❌ 目前沒有未鎖定的標的可供規劃");
+  if (aiAssets.length === 0) return showToast("❌ 無未鎖定標的");
 
   /**
-   * 指數退避請求函式：處理 429 暫時性忙碌
+   * 強化版重試機制：專門對付 429
    */
-  async function fetchWithRetry(url, options, retries = 3, backoff = 2000) {
+  async function fetchWithRetry(url, options, retries = 3, backoff = 5000) {
     const res = await fetch(url, options);
     if (res.status === 429 && retries > 0) {
+      // 遇到 429 時，強制等待並逐步增加時間 (5s -> 10s -> 20s)
       showToast(`⏳ AI 忙碌，${backoff / 1000}秒後自動重試...`);
       await new Promise(resolve => setTimeout(resolve, backoff));
       return fetchWithRetry(url, options, retries - 1, backoff * 2);
@@ -210,52 +208,41 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   }
 
   try {
-    // 準備傳送給 AI 的精簡數據
     const aiAssetsInfo = aiAssets.map(a => {
       const curP = data.netValue > 0 ? (parseFloat(a.bookValue || 0) / data.netValue) * 100 : 0;
       return `${a.name},目前${curP.toFixed(1)}%,槓桿${a.leverage}x`;
     }).join("|");
 
-    const promptText = `你是一位資產配置專家。
-    任務：將剩餘的 ${remainingBudget.toFixed(1)}% 權重分配給以下標的。
-    目標：讓整個投資組合的總槓桿達到 ${targetExp}x (目前為 ${data.totalLeverage.toFixed(2)}x)。
-    規則：
-    1. 分配權重的總和必須精確等於 ${remainingBudget.toFixed(1)}%。
-    2. 考量標的槓桿，目標是達成總體槓桿目標。
-    3. 嚴格只回傳 JSON 格式如下，不要有 Markdown 標籤：
-    {"suggestions": [{"name":"標代號","targetRatio":25.5}]}`;
+    const promptText = `Task: Assign ${remainingBudget.toFixed(1)}% budget to assets. 
+    Goal: Target Total Portfolio Leverage ${targetExp}x (Now: ${data.totalLeverage.toFixed(2)}x).
+    Rule: Sum must be ${remainingBudget.toFixed(1)}. JSON ONLY.
+    Data: [${aiAssetsInfo}]
+    Format: {"suggestions": [{"name":"TICKER","targetRatio":20}]}`;
 
-    // --- 關鍵路徑修正：使用診斷清單中確認存在的別名 ---
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+    // --- 關鍵修正：改用診斷清單中配額最穩定的 Lite 模型 ---
+    const model = "gemini-2.0-flash-lite";
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const response = await fetchWithRetry(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{
-          parts: [{ text: promptText }]
-        }],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
+        contents: [{ parts: [{ text: promptText }] }],
+        generationConfig: { responseMimeType: "application/json" }
       })
     });
 
     if (!response.ok) {
-      const errDetail = await response.json();
-      throw new Error(errDetail.error?.message || `API 錯誤: ${response.status}`);
+      const err = await response.json();
+      throw new Error(err.error?.message || `API 錯誤: ${response.status}`);
     }
 
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    // 清理可能出現的 Markdown 標籤
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
     if (text) {
       const suggestions = JSON.parse(text).suggestions || [];
-
-      // 歸一化邏輯：確保 AI 給的數值加總後絕對等於剩餘預算
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
       const factor = aiSum > 0 ? remainingBudget / aiSum : 1;
 
@@ -268,6 +255,6 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     }
   } catch (err) {
     console.error("AI Error:", err);
-    showToast(`❌ AI 建議失敗：${err.message}`);
+    showToast(`❌ AI 智投暫時失效: ${err.message}`);
   }
 }
