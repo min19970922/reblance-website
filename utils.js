@@ -174,60 +174,49 @@ export async function importFromImage(e, onComplete) {
     showToast(`❌ 辨識失敗，請確認圖片清晰度`);
   } finally { e.target.value = ""; }
 }
-
 /**
- * AI 智投強化版 (v32.5) 
- * 解決：匹配失敗、平均分配、429 頻率限制報錯、及歸一化精準度
+ * AI 智投極簡版 (v33.0) - 專治 429 頻率限制
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請設定 API Key");
 
   const data = calculateAccountData(acc);
-
-  // 1. 精確計算預算：100% - 鎖定% - 現金%
   const lockedTotal = acc.assets.reduce((s, a) => s + (a.isLocked ? safeNum(a.targetRatio) : 0), 0) + safeNum(acc.cashRatio);
   const remainingBudget = Math.max(0, 100 - lockedTotal);
 
-  if (remainingBudget <= 0) return showToast("❌ 預算已滿 (鎖定項與現金已達 100%)");
+  if (remainingBudget <= 0) return showToast("❌ 預算已滿");
 
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
-  if (aiAssets.length === 0) return showToast("❌ 找不到可規劃標的 (請檢查是否全部鎖定)");
+  if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  // 2. 準備上下文：讓 AI 看到「現況」與「目標」的差距
-  const currentTotalLev = data.totalLeverage || 1.0;
-  const aiAssetsInfo = aiAssets.map((a) => {
-    // 這裡使用 bookValue (淨值) 計算目前的資金占比，確保與 targetRatio 邏輯一致
-    const currentPct = data.netValue > 0 ? (safeNum(a.bookValue) / data.netValue) * 100 : 0;
-    return `- 代號: ${a.name}, 目前權重: ${currentPct.toFixed(1)}%, 標的倍數: ${a.leverage}x`;
-  }).join("\n");
-
-  showToast(`🧠 正在根據 ${targetExp}x 目標優化權重...`);
+  // 【優化 1】極簡數據格式：減少 Token 消耗，防止觸發 TPM 限制
+  const aiAssetsInfo = aiAssets.map(a => {
+    const curP = data.netValue > 0 ? (safeNum(a.bookValue) / data.netValue) * 100 : 0;
+    return `${a.name},${curP.toFixed(1)}%,${a.leverage}x`;
+  }).join("|");
 
   try {
-    const promptText = `你是一位專業的量化基金經理。
-    【背景】帳戶目前實質槓桿 ${currentTotalLev.toFixed(2)}x，目標是達成 ${targetExp}x。
-    【任務】請分配剩餘的 ${remainingBudget.toFixed(1)}% 預算給待規劃標的。
-    【分配準則】
-    1. 必須將 ${remainingBudget.toFixed(1)}% 全部用完，targetRatio 總和需精確。
-    2. 槓桿導向：若目標槓桿 > 目前，請優先加碼「標的倍數」高的標的；反之則減碼。
-    3. 拒絕平均分配：請根據倍數差異化配置權重。
-    4. 穩定性：參考目前權重微調，避免無意義的大幅換倉。
-    5. 回傳代號必須與清單完全一致。
-    
-    請嚴格只回傳 JSON：{"suggestions": [{"name": "代號", "targetRatio": 數值}]}`;
+    // 【優化 2】極簡指令：直接餵數據，減少 AI 思考成本
+    const promptText = `Task: Distribute ${remainingBudget.toFixed(1)}% budget. 
+    Status: Total Leverage ${data.totalLeverage.toFixed(2)}x, Goal ${targetExp}x.
+    Rule: 1. Sum must be exact. 2. No average. 3. Output JSON ONLY: {"suggestions":[{"name":"ID","targetRatio":VAL}]}.
+    Data: [${aiAssetsInfo}]`;
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+
+    // 【優化 3】強制冷卻：請求前強制等待 1 秒，確保 Google 伺服器佇列清空
+    await new Promise(r => setTimeout(r, 1000));
+
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
     });
 
-    // 處理 429 頻率限制
     if (!response.ok) {
-      if (response.status === 429) throw new Error("API 請求太頻繁，請等待 1 分鐘後再試");
-      throw new Error(`API 請求失敗: ${response.status}`);
+      if (response.status === 429) throw new Error("Google 頻率限制，請等待 1 分鐘後再按一次");
+      throw new Error(`API 錯誤: ${response.status}`);
     }
 
     const result = await response.json();
@@ -237,13 +226,10 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     if (text) {
       const suggestions = JSON.parse(text).suggestions || [];
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
-
       if (aiSum <= 0) throw new Error("AI 回傳無效建議");
 
-      // 3. 強制歸一化：確保結果總和絕對等於 remainingBudget
       const factor = remainingBudget / aiSum;
-      const finalSuggestions = suggestions.map((sug) => ({
-        // 模糊匹配處理：統一格式以利 main.js 匹配
+      const finalSuggestions = suggestions.map(sug => ({
         name: sug.name.toString().toUpperCase().trim(),
         targetRatio: Math.round(sug.targetRatio * factor * 10) / 10,
       }));
@@ -251,7 +237,7 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
       onComplete(finalSuggestions);
     }
   } catch (err) {
-    console.error("AI 智投錯誤:", err);
-    showToast(`❌ 智投失敗: ${err.message}`);
+    console.error("AI Error:", err);
+    showToast(`❌ ${err.message}`);
   }
 }
