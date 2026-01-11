@@ -234,7 +234,6 @@ function bindGlobalEvents() {
   // AI 智投建議配置按鈕
   const btnAiOptimize = document.getElementById("btnAiOptimize");
   if (btnAiOptimize) {
-    // main.js 中 btnAiOptimize.onclick 的部分
     btnAiOptimize.onclick = async () => {
       const acc = appState.accounts.find((a) => a.id === appState.activeId);
       if (!acc) return;
@@ -242,12 +241,7 @@ function bindGlobalEvents() {
       const targetExp = acc.targetExp || 1.0;
 
       await generateAiAllocation(acc, targetExp, (suggestions) => {
-        // 先將所有「未鎖定」資產的目標比歸零，避免 AI 漏掉某些標的沒給建議
-        acc.assets.forEach((a) => {
-          if (!a.isLocked) a.targetRatio = 0;
-        });
-
-        // 填入 AI 建議
+        // 關鍵：先記錄原本未鎖定的標的，若 AI 漏掉建議，則維持原狀或設為最小比例
         suggestions.forEach((sug) => {
           const asset = acc.assets.find((a) => a.name === sug.name);
           if (asset && !asset.isLocked) {
@@ -257,7 +251,7 @@ function bindGlobalEvents() {
 
         saveToStorage();
         refreshAll();
-        showToast(`✅ AI 已根據 ${targetExp}x 槓桿目標完成配置`);
+        showToast(`✅ AI 已完成 ${targetExp}x 配置`);
       });
     };
   }

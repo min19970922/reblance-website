@@ -171,51 +171,48 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請先設定 API Key");
 
-  // 1. 計算數據上下文
   const data = calculateAccountData(acc);
   const netValue = data.netValue;
 
-  // 2. 區分資產：鎖定資產（含現金比例）
+  // 1. 計算已鎖定預算 (含現金與使用者鎖定的標的)
   const lockedTotal =
     acc.assets.reduce((s, a) => s + (a.isLocked ? a.targetRatio : 0), 0) +
     acc.cashRatio;
   const remainingBudget = Math.max(0, 100 - lockedTotal);
 
   if (remainingBudget <= 0)
-    return showToast("❌ 已無預算可供 AI 規劃 (鎖定比例已達 100%)");
+    return showToast("❌ 剩餘預算不足 (鎖定資產已達 100%)");
 
-  // 3. 準備「未鎖定」資產的詳細數據給 AI
-  const aiAssetsInfo = acc.assets
-    .filter((a) => !a.isLocked)
+  // 2. 獲取所有「未鎖定」的資產作為 AI 分配對象
+  const aiAssets = acc.assets.filter((a) => !a.isLocked);
+  if (aiAssets.length === 0)
+    return showToast("❌ 找不到未鎖定的標的供 AI 規劃");
+
+  const aiAssetsInfo = aiAssets
     .map((a) => {
       const currentPct = netValue > 0 ? (a.nominalValue / netValue) * 100 : 0;
-      return `- ${a.name}(${a.fullName}): 目前佔比 ${currentPct.toFixed(
+      return `- ${a.name}(${a.fullName}): 目前權重 ${currentPct.toFixed(
         1
       )}%, 槓桿因子 ${a.leverage}x`;
     })
     .join("\n");
 
-  showToast(
-    `AI 分析中... (目標槓桿: ${targetExp}x, 剩餘預算: ${remainingBudget.toFixed(
-      1
-    )}%)`
-  );
+  showToast(`AI 智投規劃中 (剩餘預算: ${remainingBudget.toFixed(1)}%)...`);
 
   try {
-    const promptText = `你是一位資產配置專家。
-    【目標】透過調整「目標比例(targetRatio)」，讓總名目曝險達成淨值的 ${targetExp}x。
+    const promptText = `你是一位專業的基金經理。
+    【目標】總實質槓桿達成 ${targetExp}x。
     【約束】
-    1. 現金與鎖定資產已佔用 ${lockedTotal.toFixed(1)}% 預算。
-    2. 你必須分配剩餘的 ${remainingBudget.toFixed(1)}% 預算給下方標的。
-    3. 分配後的標的 targetRatio 總和必須「精確等於」 ${remainingBudget.toFixed(
-      1
-    )}。
-    4. 請參考「目前佔比」進行微調，避免無意義的大幅換倉，除非是為了符合目標槓桿。
+    1. 現金與鎖定資產已佔用 ${lockedTotal.toFixed(1)}% 比例。
+    2. 你必須將剩餘的 ${remainingBudget.toFixed(1)}% 比例，完全分配給下列標的。
+    3. 嚴格要求：清單中的「每一個」標的都必須獲得分配，分配比例不得為 0。
+    4. 所有建議的 targetRatio 總和必須精確等於 ${remainingBudget.toFixed(1)}。
     
-    【待規劃資產清單】：
+    【待規劃清單】：
     ${aiAssetsInfo}
     
-    請嚴格只回傳 JSON：{"suggestions": [{"name": "代號", "targetRatio": 15.5}]}`;
+    請參考目前權重進行再平衡優化，不要大幅換倉。
+    只回傳 JSON 格式：{"suggestions": [{"name": "代號", "targetRatio": 12.5}]}`;
 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
     const response = await fetch(apiUrl, {
@@ -234,14 +231,14 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     if (text) {
       let suggestions = JSON.parse(text).suggestions || [];
 
-      // --- 強制歸一化邏輯：消除 AI 計算誤差 ---
+      // 強制歸一化：確保 AI 建議總和完全符合剩餘預算
       const aiSum = suggestions.reduce(
-        (s, a) => s + parseFloat(a.targetRatio),
+        (s, a) => s + parseFloat(a.targetRatio || 0),
         0
       );
-      const factor = remainingBudget / aiSum;
+      if (aiSum <= 0) throw new Error("AI 回傳無效比例");
 
-      // 精確計算並分配
+      const factor = remainingBudget / aiSum;
       const finalSuggestions = suggestions.map((sug) => ({
         name: sug.name,
         targetRatio: Math.round(sug.targetRatio * factor * 10) / 10,
