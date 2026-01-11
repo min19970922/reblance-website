@@ -1,8 +1,8 @@
 /**
- * ui.js - 策略增強版 (v5.1)
- * 1. 整合 5/25 門檻判定：未達標顯示「監控中」
- * 2. 移除表格內現金列，改與頂部參數區同步
- * 3. 強化視覺反饋：進度條漸層與動態動畫
+ * ui.js - 策略增強鎖定版 (v6.0)
+ * 1. 移除表格內現金列，與頂部參數區同步
+ * 2. 增加資產鎖定按鈕圖標
+ * 3. 優化 6x6 佈局看板數據顯示
  */
 import {
   safeNum,
@@ -63,23 +63,19 @@ export function renderAccountList(appState, onSwitch, onDelete) {
 }
 
 /**
- * 核心渲染函式 - 已移除表格內的現金列
+ * 核心渲染函式
  */
 export function renderMainUI(acc) {
   if (!acc) return;
 
-  // 更新標題與全域參數
   const titleEl = document.getElementById("activeAccountTitle");
   if (titleEl)
     titleEl.innerHTML = `${acc.name} <i class="fas fa-pen text-xl text-rose-200 ml-4"></i>`;
 
+  // 同步參數區輸入框
   document.getElementById("debtInput").value = acc.totalDebt;
   document.getElementById("cashInput").value = acc.currentCash;
-
-  // 同步頂部參數區的現金目標百分比
-  const cashRatioInput = document.getElementById("cashRatioInput");
-  if (cashRatioInput) cashRatioInput.value = acc.cashRatio || 0;
-
+  document.getElementById("cashRatioInput").value = acc.cashRatio || 0;
   document.getElementById("usdRateInput").value = acc.usdRate;
   document.getElementById("rebalanceAbsInput").value = acc.rebalanceAbs;
   document.getElementById("rebalanceRelInput").value = acc.rebalanceRel;
@@ -90,7 +86,7 @@ export function renderMainUI(acc) {
 
   const data = calculateAccountData(acc);
 
-  // 1. 渲染一般資產 (不包含現金)
+  // 渲染實體資產
   data.assetsCalculated.forEach((asset, index) => {
     const row = document.createElement("tr");
     row.innerHTML = generateAssetRowHTML(
@@ -102,12 +98,11 @@ export function renderMainUI(acc) {
     updateAssetRowData(asset, acc, data.netValue);
   });
 
-  // 2. 更新儀表板數據
   updateDashboardUI(data, acc);
 }
 
 /**
- * 輔助元件：自動適應寬度的輸入框
+ * 自動適應寬度輸入框
  */
 const autoWidthInput = (
   assetId,
@@ -127,21 +122,17 @@ const autoWidthInput = (
 `;
 
 /**
- * 產生一般資產列 HTML
+ * 產生一般資產列 HTML (含鎖定按鈕)
  */
 function generateAssetRowHTML(asset, index, totalAssets) {
   const hasContent =
     asset.fullName && asset.fullName !== "" && asset.fullName !== "---";
   const displayName = hasContent ? asset.fullName : "正在載入...";
-  const nameColor = hasContent
-    ? /[\u4e00-\u9fa5]/.test(asset.fullName)
-      ? "text-rose-600"
-      : "text-rose-400"
-    : "text-rose-300 animate-pulse";
+  const isLocked = asset.isLocked || false;
 
   return `
     <td class="px-2">
-      <div class="flex items-center justify-center gap-2">
+      <div class="flex items-center justify-start gap-3">
         <div class="flex flex-col text-[10px] text-rose-200">
           <button onclick="moveAsset(${asset.id},-1)" class="${
     index === 0 ? "invisible" : ""
@@ -150,7 +141,14 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     index === totalAssets - 1 ? "invisible" : ""
   } hover:text-rose-500"><i class="fas fa-caret-down"></i></button>
         </div>
-        <div class="flex flex-col items-center">
+        <button onclick="toggleLock(${
+          asset.id
+        })" class="text-xl transition-colors ${
+    isLocked ? "text-rose-600" : "text-gray-200 hover:text-rose-300"
+  }">
+          <i class="fas ${isLocked ? "fa-lock" : "fa-lock-open"}"></i>
+        </button>
+        <div class="flex flex-col items-center flex-1">
           ${autoWidthInput(
             asset.id,
             "name",
@@ -159,7 +157,7 @@ function generateAssetRowHTML(asset, index, totalAssets) {
           )}
           <span id="nameLabel-${
             asset.id
-          }" class="text-sm font-bold ${nameColor} whitespace-nowrap">${displayName}</span>
+          }" class="text-sm font-bold text-rose-400 whitespace-nowrap">${displayName}</span>
         </div>
       </div>
     </td>
@@ -179,12 +177,10 @@ function generateAssetRowHTML(asset, index, totalAssets) {
           "font-mono-data text-xl",
           "number"
         )}
-        <button onclick="fetchLivePrice(${asset.id},'${
-    asset.name
-  }')" title="同步報價">
+        <button onclick="fetchLivePrice(${asset.id},'${asset.name}')">
           <i id="assetSync-${
             asset.id
-          }" class="fas fa-sync-alt text-rose-100 hover:text-rose-400 transition-colors"></i>
+          }" class="fas fa-sync-alt text-rose-100 hover:text-rose-400"></i>
         </button>
       </div>
     </td>
@@ -218,13 +214,10 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     <td class="text-right px-2">
       <button onclick="removeAsset(${
         asset.id
-      })" class="text-rose-100 hover:text-rose-600 transition-colors"><i class="fas fa-trash-alt text-xl"></i></button>
+      })" class="text-rose-100 hover:text-rose-600"><i class="fas fa-trash-alt text-xl"></i></button>
     </td>`;
 }
 
-/**
- * 更新單列數據與建議
- */
 export function updateAssetRowData(asset, acc, netValue) {
   if (netValue <= 0) return;
   const s = getRebalanceSuggestion(asset, acc, netValue);
@@ -243,7 +236,7 @@ export function updateAssetRowData(asset, acc, netValue) {
         <span class="text-xl text-rose-950 font-mono-data">$${Math.round(
           s.targetNominal
         ).toLocaleString()}</span>
-        <span class="text-xs text-rose-300">預算: $${Math.round(
+        <span class="text-[10px] text-rose-300 uppercase tracking-tighter">預算: $${Math.round(
           s.targetBookValue
         ).toLocaleString()}</span>
       </div>`;
@@ -252,12 +245,8 @@ export function updateAssetRowData(asset, acc, netValue) {
   const suggCell = document.getElementById(`sugg-${asset.id}`);
   if (suggCell) {
     let barColor = "bg-emerald-400";
-    let animateClass = "";
     if (s.saturation > 0.5) barColor = "bg-amber-400";
-    if (s.saturation > 0.8) {
-      barColor = "bg-rose-500";
-      animateClass = "animate-pulse-soft";
-    }
+    if (s.saturation > 0.8) barColor = "bg-rose-500";
 
     const isBuy = s.diffNominal > 0;
     const actionText = s.isTriggered
@@ -266,44 +255,28 @@ export function updateAssetRowData(asset, acc, netValue) {
         ).toLocaleString()}`
       : "監控中";
 
-    const statusClass = s.isTriggered
-      ? "status-triggered"
-      : "status-monitoring";
-
     suggCell.innerHTML = `
-      <div class="flex flex-col items-center min-w-[180px] ${statusClass}">
-        <div class="flex flex-col items-center">
-          <span class="${
-            s.isTriggered
-              ? isBuy
-                ? "text-emerald-500"
-                : "text-rose-700"
-              : "text-gray-400"
-          } font-black text-lg leading-tight">
-            ${actionText}
-          </span>
-          <span class="text-rose-950 font-black text-sm ${
-            s.isTriggered ? "" : "hidden"
-          }">
-            約 ${Math.abs(s.diffShares).toLocaleString()} 股
-          </span>
-        </div>
-        <div class="rebalance-bar-bg ${animateClass}">
-           <div class="h-full ${barColor} shadow-inner transition-all duration-700" style="width: ${Math.min(
+      <div class="flex flex-col items-center min-w-[150px] ${
+        s.isTriggered ? "status-triggered" : "status-monitoring"
+      }">
+        <span class="${
+          s.isTriggered
+            ? isBuy
+              ? "text-emerald-500"
+              : "text-rose-700"
+            : "text-gray-400"
+        } font-black text-lg leading-tight">${actionText}</span>
+        <span class="text-rose-950 font-black text-xs ${
+          s.isTriggered ? "" : "hidden"
+        }">約 ${Math.abs(s.diffShares).toLocaleString()} 股</span>
+        <div class="rebalance-bar-bg"><div class="h-full ${barColor} transition-all duration-700" style="width: ${Math.min(
       100,
       s.saturation * 100
-    )}%"></div>
-        </div>
-        <span class="text-[10px] font-bold text-rose-300 mt-1">偏差: ${s.absDiff.toFixed(
-          1
-        )}%</span>
+    )}%"></div></div>
       </div>`;
   }
 }
 
-/**
- * 更新數據看板
- */
 export function updateDashboardUI(data, acc) {
   document.getElementById("totalNetValue").innerText = `$${Math.round(
     data.netValue
@@ -318,7 +291,6 @@ export function updateDashboardUI(data, acc) {
   const targetEl = document.getElementById("targetTotalRatio");
   if (targetEl) {
     targetEl.innerText = `${data.targetTotalCombined.toFixed(1)}%`;
-    // 如果總比例不等於 100%，標示為警告色
     targetEl.className =
       Math.abs(data.targetTotalCombined - 100) > 0.1
         ? "font-mono-data text-rose-600"
@@ -339,9 +311,6 @@ export function updateDashboardUI(data, acc) {
   }
 }
 
-/**
- * 顯示通知
- */
 export function showToast(msg) {
   const t = document.getElementById("toast");
   const msgEl = document.getElementById("toastMsg");

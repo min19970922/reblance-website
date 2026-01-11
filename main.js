@@ -1,6 +1,6 @@
 /**
- * main.js - 核心邏輯終極版 (v25.3)
- * 整合：全域函式掛載、頂部參數區連動、AI 合併、自動報價、以及 AI 智投建議功能
+ * main.js - 核心邏輯鎖定增強版 (v26.0)
+ * 整合：全域函式掛載、頂部參數區連動、鎖定功能、以及 AI 智投建議排除邏輯
  */
 import {
   appState,
@@ -72,7 +72,7 @@ function refreshAll() {
     };
   }
 
-  // 同步目標總槓桿輸入框數值
+  // 同步目標總槓桿輸入框數值 (位於看板卡片內)
   const targetExpInput = document.getElementById("targetExpInput");
   if (targetExpInput) {
     targetExpInput.value = activeAcc.targetExp || 1.0;
@@ -98,19 +98,33 @@ window.deleteAccount = (id) => {
 };
 
 /**
- * 更新頂部參數區 (包含現金比例、負債、目標槓桿等)
+ * 切換資產鎖定狀態
+ */
+window.toggleLock = (id) => {
+  const acc = appState.accounts.find((a) => a.id === appState.activeId);
+  const asset = acc.assets.find((as) => as.id === id);
+  if (asset) {
+    asset.isLocked = !asset.isLocked;
+    saveToStorage();
+    refreshAll();
+    showToast(asset.isLocked ? `已鎖定 ${asset.name}` : `已解鎖 ${asset.name}`);
+  }
+};
+
+/**
+ * 更新全域參數 (包含目標槓桿、現金比例等)
  */
 window.updateGlobal = (key, val) => {
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
   if (acc) {
     acc[key] = safeNum(val);
     saveToStorage();
-    refreshAll(); // 參數改變後立即重新計算數據
+    refreshAll();
   }
 };
 
 /**
- * 更新標的單列數據
+ * 更新單一資產欄位
  */
 window.updateAsset = (id, key, val) => {
   const acc = appState.accounts.find((a) => a.id === appState.activeId);
@@ -128,7 +142,7 @@ window.updateAsset = (id, key, val) => {
 };
 
 window.moveAsset = (assetId, direction) => {
-  const acc = appState.accounts.find((a) => a.id === appState.activeId);
+  const acc = appState.accounts.find((a) => a.id === assetId);
   const index = acc.assets.findIndex((a) => a.id === assetId);
   const newIndex = index + direction;
   if (newIndex >= 0 && newIndex < acc.assets.length) {
@@ -197,7 +211,6 @@ function bindGlobalEvents() {
     };
   }
 
-  // 照片辨識與標的自動合併
   const inputCamera = document.getElementById("inputCamera");
   if (inputCamera) {
     inputCamera.onchange = (e) => {
@@ -230,13 +243,14 @@ function bindGlobalEvents() {
       await generateAiAllocation(acc, targetExp, (suggestions) => {
         suggestions.forEach((sug) => {
           const asset = acc.assets.find((a) => a.name === sug.name);
-          if (asset) {
+          if (asset && !asset.isLocked) {
+            // 僅更新未鎖定的資產
             asset.targetRatio = sug.targetRatio;
           }
         });
         saveToStorage();
         refreshAll();
-        showToast("✅ AI 建議配置已套用 (已保留一位小數)");
+        showToast("✅ AI 建議配置已套用 (已跳過鎖定資產)");
       });
     };
   }
@@ -253,6 +267,7 @@ function bindGlobalEvents() {
       shares: 0,
       targetRatio: 0,
       leverage: 1,
+      isLocked: false, // 預設不鎖定
     });
     refreshAll();
   };

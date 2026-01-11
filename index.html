@@ -76,14 +76,12 @@
                 儲存
               </button>
             </div>
-
             <button
               id="btnExport"
               class="px-4 py-3 bg-white border border-emerald-200 text-emerald-700 font-black rounded-xl hover:bg-emerald-50 shadow-sm flex items-center gap-2"
             >
               <i class="fas fa-file-export"></i> 匯出
             </button>
-
             <label
               class="px-4 py-3 bg-white border border-amber-200 text-amber-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm hover:bg-amber-50"
             >
@@ -95,7 +93,6 @@
                 accept=".xlsx"
               />
             </label>
-
             <label
               class="px-4 py-3 bg-white border border-rose-200 text-rose-700 font-black rounded-xl cursor-pointer flex items-center gap-2 shadow-sm hover:bg-rose-50"
             >
@@ -107,7 +104,6 @@
                 accept="image/*"
               />
             </label>
-
             <button
               id="btnDeleteAccount"
               class="p-2 text-rose-200 hover:text-rose-600"
@@ -118,7 +114,7 @@
         </div>
 
         <div class="main-scroll-wrapper">
-          <div class="dashboard-grid">
+          <div class="dashboard-grid !grid-cols-6">
             <div class="glass-card border-t-[6px] border-t-rose-500">
               <span>帳戶淨值 (Net)</span>
               <div id="totalNetValue" class="font-mono-data">$0</div>
@@ -131,14 +127,22 @@
               <span>實質槓桿 (Lev)</span>
               <div id="leverageDisplay" class="font-mono-data">1.00x</div>
             </div>
-            <div class="glass-card border-t-[6px] border-t-rose-600">
-              <span>預算總計 (Goal 100%)</span>
-              <div
-                id="targetTotalRatio"
-                class="font-mono-data transition-colors duration-500"
-              >
-                0.0%
+            <div class="glass-card border-t-[6px] border-t-rose-400">
+              <span>目標總槓桿 (Target)</span>
+              <div class="flex items-baseline gap-1">
+                <input
+                  type="number"
+                  id="targetExpInput"
+                  step="0.1"
+                  class="bg-transparent border-none outline-none font-mono-data w-24 text-rose-900"
+                  oninput="updateGlobal('targetExp', this.value)"
+                />
+                <span class="text-xl font-black text-rose-300">x</span>
               </div>
+            </div>
+            <div class="glass-card border-t-[6px] border-t-rose-600">
+              <span>預算總計 (Goal)</span>
+              <div id="targetTotalRatio" class="font-mono-data">0.0%</div>
             </div>
             <div
               class="glass-card border-t-[6px] border-t-indigo-600"
@@ -150,13 +154,13 @@
           </div>
 
           <div
-            class="params-row-tight !grid-cols-7 border-t-4 border-t-rose-500 bg-white/30 rounded-b-2xl shadow-sm"
+            class="params-row-tight !grid-cols-6 border-t-4 border-t-rose-500 bg-white/30 rounded-b-2xl shadow-sm"
           >
             <div class="input-unit">
               <label>貸款/負債 (Debt)</label>
               <div class="input-box">
-                <span>$</span>
-                <input
+                <span>$</span
+                ><input
                   type="number"
                   id="debtInput"
                   class="flat-input"
@@ -167,8 +171,8 @@
             <div class="input-unit">
               <label>現金餘額 (Cash)</label>
               <div class="input-box">
-                <span>$</span>
-                <input
+                <span>$</span
+                ><input
                   type="number"
                   id="cashInput"
                   class="flat-input"
@@ -184,22 +188,7 @@
                   id="cashRatioInput"
                   class="flat-input"
                   oninput="updateGlobal('cashRatio', this.value)"
-                />
-                <span class="text-rose-200">%</span>
-              </div>
-            </div>
-            <div class="input-unit-small bg-rose-50/50">
-              <label class="text-rose-600 font-black">目標總槓桿</label>
-              <div class="input-box">
-                <input
-                  type="number"
-                  id="targetExpInput"
-                  step="0.1"
-                  value="1.0"
-                  class="flat-input text-rose-700"
-                  oninput="updateGlobal('targetExp', this.value)"
-                />
-                <span class="text-rose-300">x</span>
+                /><span class="text-rose-200">%</span>
               </div>
             </div>
             <div class="input-unit-small">
@@ -223,8 +212,7 @@
                   step="0.1"
                   class="flat-input"
                   oninput="updateGlobal('rebalanceAbs', this.value)"
-                />
-                <span class="text-rose-200">%</span>
+                /><span class="text-rose-200">%</span>
               </div>
             </div>
             <div class="input-unit-small">
@@ -236,8 +224,7 @@
                   step="0.1"
                   class="flat-input"
                   oninput="updateGlobal('rebalanceRel', this.value)"
-                />
-                <span class="text-rose-200">%</span>
+                /><span class="text-rose-200">%</span>
               </div>
             </div>
           </div>
@@ -269,7 +256,6 @@
               </button>
             </div>
           </div>
-
           <div class="bg-white rounded-3xl p-4 shadow-sm overflow-x-auto">
             <table class="auto-table">
               <thead>
