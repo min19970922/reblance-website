@@ -1,6 +1,10 @@
 /**
- * state.js - 金融大師邏輯版 (V23)
+ * state.js - 金融大師策略增強版 (V24)
+ * 1. 支援動態偏離門檻 (絕對 Abs / 相對 Rel)
+ * 2. 新增 10,000 元台幣金額偏差觸發邏輯
+ * 3. 強化飽和度 (Saturation) 計算，供 UI 呈現綠/黃/紅漸層
  */
+
 export const STORAGE_KEY = "REBALANCE_MASTER_PRO_V23";
 
 export const initialAccountTemplate = (name = "新計畫") => ({
@@ -10,8 +14,8 @@ export const initialAccountTemplate = (name = "新計畫") => ({
   totalDebt: 0,
   cashRatio: 0,
   usdRate: 32.5,
-  rebalanceAbs: 5, // 絕對門檻 % (如 5%)
-  rebalanceRel: 25, // 相對門檻 % (如 25%)
+  rebalanceAbs: 5, // 預設絕對門檻 5%
+  rebalanceRel: 25, // 預設相對門檻 25%
   assets: [],
 });
 
@@ -39,7 +43,6 @@ export function loadFromStorage() {
     try {
       const parsed = JSON.parse(saved);
       if (parsed && parsed.accounts) {
-        // 修正點：使用 Object.assign 確保引用不變
         Object.assign(appState, parsed);
         return true;
       }
@@ -50,12 +53,16 @@ export function loadFromStorage() {
   return false;
 }
 
+/**
+ * 計算帳戶即時數據：包含資產換算台幣、名目曝險、淨值與槓桿
+ */
 export function calculateAccountData(acc) {
   if (!acc) return null;
   let totalAssetBookValue = 0;
   let totalNominalExposure = 0;
 
   const assetsCalculated = acc.assets.map((asset) => {
+    // 判定是否為台股 (代號為 4-6 位數字)
     const isTW = /^\d{4,6}[A-Z]?$/.test(
       (asset.name || "").trim().toUpperCase()
     );
@@ -63,8 +70,10 @@ export function calculateAccountData(acc) {
     const priceTwd = isTW ? rawPrice : rawPrice * safeNum(acc.usdRate, 32.5);
     const bookValue = priceTwd * safeNum(asset.shares, 0);
     const nominalValue = bookValue * safeNum(asset.leverage, 1);
+
     totalAssetBookValue += bookValue;
     totalNominalExposure += nominalValue;
+
     return { ...asset, isTW, priceTwd, bookValue, nominalValue };
   });
 
@@ -87,30 +96,38 @@ export function calculateAccountData(acc) {
   };
 }
 
+/**
+ * 再平衡核心邏輯：根據動態門檻判定是否觸發建議
+ */
 export function getRebalanceSuggestion(asset, acc, netValue) {
   const factor = safeNum(asset.leverage, 1);
   const currentPct =
     netValue > 0 ? (safeNum(asset.nominalValue) / netValue) * 100 : 0;
   const targetPct = safeNum(asset.targetRatio);
 
-  // 1. 絕對偏差
+  // 1. 計算偏離程度
   const absDiff = Math.abs(currentPct - targetPct);
-  // 2. 相對偏差 (absDiff / targetPct)
   const relDiff = targetPct !== 0 ? absDiff / targetPct : 0;
 
+  // 2. 獲取使用者設定的動態門檻
   const tAbs = safeNum(acc.rebalanceAbs, 5);
-  const tRel = safeNum(acc.rebalanceRel, 25) / 100; // 轉為小數比率
+  const tRel = safeNum(acc.rebalanceRel, 25) / 100;
 
-  // 觸發判定
-  const isTriggered = absDiff > tAbs || relDiff > tRel;
-
+  // 3. 計算差額金額
   const targetNominal = netValue * (targetPct / 100);
   const diffNominal = targetNominal - safeNum(asset.nominalValue);
+
+  // 4. 觸發判定：(偏離度達標) 且 (金額偏差 > 10,000)
+  const isTriggered =
+    (absDiff > tAbs || relDiff > tRel) && Math.abs(diffNominal) > 10000;
+
+  // 5. 計算建議股數
   const priceTwd = safeNum(asset.priceTwd, 0);
   const diffShares =
     priceTwd * factor > 0 ? diffNominal / (priceTwd * factor) : 0;
 
-  // 計算進度條飽和度 (取兩個門檻中最接近的一個)
+  // 6. 計算飽和度 (0.0 ~ 1.0)，用於 UI 判斷進度條顏色
+  // 取「絕對偏離/門檻」與「相對偏離/門檻」的較大者
   const saturation = Math.min(1, Math.max(absDiff / tAbs, relDiff / tRel));
 
   return {

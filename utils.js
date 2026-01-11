@@ -78,8 +78,8 @@ export function importExcel(e, onComplete) {
 }
 
 /**
- * AI 圖片辨識匯入功能 - 診斷適配版
- * 使用診斷清單中存在的 gemini-flash-latest 避開 404 與 429 錯誤
+ * utils.js - 終極修復穩定版 (v12.0)
+ * 解決 429 配額限制問題，使用穩定別名網址
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
@@ -108,12 +108,12 @@ export async function importFromImage(e, onComplete) {
   try {
     const base64Image = await fileToBase64(file);
 
-    // --- 關鍵修正：使用診斷清單第 20 項存在的別名 ---
+    // --- 關鍵修正：換回最穩定的別名，避開 2.0 版本的 0 額度限制 ---
     const model = "gemini-flash-latest";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const promptText = `你是一位專業分析師。請提取圖片中的持股代號(name)與股數(shares)。
-    請嚴格只回傳 JSON 格式，不要有任何 Markdown 標籤或解釋。
+    請嚴格只回傳 JSON 格式，不要有任何解釋文字。
     範例格式：{"assets": [{"name":"2330","shares":1000}]}`;
 
     const payload = {
@@ -140,9 +140,8 @@ export async function importFromImage(e, onComplete) {
 
     if (!response.ok) {
       const errData = await response.json();
-      // 針對 429 錯誤提供友善提示
       if (response.status === 429) {
-        throw new Error("AI 目前配額已滿，請等待約一分鐘後再試。");
+        throw new Error("AI 配額已滿，請等待 60 秒後再試。");
       }
       throw new Error(
         errData.error?.message || `請求失敗 (${response.status})`
@@ -152,7 +151,7 @@ export async function importFromImage(e, onComplete) {
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // 清理 Markdown 標籤以防解析失敗
+    // 清理 Markdown 標籤
     text = text
       .replace(/```json/g, "")
       .replace(/```/g, "")
@@ -160,13 +159,8 @@ export async function importFromImage(e, onComplete) {
 
     let assets = [];
     if (text) {
-      try {
-        const parsedData = JSON.parse(text);
-        assets = parsedData.assets || [];
-      } catch (e) {
-        console.error("JSON 解析失敗:", text);
-        throw new Error("AI 回傳格式不符合 JSON，請稍後再試。");
-      }
+      const parsedData = JSON.parse(text);
+      assets = parsedData.assets || [];
     }
 
     if (assets.length > 0) {
@@ -187,10 +181,10 @@ export async function importFromImage(e, onComplete) {
       onComplete(formattedAssets);
       showToast(`AI 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     } else {
-      showToast("AI 未能辨識出有效內容");
+      showToast("AI 未能辨識出內容");
     }
   } catch (err) {
-    console.error("AI辨識詳細錯誤:", err);
+    console.error("AI辨識錯誤:", err);
     showToast(`辨識失敗: ${err.message}`);
   } finally {
     e.target.value = "";

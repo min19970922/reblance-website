@@ -1,4 +1,4 @@
-/* styles.css - 終極穩定版 */
+/* styles.css - 終極穩定策略版 (V24) */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 
@@ -12,7 +12,7 @@
   --font-size-table: 1.2rem;
 }
 
-/* 全域字體：英文 Calibri, 中文微軟正黑 */
+/* --- 全域設定 --- */
 body,
 input,
 button {
@@ -37,7 +37,7 @@ button {
   transition: all 0.3s ease;
 }
 
-/* 側邊欄縮回修復 */
+/* --- 側邊欄邏輯 --- */
 .dashboard-container.sidebar-collapsed {
   grid-template-columns: 0px 1fr;
 }
@@ -47,7 +47,7 @@ button {
   visibility: hidden;
   opacity: 0;
   border: none;
-  padding: 0; /* 移除內距防止殘影 */
+  padding: 0;
 }
 
 aside {
@@ -67,11 +67,12 @@ main {
   overflow-y: auto;
 }
 
+/* --- 看板與參數區 --- */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 15px;
-  margin-bottom: 2px !important; /* 從 25px 縮小至 10px */
+  margin-bottom: 10px !important;
 }
 
 .params-row-tight {
@@ -79,7 +80,6 @@ main {
   border: 2px solid #fff1f2;
   border-radius: 15px;
   box-shadow: 0 5px 20px -10px rgba(0, 0, 0, 0.05);
-  margin-top: 0px !important;
   margin-bottom: 20px;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -87,6 +87,7 @@ main {
   width: 100%;
   min-width: 900px;
 }
+
 .main-scroll-wrapper {
   overflow-x: auto;
   width: 100%;
@@ -115,7 +116,7 @@ main {
   letter-spacing: -1px;
 }
 
-/* 核心修復：自動寬度輸入框疊加邏輯 */
+/* --- 輸入框自動寬度鏡像邏輯 --- */
 .input-col-wrapper {
   position: relative;
   display: inline-grid;
@@ -128,24 +129,22 @@ main {
   grid-area: 1 / 1;
   opacity: 0 !important;
   visibility: hidden !important;
-  color: transparent !important;
   white-space: pre;
   padding: 0 10px;
   pointer-events: none;
-  z-index: 1;
 }
 
 .underline-input {
   grid-area: 1 / 1;
   width: 100%;
-  background: white !important; /* 必須是 white，才能蓋掉下方的鏡像文字 */
+  background: white !important;
   border: none;
   border-bottom: 2px solid #fecdd3;
   outline: none;
   text-align: center;
   padding: 0 10px;
   font-weight: 900;
-  z-index: 5; /* 確保它在鏡像層上方 */
+  z-index: 5;
   transition: border-color 0.2s;
 }
 
@@ -153,39 +152,7 @@ main {
   border-bottom-color: var(--primary-pink);
 }
 
-/* 其餘表格設定 */
-.input-unit,
-.input-unit-small {
-  display: flex;
-  flex-direction: column;
-  padding: 8px 15px;
-  border-right: 2px solid #fff1f2;
-}
-
-.input-unit:last-child,
-.input-unit-small:last-child {
-  border-right: none;
-}
-
-.input-unit label,
-.input-unit-small label {
-  font-size: 0.85rem;
-  font-weight: 900;
-  color: var(--primary-pink);
-  margin-bottom: 2px;
-}
-
-.flat-input {
-  border: none;
-  outline: none;
-  font-size: 1.6rem;
-  font-weight: 900;
-  width: 100%;
-  background: transparent;
-  text-align: right;
-  color: #1a0005;
-}
-
+/* --- 表格與按鈕 --- */
 .auto-table {
   width: 100%;
   border-collapse: collapse;
@@ -218,6 +185,52 @@ td {
   cursor: pointer;
 }
 
+/* --- 2026 再平衡策略動態樣式 --- */
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+}
+
+/* 呼吸燈效果：用於飽和度 > 80% */
+.animate-pulse-soft {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* 監控中：灰階且半透明 */
+.status-monitoring {
+  opacity: 0.4;
+  filter: grayscale(100%);
+  transition: all 0.4s ease;
+}
+
+/* 觸發建議：高亮且稍微放大 */
+.status-triggered {
+  opacity: 1;
+  filter: grayscale(0%);
+  transform: scale(1.05);
+  transition: all 0.4s ease;
+}
+
+/* 進度條容器樣式 */
+.rebalance-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  margin-top: 6px;
+}
+
+/* 吐司通知系統 */
 #toast {
   transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
 }

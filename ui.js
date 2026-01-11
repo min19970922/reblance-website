@@ -1,8 +1,8 @@
 /**
- * ui.js - 終極整合適配版 (v4.0)
- * 1. 修正側邊欄殘影
- * 2. 再平衡建議顯示金額與股數 (恆定顯示)
- * 3. 自動寬度鏡像同步
+ * ui.js - 策略增強版 (v5.0)
+ * 1. 整合 5/25 門檻判定：未達標顯示「監控中」
+ * 2. 進度條漸層：綠(0-50%) → 黃(50-80%) → 紅(80%+)
+ * 3. 動態動畫：飽和度 > 80% 自動觸發 pulse-soft
  */
 import {
   safeNum,
@@ -23,7 +23,6 @@ export function toggleSidebarUI(isCollapsed) {
   container.classList.toggle("sidebar-collapsed", isCollapsed);
   icon.className = isCollapsed ? "fas fa-bars" : "fas fa-chevron-left";
 
-  // 徹底移除殘影：如果收縮則隱藏 aside 內容與邊框
   if (aside) {
     if (isCollapsed) {
       aside.style.visibility = "hidden";
@@ -78,7 +77,6 @@ export function renderMainUI(acc) {
     titleEl.innerHTML = `${acc.name} <i class="fas fa-pen text-xl text-rose-200 ml-4"></i>`;
   }
 
-  // 更新頂部全域參數
   document.getElementById("debtInput").value = acc.totalDebt;
   document.getElementById("cashInput").value = acc.currentCash;
   document.getElementById("usdRateInput").value = acc.usdRate;
@@ -98,15 +96,11 @@ export function renderMainUI(acc) {
       data.assetsCalculated.length
     );
     body.appendChild(row);
-    // 渲染後立即更新該列的計算數值與再平衡建議
     updateAssetRowData(asset, acc, data.netValue);
   });
   updateDashboardUI(data, acc);
 }
 
-/**
- * 自動對齊組件：生成隱形鏡像層與輸入框，讓表格欄位隨內容撐開
- */
 const autoWidthInput = (
   assetId,
   field,
@@ -124,9 +118,6 @@ const autoWidthInput = (
   </div>
 `;
 
-/**
- * 生成資產列 HTML
- */
 function generateAssetRowHTML(asset, index, totalAssets) {
   const hasContent =
     asset.fullName && asset.fullName !== "" && asset.fullName !== "---";
@@ -165,15 +156,13 @@ function generateAssetRowHTML(asset, index, totalAssets) {
         </div>
       </div>
     </td>
-    <td class="text-center">
-      ${autoWidthInput(
-        asset.id,
-        "leverage",
-        asset.leverage,
-        "text-rose-600 font-black text-xl",
-        "number"
-      )}
-    </td>
+    <td class="text-center">${autoWidthInput(
+      asset.id,
+      "leverage",
+      asset.leverage,
+      "text-rose-600 font-black text-xl",
+      "number"
+    )}</td>
     <td class="text-center">
       <div class="flex items-center justify-center gap-1">
         ${autoWidthInput(
@@ -192,15 +181,13 @@ function generateAssetRowHTML(asset, index, totalAssets) {
         </button>
       </div>
     </td>
-    <td class="text-center">
-      ${autoWidthInput(
-        asset.id,
-        "shares",
-        asset.shares,
-        "font-mono-data text-xl",
-        "number"
-      )}
-    </td>
+    <td class="text-center">${autoWidthInput(
+      asset.id,
+      "shares",
+      asset.shares,
+      "font-mono-data text-xl",
+      "number"
+    )}</td>
     <td id="curVal-${
       asset.id
     }" class="font-mono-data text-rose-950 font-black px-4 text-xl"></td>
@@ -231,22 +218,21 @@ function generateAssetRowHTML(asset, index, totalAssets) {
 }
 
 /**
- * 更新單列數據與建議 (加強版：永遠顯示金額與股數)
+ * 更新單列數據與建議 (策略增強版)
  */
 export function updateAssetRowData(asset, acc, netValue) {
   if (netValue <= 0) return;
   const s = getRebalanceSuggestion(asset, acc, netValue);
 
-  // 1. 更新目前市值
+  // 1. 更新目前市值與目前佔比
   const curValEl = document.getElementById(`curVal-${asset.id}`);
   if (curValEl)
     curValEl.innerText = `$${Math.round(asset.nominalValue).toLocaleString()}`;
 
-  // 2. 更新目前佔比
   const curPctEl = document.getElementById(`curPct-${asset.id}`);
   if (curPctEl) curPctEl.innerText = `${s.currentPct.toFixed(1)}%`;
 
-  // 3. 更新目標數值 (目標市值與換算預算)
+  // 2. 更新目標數值
   const targetValEl = document.getElementById(`targetVal-${asset.id}`);
   if (targetValEl) {
     targetValEl.innerHTML = `
@@ -260,34 +246,52 @@ export function updateAssetRowData(asset, acc, netValue) {
       </div>`;
   }
 
-  // 4. 更新再平衡建議 (重點修復：永遠顯示金額與股數)
+  // 3. 更新再平衡建議 (重點修改區)
   const suggCell = document.getElementById(`sugg-${asset.id}`);
   if (suggCell) {
-    let barColor = "bg-emerald-500";
-    if (s.saturation > 0.8) barColor = "bg-orange-500 pulsate-bar";
-    if (s.saturation >= 1) barColor = "bg-rose-600 pulsate-bar";
+    // 漸層顏色邏輯：綠(0-50%) -> 黃(50-80%) -> 紅(80%+)
+    let barColor = "bg-emerald-400";
+    let animateClass = "";
+
+    if (s.saturation > 0.5) barColor = "bg-amber-400";
+    if (s.saturation > 0.8) {
+      barColor = "bg-rose-500";
+      animateClass = "animate-pulse-soft"; // 觸發 CSS 定義的呼吸燈
+    }
 
     const isBuy = s.diffNominal > 0;
-    // 門檻狀態控制：若未達門檻則使用半透明與灰色，達成則高亮放大
+
+    // 判定顯示文字：未達門檻(isTriggered 為 false)則顯示監控中
+    const actionText = s.isTriggered
+      ? `${isBuy ? "加碼" : "減持"} $${Math.abs(
+          Math.round(s.diffNominal)
+        ).toLocaleString()}`
+      : "監控中";
+
+    // 狀態類別樣式 (對應 CSS 中的縮放與灰階效果)
     const statusClass = s.isTriggered
-      ? "opacity-100 scale-105"
-      : "opacity-40 grayscale pointer-events-none";
+      ? "status-triggered"
+      : "status-monitoring";
 
     suggCell.innerHTML = `
-      <div class="flex flex-col items-center min-w-[180px] transition-all duration-300 ${statusClass}">
+      <div class="flex flex-col items-center min-w-[180px] ${statusClass}">
         <div class="flex flex-col items-center">
           <span class="${
-            isBuy ? "text-emerald-500" : "text-rose-700"
+            s.isTriggered
+              ? isBuy
+                ? "text-emerald-500"
+                : "text-rose-700"
+              : "text-gray-400"
           } font-black text-lg leading-tight">
-            ${isBuy ? "加碼" : "減持"} $${Math.abs(
-      Math.round(s.diffNominal)
-    ).toLocaleString()}
+            ${actionText}
           </span>
-          <span class="text-rose-950 font-black text-sm">
+          <span class="text-rose-950 font-black text-sm ${
+            s.isTriggered ? "" : "hidden"
+          }">
             約 ${Math.abs(s.diffShares).toLocaleString()} 股
           </span>
         </div>
-        <div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden border mt-1">
+        <div class="rebalance-bar-bg ${animateClass}">
            <div class="h-full ${barColor} shadow-inner transition-all duration-700" style="width: ${Math.min(
       100,
       s.saturation * 100
@@ -301,7 +305,7 @@ export function updateAssetRowData(asset, acc, netValue) {
 }
 
 /**
- * 更新數據看板 (Dashboard)
+ * 更新數據看板
  */
 export function updateDashboardUI(data, acc) {
   document.getElementById("totalNetValue").innerText = `$${Math.round(
@@ -321,7 +325,6 @@ export function updateDashboardUI(data, acc) {
   if (mRatioEl) {
     if (data.maintenanceRatio > 0) {
       mRatioEl.innerText = `${Math.round(data.maintenanceRatio)}%`;
-      // 維持率警告色
       mRatioEl.className =
         data.maintenanceRatio < 140
           ? "font-mono-data text-rose-600 animate-pulse"
