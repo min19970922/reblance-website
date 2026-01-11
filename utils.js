@@ -175,8 +175,8 @@ export async function importFromImage(e, onComplete) {
   } finally { e.target.value = ""; }
 }
 /**
- * AI 智投穩定版 (v41.0) 
- * 整合 Gemini 2.0 Flash 正式路徑，解決 404/429 報錯
+ * AI 智投穩定版 (v42.0) 
+ * 整合：Gemini 2.0 Flash 正式路徑、指數退避重試、極簡 Token 消耗
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -191,33 +191,39 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  // 極簡化數據：減少 Token 消耗，防止觸發 TPM 限制
+  // 【優化】移除標籤文字，僅傳送純數據以節省 TPM
   const aiAssetsInfo = aiAssets.map(a => {
     const curP = data.netValue > 0 ? (parseFloat(a.bookValue || 0) / data.netValue) * 100 : 0;
     return `${a.name},${curP.toFixed(1)}%,${a.leverage}x`;
   }).join("|");
 
+  // 指數退避請求函式
+  async function fetchWithRetry(url, options, retries = 3, backoff = 2000) {
+    const res = await fetch(url, options);
+    if (res.status === 429 && retries > 0) {
+      showToast(`⏳ API 忙碌，${backoff / 1000}秒後自動重試...`);
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      return fetchWithRetry(url, options, retries - 1, backoff * 2);
+    }
+    return res;
+  }
+
   try {
-    const promptText = `Task: Distribute ${remainingBudget.toFixed(1)}% budget. 
+    const promptText = `Task: Assign ${remainingBudget.toFixed(1)}% budget. 
     Goal: Total Leverage ${targetExp}x (Now: ${(data.totalLeverage || 1).toFixed(2)}x).
-    Rule: 1.Sum=${remainingBudget.toFixed(1)}. 2.No average weights. 3.Output JSON ONLY.
+    Rule: 1.Sum=${remainingBudget.toFixed(1)}. 2.No average. 3.JSON ONLY.
     Data: [${aiAssetsInfo}]`;
 
-    // 關鍵修正：套用您清單中的正確模型名稱
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
-    // 強制請求前等待 1 秒，避開 RPM 限制
-    await new Promise(r => setTimeout(r, 1000));
-
-    const response = await fetch(apiUrl, {
+    // 發送請求 (包含自動重試)
+    const response = await fetchWithRetry(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
     });
 
     if (!response.ok) {
-      if (response.status === 404) throw new Error("路徑錯誤，請確認模型名稱");
-      if (response.status === 429) throw new Error("請求太頻繁，請等待 1 分鐘");
       throw new Error(`API 錯誤: ${response.status}`);
     }
 
