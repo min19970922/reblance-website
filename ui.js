@@ -39,23 +39,19 @@ export function renderAccountList(appState, onSwitch, onDelete) {
   appState.accounts.forEach((acc) => {
     const isActive = acc.id === appState.activeId;
     const div = document.createElement("div");
-    div.className = `group flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all ${
-      isActive
+    div.className = `group flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all ${isActive
         ? "bg-rose-500 text-white shadow-lg"
         : "bg-white hover:bg-rose-50 border"
-    }`;
+      }`;
     div.innerHTML = `
-      <div class="flex items-center gap-3 flex-1" onclick="${onSwitch}('${
-      acc.id
-    }')">
-        <i class="fas fa-wallet ${
-          isActive ? "text-rose-200" : "text-rose-300"
-        } text-xl"></i>
+      <div class="flex items-center gap-3 flex-1" onclick="${onSwitch}('${acc.id
+      }')">
+        <i class="fas fa-wallet ${isActive ? "text-rose-200" : "text-rose-300"
+      } text-xl"></i>
         <span class="font-black text-xl">${acc.name}</span>
       </div>
-      <button onclick="event.stopPropagation(); ${onDelete}('${
-      acc.id
-    }')" class="opacity-0 group-hover:opacity-100 p-1 text-rose-200 hover:text-white transition-opacity">
+      <button onclick="event.stopPropagation(); ${onDelete}('${acc.id
+      }')" class="opacity-0 group-hover:opacity-100 p-1 text-rose-200 hover:text-white transition-opacity">
         <i class="fas fa-trash-alt text-lg"></i>
       </button>`;
     list.appendChild(div);
@@ -134,30 +130,25 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     <td class="px-2">
       <div class="flex items-center justify-start gap-3">
         <div class="flex flex-col text-[10px] text-rose-200">
-          <button onclick="moveAsset(${asset.id},-1)" class="${
-    index === 0 ? "invisible" : ""
-  } hover:text-rose-500"><i class="fas fa-caret-up"></i></button>
-          <button onclick="moveAsset(${asset.id},1)" class="${
-    index === totalAssets - 1 ? "invisible" : ""
-  } hover:text-rose-500"><i class="fas fa-caret-down"></i></button>
+          <button onclick="moveAsset(${asset.id},-1)" class="${index === 0 ? "invisible" : ""
+    } hover:text-rose-500"><i class="fas fa-caret-up"></i></button>
+          <button onclick="moveAsset(${asset.id},1)" class="${index === totalAssets - 1 ? "invisible" : ""
+    } hover:text-rose-500"><i class="fas fa-caret-down"></i></button>
         </div>
-        <button onclick="toggleLock(${
-          asset.id
-        })" class="text-xl transition-colors ${
-    isLocked ? "text-rose-600" : "text-gray-200 hover:text-rose-300"
-  }">
+        <button onclick="toggleLock(${asset.id
+    })" class="text-xl transition-colors ${isLocked ? "text-rose-600" : "text-gray-200 hover:text-rose-300"
+    }">
           <i class="fas ${isLocked ? "fa-lock" : "fa-lock-open"}"></i>
         </button>
         <div class="flex flex-col items-center flex-1">
           ${autoWidthInput(
-            asset.id,
-            "name",
-            asset.name,
-            "uppercase font-black text-2xl"
-          )}
-          <span id="nameLabel-${
-            asset.id
-          }" class="text-sm font-bold text-rose-400 whitespace-nowrap">${displayName}</span>
+      asset.id,
+      "name",
+      asset.name,
+      "uppercase font-black text-2xl"
+    )}
+          <span id="nameLabel-${asset.id
+    }" class="text-sm font-bold text-rose-400 whitespace-nowrap">${displayName}</span>
         </div>
       </div>
     </td>
@@ -171,16 +162,15 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     <td class="text-center">
       <div class="flex items-center justify-center gap-1">
         ${autoWidthInput(
-          asset.id,
-          "price",
-          asset.price,
-          "font-mono-data text-xl",
-          "number"
-        )}
+      asset.id,
+      "price",
+      asset.price,
+      "font-mono-data text-xl",
+      "number"
+    )}
         <button onclick="fetchLivePrice(${asset.id},'${asset.name}')">
-          <i id="assetSync-${
-            asset.id
-          }" class="fas fa-sync-alt text-rose-100 hover:text-rose-400"></i>
+          <i id="assetSync-${asset.id
+    }" class="fas fa-sync-alt text-rose-100 hover:text-rose-400"></i>
         </button>
       </div>
     </td>
@@ -191,30 +181,27 @@ function generateAssetRowHTML(asset, index, totalAssets) {
       "font-mono-data text-xl",
       "number"
     )}</td>
-    <td id="curVal-${
-      asset.id
+    <td id="curVal-${asset.id
     }" class="font-mono-data text-rose-950 font-black px-4 text-xl"></td>
-    <td id="curPct-${
-      asset.id
+    <td id="curPct-${asset.id
     }" class="font-mono-data text-indigo-800 text-center font-black px-4 text-xl"></td>
     <td class="text-center">
       <div class="flex items-center justify-center gap-1">
         ${autoWidthInput(
-          asset.id,
-          "targetRatio",
-          asset.targetRatio,
-          "text-rose-900 font-black text-xl",
-          "number"
-        )}
+      asset.id,
+      "targetRatio",
+      asset.targetRatio,
+      "text-rose-900 font-black text-xl",
+      "number"
+    )}
         <span class="text-rose-900 font-black">%</span>
       </div>
     </td>
     <td id="targetVal-${asset.id}" class="text-center px-4"></td>
     <td id="sugg-${asset.id}" class="text-center px-4"></td>
     <td class="text-right px-2">
-      <button onclick="removeAsset(${
-        asset.id
-      })" class="text-rose-100 hover:text-rose-600"><i class="fas fa-trash-alt text-xl"></i></button>
+      <button onclick="removeAsset(${asset.id
+    })" class="text-rose-100 hover:text-rose-600"><i class="fas fa-trash-alt text-xl"></i></button>
     </td>`;
 }
 
@@ -234,11 +221,11 @@ export function updateAssetRowData(asset, acc, netValue) {
     targetValEl.innerHTML = `
       <div class="flex flex-col font-black">
         <span class="text-xl text-rose-950 font-mono-data">$${Math.round(
-          s.targetNominal
-        ).toLocaleString()}</span>
+      s.targetNominal
+    ).toLocaleString()}</span>
         <span class="text-[10px] text-rose-300 uppercase tracking-tighter">預算: $${Math.round(
-          s.targetBookValue
-        ).toLocaleString()}</span>
+      s.targetBookValue
+    ).toLocaleString()}</span>
       </div>`;
   }
 
@@ -251,28 +238,17 @@ export function updateAssetRowData(asset, acc, netValue) {
     const isBuy = s.diffNominal > 0;
     const actionText = s.isTriggered
       ? `${isBuy ? "加碼" : "減持"} $${Math.abs(
-          Math.round(s.diffNominal)
-        ).toLocaleString()}`
+        Math.round(s.diffNominal)
+      ).toLocaleString()}`
       : "監控中";
 
     suggCell.innerHTML = `
-      <div class="flex flex-col items-center min-w-[150px] ${
-        s.isTriggered ? "status-triggered" : "status-monitoring"
-      }">
-        <span class="${
-          s.isTriggered
-            ? isBuy
-              ? "text-emerald-500"
-              : "text-rose-700"
-            : "text-gray-400"
-        } font-black text-lg leading-tight">${actionText}</span>
-        <span class="text-rose-950 font-black text-xs ${
-          s.isTriggered ? "" : "hidden"
-        }">約 ${Math.abs(s.diffShares).toLocaleString()} 股</span>
-        <div class="rebalance-bar-bg"><div class="h-full ${barColor} transition-all duration-700" style="width: ${Math.min(
-      100,
-      s.saturation * 100
-    )}%"></div></div>
+      <div class="flex flex-col items-center min-w-[200px] ${s.isTriggered ? "status-triggered" : "status-monitoring"}">
+        <div class="flex flex-row items-center gap-2 font-black leading-tight">
+           <span class="${s.isTriggered ? (isBuy ? "text-emerald-500" : "text-rose-700") : "text-gray-400"}">${actionText}</span>
+           <span class="text-rose-950 ${s.isTriggered ? "" : "hidden"}">(${Math.abs(s.diffShares).toLocaleString()} 股)</span>
+        </div>
+        <div class="rebalance-bar-bg"><div class="h-full ${barColor} transition-all duration-700" style="width: ${Math.min(100, s.saturation * 100)}%"></div></div>
       </div>`;
   }
 }

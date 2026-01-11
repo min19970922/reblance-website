@@ -1,4 +1,4 @@
-/* styles.css - 終極表格視覺與響應式優化版 V30.0 */
+/* styles.css - 終極視覺優化與圖示修正版 V30.1 */
 
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 
@@ -100,6 +100,7 @@ main {
 
 .grid-unit label {
   font-size: 1.1rem;
+  /* 配合您的調整，維持標籤清晰度 */
   font-weight: 900;
   color: var(--primary-pink);
   margin-bottom: 4px;
@@ -134,7 +135,7 @@ main {
   background: rgba(255, 241, 242, 0.6);
 }
 
-/* --- 表格輸入格修正：徹底解決鏡像與切斷問題 --- */
+/* --- 表格輸入格修正 --- */
 .input-col-wrapper {
   position: relative;
   display: inline-grid;
@@ -143,26 +144,23 @@ main {
   align-items: center;
 }
 
-/* 修正：鏡像文字僅用於撐開寬度，絕對不能被看見 */
 .input-mirror {
   grid-area: 1 / 1;
   visibility: hidden;
   opacity: 0 !important;
   white-space: pre;
   padding: 0 12px;
-  /* 增加邊距防止文字貼邊 */
   pointer-events: none;
-  /* 關鍵：字體必須與 input 完全一致，否則撐開的寬度會不準 */
   font-family: inherit;
   font-size: 1.8rem;
   font-weight: 900;
 }
 
-/* 表格內的輸入框文字大小調大，與上方對齊 */
+/* 個股輸入框文字數字大小 (報價、股數、目標比) */
 .underline-input {
   grid-area: 1 / 1;
   width: 100%;
-  min-width: 80px;
+  min-width: 100px;
   background: transparent !important;
   border: none;
   border-bottom: 2px solid #fecdd3;
@@ -172,8 +170,31 @@ main {
   z-index: 5;
   color: inherit;
   font-family: inherit;
+  font-size: 2.2rem;
+  /* 調大輸入字體，增加厚度 */
+}
+
+/* 建議欄文字專用 (因為金額股數同排，不宜過大以免破版) */
+td#sugg-content,
+.flex-row.font-black {
   font-size: 1.8rem;
-  /* 調大至與參數列相近的厚度感 */
+  /* 建議欄文字稍小於主數據，但比原本大 */
+}
+
+/* --- 修正：表格圖示大小專用設定 --- */
+td button i.fa-sync-alt,
+td button i.fa-lock,
+td button i.fa-lock-open {
+  font-size: 1.2rem !important;
+  /* 強制縮小圖示，不受 td 文字大小影響 */
+  vertical-align: middle;
+}
+
+td button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
 }
 
 /* --- 表格標題與內容置中優化 --- */
@@ -187,24 +208,21 @@ main {
 .auto-table th {
   padding: 20px 10px;
   font-size: 1.3rem;
-  /* 標題文字調大 */
   color: #9d174d;
   background: var(--bg-main);
   border-bottom: 3px solid #fecdd3;
   text-align: center !important;
-  /* 強制標題置中 */
 }
 
 td {
   padding: 15px 10px;
   text-align: center;
-  font-size: 2.2rem;
-  /* 內容數據文字調大，增加厚度感 */
+  font-size: 2rem;
   font-weight: 900;
   border-bottom: 1px solid var(--panel-border);
 }
 
-/* 核心邏輯：空間分配給建議欄，且內容置中 */
+/* 核心邏輯：空間分配給建議欄 */
 .auto-table th:nth-last-child(2),
 .auto-table td:nth-last-child(2) {
   width: 100%;
@@ -221,10 +239,9 @@ td {
   overflow: hidden;
   border: 1px solid #e2e8f0;
   margin: 8px auto 0;
-  /* 置中 */
 }
 
-/* 其他 UI 元件保持 */
+/* 其他 UI 元件 */
 .btn-pink {
   background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
   color: white;
@@ -233,7 +250,7 @@ td {
   padding: 10px 25px;
   border: none;
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
 }
 
 #toast {
