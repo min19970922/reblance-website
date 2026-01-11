@@ -1,4 +1,4 @@
-/* styles.css - 視覺比例校準版 V31.0 */
+/* styles.css - V32.0 終極修復版：解決收合空白與自動適應螢幕 */
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap");
 
 :root {
@@ -9,6 +9,7 @@
   --panel-border: #fff1f2;
 }
 
+/* --- 全域設定：響應式基礎 --- */
 body,
 input,
 button {
@@ -19,37 +20,62 @@ button {
   box-sizing: border-box;
 }
 
+/* 核心修正 1：側邊欄收合邏輯，確保第一欄寬度變為 0 */
 .dashboard-container {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
   min-height: 100vh;
+  transition: grid-template-columns 0.3s ease;
+  /* 平滑切換動畫 */
+  width: 100%;
 }
 
+/* 關鍵修正：收起時將第一欄寬度壓縮至 0，釋放空間給主內容 */
+.dashboard-container.sidebar-collapsed {
+  grid-template-columns: 0px 1fr;
+}
+
+/* 側邊欄容器控制 */
 aside {
   width: var(--sidebar-width);
   background: white;
   border-right: 1px solid var(--panel-border);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  /* 隱藏收合時溢出的內容 */
+  transition: width 0.3s ease;
 }
 
+/* 收起狀態下的側邊欄樣式修正 */
+.dashboard-container.sidebar-collapsed aside {
+  width: 0px;
+  border: none;
+}
+
+/* 主內容區：自動撐開至全螢幕 */
 main {
-  padding: 30px;
+  padding: clamp(15px, 3vw, 30px);
   overflow-y: auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
+/* 滾動包裝：確保窄螢幕可滾動 */
 .main-scroll-wrapper {
   overflow-x: auto;
   width: 100%;
   padding-bottom: 10px;
 }
 
-/* 核心看板 */
+/* --- 核心 6x6 看板自動適應佈局 --- */
 .master-params-grid {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  min-width: 1000px;
+  width: 100%;
+  min-width: 900px;
+  /* 降低最小寬度限制以增加適應性 */
 }
 
 .params-row-tight {
@@ -59,15 +85,27 @@ main {
   box-shadow: 0 10px 30px -15px rgba(0, 0, 0, 0.08);
   display: grid;
   grid-template-columns: repeat(6, 1fr);
+  /* 完美的 6 欄對齊 */
+  width: 100%;
+}
+
+/* 上方看板樣式 */
+.dashboard-header-style {
+  background: linear-gradient(to bottom, #ffffff, #fffafb);
+  border-top: 6px solid var(--primary-pink) !important;
 }
 
 .grid-unit {
   display: flex;
   flex-direction: column;
-  padding: 15px 20px;
+  padding: 15px clamp(10px, 2vw, 20px);
   border-right: 2px solid var(--panel-border);
   justify-content: center;
   min-height: 100px;
+}
+
+.grid-unit:last-child {
+  border-right: none;
 }
 
 .grid-unit label {
@@ -78,7 +116,7 @@ main {
   text-transform: uppercase;
 }
 
-/* 上方看板數據字體 */
+/* 看板數據字體調優 */
 .data-header {
   font-family: "Calibri", sans-serif !important;
   font-weight: 900;
@@ -96,7 +134,7 @@ main {
   text-align: right;
 }
 
-/* --- 表格內容比例修正 (重點) --- */
+/* --- 表格數據字體與厚度 (統一 1.8rem) --- */
 .input-col-wrapper {
   position: relative;
   display: inline-grid;
@@ -114,10 +152,8 @@ main {
   font-family: inherit;
   font-weight: 900;
   font-size: 1.8rem;
-  /* 調降至 1.8rem 使其協調 */
 }
 
-/* 個股輸入框大小 */
 .underline-input {
   grid-area: 1 / 1;
   width: 100%;
@@ -128,22 +164,18 @@ main {
   outline: none;
   text-align: center;
   font-weight: 900;
-  color: inherit;
-  font-family: inherit;
   font-size: 1.8rem;
 }
 
-/* 表格純顯示文字與數字 (名目曝險、目前%) */
 td {
   padding: 12px 10px;
   text-align: center;
   font-weight: 900;
   border-bottom: 1px solid var(--panel-border);
   font-size: 1.8rem;
-  /* 統一為 1.8rem */
 }
 
-/* 標題文字大小 */
+/* 表格標題 */
 .auto-table th {
   padding: 15px 10px;
   font-size: 1.2rem;
@@ -152,14 +184,15 @@ td {
   text-align: center !important;
 }
 
-/* 建議欄文字 (加碼金額 + 股數) */
+/* 建議欄文字 (加碼金額 + 股數橫向同大) */
 .sugg-text-group {
-  font-size: 1.4rem !important;
+  font-size: 1.5rem !important;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
 }
 
-/* 調降建議文字大小，避免遮擋進度條 */
-
-/* 修正圖示大小 */
+/* 修正表格內同步圖示大小 */
 td button i.fa-sync-alt,
 td button i.fa-lock,
 td button i.fa-lock-open {
@@ -167,7 +200,7 @@ td button i.fa-lock-open {
   vertical-align: middle;
 }
 
-/* 表格與空間分配 */
+/* 表格空間佈局 */
 .auto-table {
   width: 100%;
   border-collapse: collapse;
@@ -175,12 +208,14 @@ td button i.fa-lock-open {
   white-space: nowrap;
 }
 
+/* 將剩餘空間分配給建議欄 */
 .auto-table th:nth-last-child(2),
 .auto-table td:nth-last-child(2) {
   width: 100%;
   text-align: center;
 }
 
+/* 再平衡進度條 */
 .rebalance-bar-bg {
   width: 100%;
   min-width: 150px;
@@ -193,6 +228,12 @@ td button i.fa-lock-open {
   margin: 6px auto 0;
 }
 
+/* 通知組件 */
+#toast {
+  z-index: 100;
+  transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
 .btn-pink {
   background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
   color: white;
@@ -201,5 +242,4 @@ td button i.fa-lock-open {
   padding: 8px 20px;
   border: none;
   cursor: pointer;
-  font-size: 1rem;
 }
