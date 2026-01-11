@@ -176,7 +176,7 @@ export async function importFromImage(e, onComplete) {
 }
 
 /**
- * AI 智投建議：深度優化分配算法，拒絕平均分配
+ * AI 智投強化版 (v32.0) - 解決匹配失敗與分配無感問題
  */
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -191,22 +191,26 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 找不到可規劃標的");
 
-  // 傳遞更豐富的上下文資訊，讓 AI 敢於差異化分配
+  // 1. 提供「當前總槓桿」與「目標」的差距，讓 AI 知道要增加還是減少曝險
+  const currentTotalLev = data.totalLeverage || 1.0;
+
   const aiAssetsInfo = aiAssets.map((a) => {
-    const currentPct = data.netValue > 0 ? (safeNum(a.nominalValue) / data.netValue) * 100 : 0;
+    const currentPct = data.netValue > 0 ? (safeNum(a.bookValue) / data.netValue) * 100 : 0;
     return `- 代號: ${a.name}, 目前權重: ${currentPct.toFixed(1)}%, 標的倍數: ${a.leverage}x`;
   }).join("\n");
 
-  showToast(`🧠 正在進行量化優化 (預算: ${remainingBudget.toFixed(1)}%)...`);
+  showToast(`🧠 正在進行量化優化 (目標: ${targetExp}x)...`);
 
   try {
     const promptText = `你是一位專業的量化基金經理。
-    【目標】分配剩餘的 ${remainingBudget.toFixed(1)}% 比例，使得整體帳戶「總實質槓桿」精確達成 ${targetExp}x。
-    【規則】
-    1. 必須將 ${remainingBudget.toFixed(1)}% 全部用完，targetRatio 總和必須等於此數。
-    2. 你必須根據「標的倍數」進行科學權重分配。如果是為了達成高槓桿目標，應分配更多權重給倍數高的標的。
-    3. 拒絕平均分配！請參考「目前權重」並根據風險報酬進行差異化配置。
-    4. 嚴禁任何解釋文字，只回傳 JSON：{"suggestions": [{"name": "代號", "targetRatio": 數值}]}`;
+    【背景】帳戶目前總槓桿為 ${currentTotalLev.toFixed(2)}x，目標是達成 ${targetExp}x。
+    【任務】請分配剩餘的 ${remainingBudget.toFixed(1)}% 預算給待規劃標的。
+    【分配準則】
+    1. 若目標槓桿 > 目前槓桿，請優先增加「標的倍數」較高者的 targetRatio。
+    2. 若目標槓桿 < 目前槓桿，請優先減少「標的倍數」較高者的 targetRatio。
+    3. 必須將 ${remainingBudget.toFixed(1)}% 分配完畢，總和需精確。
+    4. 嚴禁平均分配！必須有差異化。回傳代號必須與清單一致。
+    只回傳 JSON：{"suggestions": [{"name": "代號", "targetRatio": 數值}]}`;
 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
     const response = await fetch(apiUrl, {
@@ -226,7 +230,8 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
 
       const factor = remainingBudget / aiSum;
       const finalSuggestions = suggestions.map((sug) => ({
-        name: sug.name,
+        // 關鍵修復：確保名稱匹配系統格式（如 AI 給 2330，系統是 2330.TW 也能匹配）
+        name: sug.name.toString().toUpperCase().trim(),
         targetRatio: Math.round(sug.targetRatio * factor * 10) / 10,
       }));
       onComplete(finalSuggestions);

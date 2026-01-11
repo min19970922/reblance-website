@@ -132,45 +132,40 @@ export function calculateAccountData(acc) {
 /**
  * 再平衡核心邏輯：根據動態門檻判定是否觸發建議
  */
+/**
+ * state.js 核心邏輯修正
+ */
 export function getRebalanceSuggestion(asset, acc, netValue) {
   const factor = safeNum(asset.leverage, 1);
-  const currentPct =
-    netValue > 0 ? (safeNum(asset.nominalValue) / netValue) * 100 : 0;
+  // 核心修正：目前 % 改用「資產淨值 (bookValue)」計算，不乘以槓桿因子
+  const currentPct = netValue > 0 ? (safeNum(asset.bookValue) / netValue) * 100 : 0;
   const targetPct = safeNum(asset.targetRatio);
 
-  // 1. 計算偏離程度
-  const absDiff = Math.abs(currentPct - targetPct);
-  const relDiff = targetPct !== 0 ? absDiff / targetPct : 0;
+  // 1. 計算目標淨值 (預算分配)
+  const targetBookValue = netValue * (targetPct / 100);
+  // 2. 計算淨值差額 (非名目差額)
+  const diffBookValue = targetBookValue - safeNum(asset.bookValue);
 
-  // 2. 獲取使用者設定的動態門檻
+  // 3. 觸發判定：金額偏差 > 10,000 或 比例偏離門檻
   const tAbs = safeNum(acc.rebalanceAbs, 5);
   const tRel = safeNum(acc.rebalanceRel, 25) / 100;
+  const absDiff = Math.abs(currentPct - targetPct);
+  const relDiff = targetPct !== 0 ? absDiff / targetPct : 0;
+  const isTriggered = (absDiff > tAbs || relDiff > tRel) && Math.abs(diffBookValue) > 10000;
 
-  // 3. 計算差額金額 (以淨值為準)
-  const targetNominal = netValue * (targetPct / 100);
-  const diffNominal = targetNominal - safeNum(asset.nominalValue);
-
-  // 4. 觸發判定：(偏離度達標) 且 (金額偏差 > 10,000)
-  const isTriggered =
-    (absDiff > tAbs || relDiff > tRel) && Math.abs(diffNominal) > 10000;
-
-  // 5. 計算建議股數
+  // 4. 計算建議股數 (使用淨值差額 / 台幣單價)
   const priceTwd = safeNum(asset.priceTwd, 0);
-  const diffShares =
-    priceTwd * factor > 0 ? diffNominal / (priceTwd * factor) : 0;
+  const diffShares = priceTwd > 0 ? diffBookValue / priceTwd : 0;
 
-  // 6. 計算飽和度 (0.0 ~ 1.0)
   const saturation = Math.min(1, Math.max(absDiff / tAbs, relDiff / tRel));
 
   return {
     currentPct,
-    targetNominal,
-    targetBookValue: targetNominal / factor,
-    diffNominal,
+    targetNominal: targetBookValue * factor, // 目標名目曝險 (供參考)
+    targetBookValue,                        // 目標淨值 (核心預算)
+    diffBookValue,                          // 應變動淨值金額
     diffShares: Math.round(diffShares),
     isTriggered,
-    absDiff,
-    relDiff,
     saturation,
   };
 }

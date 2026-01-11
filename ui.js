@@ -205,39 +205,52 @@ function generateAssetRowHTML(asset, index, totalAssets) {
     </td>`;
 }
 
+/**
+ * ui.js 修正版片段
+ */
 export function updateAssetRowData(asset, acc, netValue) {
   if (netValue <= 0) return;
   const s = getRebalanceSuggestion(asset, acc, netValue);
 
+  // 1. 資產淨值在上，名目曝險在下
   const curValEl = document.getElementById(`curVal-${asset.id}`);
-  if (curValEl) curValEl.innerText = `$${Math.round(asset.nominalValue).toLocaleString()}`;
+  if (curValEl) {
+    curValEl.innerHTML = `
+      <div class="flex flex-col font-black">
+        <span style="font-size: 1.8rem;">$${Math.round(asset.bookValue).toLocaleString()}</span>
+        <span class="text-[12px] text-rose-400 font-bold">曝險: $${Math.round(asset.nominalValue).toLocaleString()}</span>
+      </div>`;
+  }
 
+  // 2. 目前 %
   const curPctEl = document.getElementById(`curPct-${asset.id}`);
   if (curPctEl) curPctEl.innerText = `${s.currentPct.toFixed(1)}%`;
 
+  // 3. 理想配置 (目標淨值在上)
   const targetValEl = document.getElementById(`targetVal-${asset.id}`);
   if (targetValEl) {
     targetValEl.innerHTML = `
       <div class="flex flex-col font-black">
-        <span class="text-rose-950 asset-data-text">$${Math.round(s.targetNominal).toLocaleString()}</span>
-        <span class="text-[12px] text-rose-300 uppercase tracking-tighter">預算: $${Math.round(s.targetBookValue).toLocaleString()}</span>
+        <span class="text-rose-950" style="font-size: 1.8rem;">$${Math.round(s.targetBookValue).toLocaleString()}</span>
+        <span class="text-[12px] text-rose-300 uppercase tracking-tighter">目標曝險: $${Math.round(s.targetNominal).toLocaleString()}</span>
       </div>`;
   }
 
+  // 4. 再平衡建議
   const suggCell = document.getElementById(`sugg-${asset.id}`);
   if (suggCell) {
     let barColor = "bg-emerald-400";
     if (s.saturation > 0.5) barColor = "bg-amber-400";
     if (s.saturation > 0.8) barColor = "bg-rose-500";
 
-    const isBuy = s.diffNominal > 0;
+    const isBuy = s.diffBookValue > 0;
     const actionText = s.isTriggered
-      ? `${isBuy ? "加碼" : "減持"} $${Math.abs(Math.round(s.diffNominal)).toLocaleString()}`
+      ? `${isBuy ? "加碼" : "減持"} $${Math.abs(Math.round(s.diffBookValue)).toLocaleString()}`
       : "監控中";
 
     suggCell.innerHTML = `
-      <div class="flex flex-col items-center min-w-[200px] ${s.isTriggered ? "status-triggered" : "status-monitoring"}">
-        <div class="flex flex-row items-center gap-2 font-black leading-tight sugg-text-group">
+      <div class="flex flex-col items-center min-w-[250px] ${s.isTriggered ? "status-triggered" : "status-monitoring"}">
+        <div class="flex flex-row items-center gap-2 font-black sugg-text-group leading-tight">
            <span class="${s.isTriggered ? (isBuy ? "text-emerald-500" : "text-rose-700") : "text-gray-400"}">${actionText}</span>
            <span class="text-rose-900 ${s.isTriggered ? "" : "hidden"}">(${Math.abs(s.diffShares).toLocaleString()} 股)</span>
         </div>
@@ -245,7 +258,6 @@ export function updateAssetRowData(asset, acc, netValue) {
       </div>`;
   }
 }
-
 export function updateDashboardUI(data, acc) {
   document.getElementById("totalNetValue").innerText = `$${Math.round(
     data.netValue

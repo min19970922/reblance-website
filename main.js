@@ -243,15 +243,17 @@ function bindGlobalEvents() {
       await generateAiAllocation(acc, targetExp, (suggestions) => {
         // 關鍵：先記錄原本未鎖定的標的，若 AI 漏掉建議，則維持原狀或設為最小比例
         suggestions.forEach((sug) => {
-          const asset = acc.assets.find((a) => a.name === sug.name);
+          const asset = acc.assets.find((a) =>
+            a.name.toUpperCase().includes(sug.name) ||
+            sug.name.includes(a.name.toUpperCase())
+          );
           if (asset && !asset.isLocked) {
             asset.targetRatio = sug.targetRatio;
           }
         });
-
         saveToStorage();
         refreshAll();
-        showToast(`✅ AI 已完成 ${targetExp}x 配置`);
+        showToast(`✅ 已根據 ${targetExp}x 目標優化權重`);
       });
     };
   }
