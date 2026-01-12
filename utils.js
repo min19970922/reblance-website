@@ -1,9 +1,10 @@
 /**
- * utils.js - v79.0 強效解析版
- * 修正：
- * 1. 針對 "limit: 0" 錯誤，調整備援模型順序
- * 2. 新增 extractJSON 函式，用 Regex 暴力提取 JSON，解決 "| ID |..." 表格錯誤
- * 3. 圖片辨識維持 2.5 Flash 優先
+ * utils.js - v80.0 穩定相容版
+ * 策略：
+ * 1. 徹底棄用 2.0 系列 (因帳號權限 limit: 0)
+ * 2. 智投建議：主用 gemini-flash-latest (1.5 Flash)，穩定且配額多
+ * 3. 照片辨識：優先 2.5 (20次)，備援 flash-latest
+ * 4. 強效 JSON 解析器 (防止 Markdown 格式錯誤)
  */
 import { safeNum, calculateAccountData } from "./state.js";
 import { showToast } from "./ui.js";
@@ -46,19 +47,16 @@ const compressImage = (file) => {
 // =========================================
 function extractJSON(text) {
   try {
-    // 1. 嘗試直接解析
     return JSON.parse(text);
   } catch (e) {
-    // 2. 如果失敗（例如回傳了 Markdown 表格），用 Regex 抓取第一個 {...} 或 [...]
+    // 嘗試抓取第一個 {...} 或 [...]
     const match = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
     if (match) {
       try {
         return JSON.parse(match[0]);
-      } catch (e2) {
-        // 忽略二次錯誤
-      }
+      } catch (e2) { }
     }
-    throw new Error("AI 回傳格式錯誤 (非 JSON)");
+    throw new Error("AI 回傳格式錯誤 (無法解析為 JSON)");
   }
 }
 
@@ -72,7 +70,7 @@ async function fetchWithFallback(models, payload, apiKey) {
     const model = models[i];
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    if (i > 0) showToast(`⚠️ 切換至備用線路 (${model})...`);
+    if (i > 0) showToast(`⚠️ 嘗試備用線路 (${model})...`);
 
     try {
       const response = await internalFetch(url, payload);
@@ -81,21 +79,21 @@ async function fetchWithFallback(models, payload, apiKey) {
       const errData = await response.json().catch(() => ({}));
       const msg = errData.error?.message || "Unknown";
 
-      // 如果是 Limit 0 或 429，視為失敗，進入下一個模型
+      // 如果是 429 或 400 (limit 0)，視為失敗，切換下一個模型
+      // 特別注意：Limit 0 的錯誤通常是 429 或 403
+      console.warn(`模型 ${model} 失敗: ${msg}`);
       throw new Error(`Status ${response.status}: ${msg}`);
     } catch (err) {
-      console.warn(`模型 ${model} 失敗:`, err);
       lastError = err;
-      if (i === models.length - 1) break;
-      await new Promise(r => setTimeout(r, 1000)); // 冷卻
+      if (i === models.length - 1) break; // 如果是最後一個，就拋出錯誤
+      await new Promise(r => setTimeout(r, 1000)); // 切換前冷卻
     }
   }
   throw lastError;
 }
 
 async function internalFetch(url, payload) {
-  // 基礎冷卻
-  await new Promise(r => setTimeout(r, 800));
+  await new Promise(r => setTimeout(r, 800)); // 基礎冷卻
   return fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -134,20 +132,19 @@ export async function importFromImage(e, onComplete) {
       }]
     };
 
-    // 照片辨識：2.5 優先 (強)，Flash Latest 備援 (穩)
+    // 策略：先用最強的 2.5 (20次)，失敗後退回最穩的 1.5 Flash (latest)
     const models = ["gemini-2.5-flash", "gemini-flash-latest"];
 
     const response = await fetchWithFallback(models, payload, apiKey);
     const result = await response.json();
 
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    // 清理 markdown
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
     showToast("⚡ 資料解析中 (3/3)...");
 
     if (text) {
-      const parsedData = extractJSON(text); // 使用暴力解析
+      const parsedData = extractJSON(text);
       const assets = parsedData.assets || [];
 
       const formattedAssets = assets.map((a) => {
@@ -179,7 +176,7 @@ export async function importFromImage(e, onComplete) {
 }
 
 // =========================================
-// 5. AI 智投建議 (強化解析)
+// 5. AI 智投建議 (全面改回 1.5)
 // =========================================
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -200,19 +197,18 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   ).join("|");
 
   try {
-    // 強化 Prompt：禁止 Markdown 表格
     const promptText = `Budget ${remainingBudget.toFixed(1)}%. Goal Lev ${targetExp}x.
     Rule: 1.Sum exact. 2.High lev priority if Goal>Now. 3.No average.
-    OUTPUT RAW JSON ONLY. NO MARKDOWN TABLES. NO EXPLANATION.
+    OUTPUT RAW JSON ONLY. NO MARKDOWN TABLES.
     Data: [${aiAssetsInfo}]. 
     Format: {"suggestions":[{"name":"ID","targetRatio":20}]}`;
 
     const payload = { contents: [{ parts: [{ text: promptText }] }] };
 
-    // 智投建議備援：Lite (快) -> Flash Latest (穩) -> Pro Latest (強)
-    // 既然您的 2.0-flash 是 Limit 0，我們跳過它
+    // ★★★ 策略：直接使用 gemini-flash-latest (1.5 Flash) ★★★
+    // 避開所有 2.0 (Limit 0) 和 2.5 (Limit 20) 的地雷
+    // 備援：gemini-pro-latest (1.5 Pro)
     const models = [
-      "gemini-2.0-flash-lite",
       "gemini-flash-latest",
       "gemini-pro-latest"
     ];
@@ -221,11 +217,9 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     const result = await response.json();
 
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    // 初步清理
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
     if (text) {
-      // ★ 使用 extractJSON 暴力解析，防止 "| ID |..." 表格導致 crash
       const parsedData = extractJSON(text);
       const suggestions = parsedData.suggestions || [];
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
