@@ -1,9 +1,9 @@
 /**
- * utils.js - 智慧備援版 (v78.0)
- * 策略：
- * 1. 實作「多模型自動切換 (Failover)」，遇到 429 自動換模型
- * 2. 內建代號清洗 (Regex)，解決 API 404 錯誤
- * 3. 圖片壓縮與重試機制
+ * utils.js - v79.0 強效解析版
+ * 修正：
+ * 1. 針對 "limit: 0" 錯誤，調整備援模型順序
+ * 2. 新增 extractJSON 函式，用 Regex 暴力提取 JSON，解決 "| ID |..." 表格錯誤
+ * 3. 圖片辨識維持 2.5 Flash 優先
  */
 import { safeNum, calculateAccountData } from "./state.js";
 import { showToast } from "./ui.js";
@@ -42,7 +42,28 @@ const compressImage = (file) => {
 };
 
 // =========================================
-// 2. 智慧請求函式 (含備援邏輯)
+// 2. 輔助函式：暴力提取 JSON
+// =========================================
+function extractJSON(text) {
+  try {
+    // 1. 嘗試直接解析
+    return JSON.parse(text);
+  } catch (e) {
+    // 2. 如果失敗（例如回傳了 Markdown 表格），用 Regex 抓取第一個 {...} 或 [...]
+    const match = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch (e2) {
+        // 忽略二次錯誤
+      }
+    }
+    throw new Error("AI 回傳格式錯誤 (非 JSON)");
+  }
+}
+
+// =========================================
+// 3. 智慧請求函式 (含備援邏輯)
 // =========================================
 async function fetchWithFallback(models, payload, apiKey) {
   let lastError = null;
@@ -51,52 +72,39 @@ async function fetchWithFallback(models, payload, apiKey) {
     const model = models[i];
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    // 顯示嘗試訊息
-    if (i > 0) showToast(`⚠️ 通道 ${i} 擁塞，切換至備用線路 (${model})...`);
+    if (i > 0) showToast(`⚠️ 切換至備用線路 (${model})...`);
 
     try {
-      // 每個請求給予 1 次內部重試機會
       const response = await internalFetch(url, payload);
-      if (response.ok) return response; // 成功則直接回傳
+      if (response.ok) return response;
 
-      // 若失敗，拋出錯誤進入 catch
       const errData = await response.json().catch(() => ({}));
-      throw new Error(`Status ${response.status}: ${errData.error?.message || "Unknown"}`);
+      const msg = errData.error?.message || "Unknown";
+
+      // 如果是 Limit 0 或 429，視為失敗，進入下一個模型
+      throw new Error(`Status ${response.status}: ${msg}`);
     } catch (err) {
       console.warn(`模型 ${model} 失敗:`, err);
       lastError = err;
-      // 如果是最後一個模型，則不再重試
       if (i === models.length - 1) break;
-      // 切換前稍作冷卻
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 1000)); // 冷卻
     }
   }
   throw lastError;
 }
 
-// 內部單次請求 (含簡單延遲)
 async function internalFetch(url, payload) {
-  // 強制冷卻 1 秒
-  await new Promise(r => setTimeout(r, 1000));
-  const res = await fetch(url, {
+  // 基礎冷卻
+  await new Promise(r => setTimeout(r, 800));
+  return fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
-  // 如果遇到 429，內部等待 2 秒再試一次 (僅限一次)
-  if (res.status === 429) {
-    await new Promise(r => setTimeout(r, 2000));
-    return fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-  }
-  return res;
 }
 
 // =========================================
-// 3. AI 照片辨識 (雙重備援)
+// 4. AI 照片辨識
 // =========================================
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
@@ -115,7 +123,6 @@ export async function importFromImage(e, onComplete) {
 
     const promptText = `Analyze table. Extract Stock Symbol (TICKER) and Shares.
     Important: If ticker is mixed with name (e.g. '00631L元大...'), extract ONLY '00631L'.
-    Rule: If name contains '正2','2X','L', set leverage=2.0. Else 1.0.
     JSON ONLY: {"assets": [{"name":"TICKER", "shares":100, "leverage":1.0}]}`;
 
     const payload = {
@@ -127,23 +134,23 @@ export async function importFromImage(e, onComplete) {
       }]
     };
 
-    // ★★★ 備援清單：優先用 2.5 (強)，失敗用 2.0 (穩) ★★★
-    const models = ["gemini-2.5-flash", "gemini-2.0-flash"];
+    // 照片辨識：2.5 優先 (強)，Flash Latest 備援 (穩)
+    const models = ["gemini-2.5-flash", "gemini-flash-latest"];
 
     const response = await fetchWithFallback(models, payload, apiKey);
     const result = await response.json();
 
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    // 清理 markdown
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
     showToast("⚡ 資料解析中 (3/3)...");
 
     if (text) {
-      const parsedData = JSON.parse(text);
+      const parsedData = extractJSON(text); // 使用暴力解析
       const assets = parsedData.assets || [];
 
       const formattedAssets = assets.map((a) => {
-        // ★ 自動清洗代號邏輯 (保留) ★
         let rawName = (a.name || "").toString().toUpperCase().trim();
         const match = rawName.match(/^([A-Z0-9]+)/);
         const cleanName = match ? match[1] : rawName;
@@ -172,7 +179,7 @@ export async function importFromImage(e, onComplete) {
 }
 
 // =========================================
-// 4. AI 智投建議 (三重備援)
+// 5. AI 智投建議 (強化解析)
 // =========================================
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -186,35 +193,41 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  showToast(`🧠 AI 正在計算配置 (自動尋找可用線路)...`);
+  showToast(`🧠 AI 正在計算配置...`);
 
   const aiAssetsInfo = aiAssets.map(a =>
     `${a.name},${((parseFloat(a.bookValue) / data.netValue) * 100).toFixed(1)}%,${a.leverage}x`
   ).join("|");
 
   try {
+    // 強化 Prompt：禁止 Markdown 表格
     const promptText = `Budget ${remainingBudget.toFixed(1)}%. Goal Lev ${targetExp}x.
     Rule: 1.Sum exact. 2.High lev priority if Goal>Now. 3.No average.
-    Data: [${aiAssetsInfo}]. JSON: {"suggestions":[{"name":"ID","targetRatio":20}]}`;
+    OUTPUT RAW JSON ONLY. NO MARKDOWN TABLES. NO EXPLANATION.
+    Data: [${aiAssetsInfo}]. 
+    Format: {"suggestions":[{"name":"ID","targetRatio":20}]}`;
 
     const payload = { contents: [{ parts: [{ text: promptText }] }] };
 
-    // ★★★ 備援清單：標準 -> 舊版 -> 輕量 ★★★
-    // 這樣能最大程度避開 429
+    // 智投建議備援：Lite (快) -> Flash Latest (穩) -> Pro Latest (強)
+    // 既然您的 2.0-flash 是 Limit 0，我們跳過它
     const models = [
-      "gemini-2.0-flash",       // 首選：標準版 (1500次/天)
-      "gemini-flash-latest",    // 次選：舊版穩定通道
-      "gemini-2.0-flash-lite"   // 最後：輕量版 (容易塞車，但可當備案)
+      "gemini-2.0-flash-lite",
+      "gemini-flash-latest",
+      "gemini-pro-latest"
     ];
 
     const response = await fetchWithFallback(models, payload, apiKey);
     const result = await response.json();
 
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    // 初步清理
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
     if (text) {
-      const suggestions = JSON.parse(text).suggestions || [];
+      // ★ 使用 extractJSON 暴力解析，防止 "| ID |..." 表格導致 crash
+      const parsedData = extractJSON(text);
+      const suggestions = parsedData.suggestions || [];
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
       const factor = aiSum > 0 ? remainingBudget / aiSum : 1;
 
@@ -225,12 +238,12 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     }
   } catch (err) {
     console.error(err);
-    showToast(`❌ 智投失敗 (全線路忙碌): ${err.message}`);
+    showToast(`❌ 智投失敗: ${err.message}`);
   }
 }
 
 // =========================================
-// 5. Excel 功能 (保持原樣)
+// 6. Excel 功能
 // =========================================
 export function exportExcel(acc) {
   if (!acc) return;
