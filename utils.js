@@ -158,12 +158,9 @@ async function fetchWithRetry(url, options, retries = 1, delay = 2000) {
   return res;
 }
 
-// =========================================
-// 3. AI 功能 (照片辨識 & 智投)
-// =========================================
-
 /**
- * 照片辨識 (包含壓縮與 Lite 模型)
+ * 1. AI 照片辨識 (UI 優化版)
+ * 特點：加入分段進度提示，讓使用者知道 AI 正在運作中
  */
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
@@ -172,19 +169,68 @@ export async function importFromImage(e, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請設定 API Key");
 
-  showToast("🖼️ 壓縮圖片並辨識中...");
+  // 【進度 1/3】開始處理
+  showToast("🔄 正在讀取並壓縮圖片 (1/3)...");
+
+  // 內建圖片壓縮
+  const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+        // 強制縮小到 1024px
+        const MAX_SIZE = 1024;
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.6));
+      };
+      img.onerror = reject;
+    });
+  };
+
+  // 指數退避重試
+  async function fetchWithRetry(url, options, retries = 1, delay = 2000) {
+    const res = await fetch(url, options);
+    if (res.status === 429 && retries > 0) {
+      // 【進度-重試】顯示等待秒數
+      showToast(`⏳ AI 忙碌中，${delay / 1000}秒後自動重試...`);
+      await new Promise(r => setTimeout(r, delay));
+      return fetchWithRetry(url, options, retries - 1, delay * 2);
+    }
+    return res;
+  }
 
   try {
     const compressedBase64 = await compressImage(file);
     const base64Content = compressedBase64.split(",")[1];
 
-    // 強制使用 2.0-flash-lite (Index 8)，避開每日 20 次限制
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
+    // 【進度 2/3】開始傳送
+    showToast("🤖 正在傳送給 AI 進行分析 (2/3)...");
+
+    // 使用穩定版 gemini-flash-latest
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
     const promptText = `Analyze table. Extract stock name and shares.
     Rule: If name contains '正2','2X','L', set leverage=2.0. Else 1.0.
     JSON ONLY: {"assets": [{"name":"TICKER", "shares":100, "leverage":1.0}]}`;
 
+    // 強制冷卻 1 秒
     await new Promise(r => setTimeout(r, 1000));
 
     const response = await fetchWithRetry(apiUrl, {
@@ -201,9 +247,12 @@ export async function importFromImage(e, onComplete) {
     });
 
     if (!response.ok) {
-      if (response.status === 429) throw new Error("API 配額已滿，請更換 Key");
+      if (response.status === 429) throw new Error("API 配額已滿，請稍後再試");
       throw new Error(`API 錯誤: ${response.status}`);
     }
+
+    // 【進度 3/3】解析回傳資料
+    showToast("⚡ AI 分析完成，正在整理資料...");
 
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -224,16 +273,15 @@ export async function importFromImage(e, onComplete) {
       })).filter(a => a.name.length >= 2);
 
       onComplete(formattedAssets);
-      showToast(`✅ 辨識成功！發現 ${formattedAssets.length} 筆`);
+      showToast(`✅ 辨識成功！發現 ${formattedAssets.length} 筆資產`);
     }
   } catch (err) {
-    showToast(`❌ 辨識失敗: ${err.message}`);
     console.error(err);
+    showToast(`❌ 辨識失敗: ${err.message}`);
   } finally {
     e.target.value = "";
   }
 }
-
 /**
  * AI 智投建議 (包含 Lite 模型與極簡數據)
  */
