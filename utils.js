@@ -1,18 +1,16 @@
 /**
- * utils.js - 2026 完美適配版 (v69.0)
- * 策略：
- * 1. 棄用 Lite (因不支援圖片導致 400)
- * 2. 棄用 Latest/2.5 (因每日限額 20 次導致 429)
- * 3. 鎖定 gemini-2.0-flash (支援圖片 + 1500次額度)
+ * utils.js - 2026 清單專用穩定版 (v71.0)
+ * 核心策略：
+ * 1. 鎖定 gemini-2.0-flash-001 (清單 Index 5) -> 解決 404/400
+ * 2. 使用 PNG 格式 -> 解決圖片解析錯誤
+ * 3. 每日配額 1500 次 -> 解決 429
  */
 import { safeNum, calculateAccountData } from "./state.js";
 import { showToast } from "./ui.js";
 
 // =========================================
-// 1. 共用工具：圖片壓縮 & 重試機制
+// 1. 圖片壓縮 (改用 PNG 格式)
 // =========================================
-
-// 圖片壓縮：防止單次 Token 過大 (這是防禦 TPM 429 的最後一道防線)
 const compressImage = (file) => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -21,7 +19,7 @@ const compressImage = (file) => {
       const canvas = document.createElement("canvas");
       let width = img.width;
       let height = img.height;
-      // 強制縮小到 1024px
+      // 限制長邊 1024px (Token 防禦)
       const MAX_SIZE = 1024;
       if (width > height) {
         if (width > MAX_SIZE) {
@@ -38,27 +36,32 @@ const compressImage = (file) => {
       canvas.height = height;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", 0.6));
+      // ★ 改用 PNG，對文字辨識相容性更好
+      resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = (err) => reject(err);
   });
 };
 
-// 指數退避重試
+// =========================================
+// 2. 重試機制 (顯示真實錯誤)
+// =========================================
 async function fetchWithRetry(url, options, retries = 1, delay = 2000) {
   const res = await fetch(url, options);
+
+  // 如果是 429 (太快)，等待後重試
   if (res.status === 429 && retries > 0) {
     showToast(`⏳ 伺服器忙碌，${delay / 1000}秒後重試...`);
     await new Promise(r => setTimeout(r, delay));
     return fetchWithRetry(url, options, retries - 1, delay * 2);
   }
+
   return res;
 }
 
 // =========================================
-// 2. AI 照片辨識 (使用 2.0 Flash 標準版)
+// 3. AI 照片辨識 (使用 2.0 Flash 001)
 // =========================================
-
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
   if (!file) return;
@@ -66,17 +69,17 @@ export async function importFromImage(e, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請設定 API Key");
 
-  showToast("🔄 讀取並壓縮圖片中 (1/3)...");
+  showToast("🔄 讀取並壓縮圖片 (1/3)...");
 
   try {
     const compressedBase64 = await compressImage(file);
     const base64Content = compressedBase64.split(",")[1];
 
-    showToast("🤖 AI (2.0 Flash) 分析中... (2/3)");
+    showToast("🤖 AI (2.0 Flash 001) 分析中... (2/3)");
 
-    // ★★★ 核心修正：使用 gemini-2.0-flash (Index 4) ★★★
-    // 這不是 Lite (無圖片問題)，也不是 2.5 (無 20次限制問題)
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    // ★★★ 核心修正：鎖定清單 Index 5 (gemini-2.0-flash-001) ★★★
+    // 這是目前唯一確認：1. 存在清單中 2. 支援圖片 3. 配額正常 的模型
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${apiKey}`;
 
     const promptText = `Analyze table. Extract stock name and shares.
     Rule: If name contains '正2','2X','L', set leverage=2.0. Else 1.0.
@@ -92,16 +95,21 @@ export async function importFromImage(e, onComplete) {
         contents: [{
           parts: [
             { text: promptText },
-            { inline_data: { mime_type: "image/jpeg", data: base64Content } }
+            { inline_data: { mime_type: "image/png", data: base64Content } }
           ]
         }]
       })
     });
 
     if (!response.ok) {
-      if (response.status === 400) throw new Error("圖片格式錯誤 (請確認已使用 2.0-flash)");
-      if (response.status === 429) throw new Error("API 配額已滿 (請更換 Key)");
-      throw new Error(`API 錯誤: ${response.status}`);
+      // ★ 讀取真實錯誤訊息，方便除錯 ★
+      const errData = await response.json().catch(() => ({}));
+      const errMsg = errData.error?.message || "未知錯誤";
+
+      if (response.status === 400) throw new Error(`圖片格式不被支援: ${errMsg}`);
+      if (response.status === 404) throw new Error("模型不存在 (404)");
+      if (response.status === 429) throw new Error("配額已滿 (請更換 Key)");
+      throw new Error(`API 錯誤 (${response.status}): ${errMsg}`);
     }
 
     showToast("⚡ 資料整理中... (3/3)");
@@ -136,9 +144,8 @@ export async function importFromImage(e, onComplete) {
 }
 
 // =========================================
-// 3. AI 智投建議 (同步使用 2.0 Flash)
+// 4. AI 智投建議 (同步使用 2.0 Flash 001)
 // =========================================
-
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請設定 API Key");
@@ -162,8 +169,8 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     Rule: 1.Sum exact. 2.High lev priority if Goal>Now. 3.No average.
     Data: [${aiAssetsInfo}]. JSON: {"suggestions":[{"name":"ID","targetRatio":20}]}`;
 
-    // 同步修正為標準版
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    // 同步修正為 2.0 Flash 001
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${apiKey}`;
 
     const response = await fetchWithRetry(apiUrl, {
       method: "POST",
@@ -192,9 +199,7 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   }
 }
 
-// =========================================
-// 4. Excel 功能 (請將原有的 exportExcel/importExcel 貼在下方)
-// =========================================
+// 5. Excel 功能 (請將原有的 exportExcel/importExcel 貼在下方)
 export function exportExcel(acc) {
   if (!acc) return;
   if (typeof XLSX === 'undefined') return showToast("❌ XLSX 套件未載入");
