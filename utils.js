@@ -1,3 +1,10 @@
+/**
+ * utils.js - 2026 完美適配版 (v69.0)
+ * 策略：
+ * 1. 棄用 Lite (因不支援圖片導致 400)
+ * 2. 棄用 Latest/2.5 (因每日限額 20 次導致 429)
+ * 3. 鎖定 gemini-2.0-flash (支援圖片 + 1500次額度)
+ */
 import { safeNum, calculateAccountData } from "./state.js";
 import { showToast } from "./ui.js";
 
@@ -5,9 +12,7 @@ import { showToast } from "./ui.js";
 // 1. 共用工具：圖片壓縮 & 重試機制
 // =========================================
 
-/**
- * 圖片壓縮核心：將圖片限制在 1024px，防止 TPM 爆炸
- */
+// 圖片壓縮：防止單次 Token 過大 (這是防禦 TPM 429 的最後一道防線)
 const compressImage = (file) => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -16,7 +21,7 @@ const compressImage = (file) => {
       const canvas = document.createElement("canvas");
       let width = img.width;
       let height = img.height;
-      // 強制縮小到 1024px (Token 消耗減少 90% -> 避開 429 的關鍵)
+      // 強制縮小到 1024px
       const MAX_SIZE = 1024;
       if (width > height) {
         if (width > MAX_SIZE) {
@@ -39,6 +44,7 @@ const compressImage = (file) => {
   });
 };
 
+// 指數退避重試
 async function fetchWithRetry(url, options, retries = 1, delay = 2000) {
   const res = await fetch(url, options);
   if (res.status === 429 && retries > 0) {
@@ -50,7 +56,7 @@ async function fetchWithRetry(url, options, retries = 1, delay = 2000) {
 }
 
 // =========================================
-// 2. AI 照片辨識 (使用 2.0 Lite + 壓縮)
+// 2. AI 照片辨識 (使用 2.0 Flash 標準版)
 // =========================================
 
 export async function importFromImage(e, onComplete) {
@@ -58,14 +64,7 @@ export async function importFromImage(e, onComplete) {
   if (!file) return;
 
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
-
-  // 檢查 Key 是否存在
-  if (!apiKey || apiKey.length < 10) return showToast("❌ 請設定 API Key");
-
-  // 簡單防呆：如果你還在用舊 Key (以 YkB4 結尾)，提醒更換
-  if (apiKey.endsWith("YkB4") || apiKey.endsWith("OcM")) {
-    return showToast("⚠️ 此 Key 已被 Google 鎖定，請務必申請新 Key！");
-  }
+  if (!apiKey) return showToast("❌ 請設定 API Key");
 
   showToast("🔄 讀取並壓縮圖片中 (1/3)...");
 
@@ -73,11 +72,11 @@ export async function importFromImage(e, onComplete) {
     const compressedBase64 = await compressImage(file);
     const base64Content = compressedBase64.split(",")[1];
 
-    showToast("🤖 AI 分析中 (使用 2.0 Lite)... (2/3)");
+    showToast("🤖 AI (2.0 Flash) 分析中... (2/3)");
 
-    // ★★★ 鎖定 gemini-2.0-flash-lite (Index 8) ★★★
-    // 這是目前配額最寬鬆的模型，必須配合新 Key 使用
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
+    // ★★★ 核心修正：使用 gemini-2.0-flash (Index 4) ★★★
+    // 這不是 Lite (無圖片問題)，也不是 2.5 (無 20次限制問題)
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     const promptText = `Analyze table. Extract stock name and shares.
     Rule: If name contains '正2','2X','L', set leverage=2.0. Else 1.0.
@@ -100,8 +99,8 @@ export async function importFromImage(e, onComplete) {
     });
 
     if (!response.ok) {
-      if (response.status === 429) throw new Error("新 Key 配額忙碌，請稍後再試 (不要連續點擊)");
-      if (response.status === 404) throw new Error("模型路徑錯誤 (請確認 API Key 權限)");
+      if (response.status === 400) throw new Error("圖片格式錯誤 (請確認已使用 2.0-flash)");
+      if (response.status === 429) throw new Error("API 配額已滿 (請更換 Key)");
       throw new Error(`API 錯誤: ${response.status}`);
     }
 
@@ -137,7 +136,7 @@ export async function importFromImage(e, onComplete) {
 }
 
 // =========================================
-// 3. AI 智投建議 (同步使用 2.0 Lite)
+// 3. AI 智投建議 (同步使用 2.0 Flash)
 // =========================================
 
 export async function generateAiAllocation(acc, targetExp, onComplete) {
@@ -152,9 +151,8 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  showToast(`🧠 AI (2.0 Lite) 正在計算配置...`);
+  showToast(`🧠 AI (2.0 Flash) 正在計算配置...`);
 
-  // 極簡數據 (減少 Token)
   const aiAssetsInfo = aiAssets.map(a =>
     `${a.name},${((parseFloat(a.bookValue) / data.netValue) * 100).toFixed(1)}%,${a.leverage}x`
   ).join("|");
@@ -164,7 +162,8 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     Rule: 1.Sum exact. 2.High lev priority if Goal>Now. 3.No average.
     Data: [${aiAssetsInfo}]. JSON: {"suggestions":[{"name":"ID","targetRatio":20}]}`;
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
+    // 同步修正為標準版
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     const response = await fetchWithRetry(apiUrl, {
       method: "POST",
