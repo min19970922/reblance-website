@@ -1,14 +1,14 @@
 /**
- * utils.js - 2.5 混合戰略版 (v73.0)
- * 策略：
- * 1. 照片辨識 -> gemini-2.5-flash (接受 20次/日 限制，換取最強辨識)
- * 2. 智投建議 -> gemini-2.0-flash-001 (文字 Token 少，用標準版省額度)
+ * utils.js - 智能清洗版 (v74.0)
+ * 修正：
+ * 1. 照片辨識：自動過濾掉代號後面的中文名稱 (解決 API 404)
+ * 2. 智投建議：維持使用 2.0-flash-001 (省額度)
  */
 import { safeNum, calculateAccountData } from "./state.js";
 import { showToast } from "./ui.js";
 
 // =========================================
-// 1. 圖片壓縮 (即使是 2.5 也建議保留，能加快速度)
+// 1. 圖片壓縮 (維持不變)
 // =========================================
 const compressImage = (file) => {
   return new Promise((resolve, reject) => {
@@ -18,7 +18,6 @@ const compressImage = (file) => {
       const canvas = document.createElement("canvas");
       let width = img.width;
       let height = img.height;
-      // 保持 1024px，兼顧清晰度與傳輸速度
       const MAX_SIZE = 1024;
       if (width > height) {
         if (width > MAX_SIZE) {
@@ -35,7 +34,6 @@ const compressImage = (file) => {
       canvas.height = height;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(img, 0, 0, width, height);
-      // 使用 JPEG 0.6，相容性好且檔案小
       resolve(canvas.toDataURL("image/jpeg", 0.6));
     };
     img.onerror = (err) => reject(err);
@@ -47,19 +45,16 @@ const compressImage = (file) => {
 // =========================================
 async function fetchWithRetry(url, options, retries = 1, delay = 2000) {
   const res = await fetch(url, options);
-
-  // 429 重試邏輯
   if (res.status === 429 && retries > 0) {
     showToast(`⏳ 伺服器忙碌，${delay / 1000}秒後重試...`);
     await new Promise(r => setTimeout(r, delay));
     return fetchWithRetry(url, options, retries - 1, delay * 2);
   }
-
   return res;
 }
 
 // =========================================
-// 3. AI 照片辨識 (使用 2.5 Flash)
+// 3. AI 照片辨識 (2.5 Flash + 中文清洗)
 // =========================================
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
@@ -76,15 +71,14 @@ export async function importFromImage(e, onComplete) {
 
     showToast("🤖 AI (2.5 Flash) 分析中... (2/3)");
 
-    // ★★★ 核心修正：使用 gemini-2.5-flash (Index 1) ★★★
-    // 注意：每日上限 20 次，用完會報 429
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-    const promptText = `Analyze table. Extract stock name and shares.
+    // 優化指令：明確要求只提取代號
+    const promptText = `Analyze table. Extract Stock Symbol (TICKER) and Shares.
+    Important: If ticker is mixed with name (e.g. '00631L元大...'), extract ONLY '00631L'.
     Rule: If name contains '正2','2X','L', set leverage=2.0. Else 1.0.
     JSON ONLY: {"assets": [{"name":"TICKER", "shares":100, "leverage":1.0}]}`;
 
-    // 強制冷卻 1 秒
     await new Promise(r => setTimeout(r, 1000));
 
     const response = await fetchWithRetry(apiUrl, {
@@ -103,9 +97,7 @@ export async function importFromImage(e, onComplete) {
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       const errMsg = errData.error?.message || "未知錯誤";
-
-      if (response.status === 429) throw new Error("今日 2.5 版額度(20次) 已用完！請明天再來或換 Key");
-      if (response.status === 400) throw new Error(`圖片格式錯誤: ${errMsg}`);
+      if (response.status === 429) throw new Error("今日 2.5 版額度(20次) 已用完！請明天再來");
       throw new Error(`API 錯誤 (${response.status}): ${errMsg}`);
     }
 
@@ -118,16 +110,25 @@ export async function importFromImage(e, onComplete) {
     if (text) {
       const parsedData = JSON.parse(text);
       const assets = parsedData.assets || [];
-      const formattedAssets = assets.map((a) => ({
-        id: Date.now() + Math.random(),
-        name: (a.name || "").toString().toUpperCase().trim(),
-        fullName: "---",
-        price: 0,
-        shares: Math.abs(parseInt(a.shares.toString().replace(/,/g, "")) || 0),
-        leverage: parseFloat(a.leverage) || 1.0,
-        targetRatio: 0,
-        isLocked: false
-      })).filter(a => a.name.length >= 2);
+
+      const formattedAssets = assets.map((a) => {
+        // ★★★ 核心修復：自動清洗代號 ★★★
+        let rawName = (a.name || "").toString().toUpperCase().trim();
+        // Regex: 只抓取開頭的英文數字 (例如 00631L)，捨棄後面的中文
+        const match = rawName.match(/^([A-Z0-9]+)/);
+        const cleanName = match ? match[1] : rawName;
+
+        return {
+          id: Date.now() + Math.random(),
+          name: cleanName, // 這裡存入乾淨的代號
+          fullName: "---", // 暫時留空，讓 api.js 自動去抓中文名
+          price: 0,
+          shares: Math.abs(parseInt(a.shares.toString().replace(/,/g, "")) || 0),
+          leverage: parseFloat(a.leverage) || 1.0,
+          targetRatio: 0,
+          isLocked: false
+        };
+      }).filter(a => a.name.length >= 2);
 
       onComplete(formattedAssets);
       showToast(`✅ 辨識成功！發現 ${formattedAssets.length} 筆`);
@@ -141,7 +142,7 @@ export async function importFromImage(e, onComplete) {
 }
 
 // =========================================
-// 4. AI 智投建議 (使用 2.0 Flash 001)
+// 4. AI 智投建議 (維持 2.0-flash-001)
 // =========================================
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -155,7 +156,6 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  // 這裡改用 2.0 Standard，節省 Token
   showToast(`🧠 AI (2.0 Standard) 正在計算配置...`);
 
   const aiAssetsInfo = aiAssets.map(a =>
@@ -167,8 +167,7 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     Rule: 1.Sum exact. 2.High lev priority if Goal>Now. 3.No average.
     Data: [${aiAssetsInfo}]. JSON: {"suggestions":[{"name":"ID","targetRatio":20}]}`;
 
-    // ★★★ 核心策略：智投用 2.0-flash-001 (Index 5) ★★★
-    // 這樣就不會消耗 2.5 版那寶貴的 20 次額度
+    // 使用標準版，不佔用 2.5 額度
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${apiKey}`;
 
     const response = await fetchWithRetry(apiUrl, {
@@ -198,9 +197,7 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   }
 }
 
-// =========================================
 // 5. Excel 功能 (請將原有的 exportExcel/importExcel 貼在下方)
-// =========================================
 export function exportExcel(acc) {
   if (!acc) return;
   if (typeof XLSX === 'undefined') return showToast("❌ XLSX 套件未載入");
