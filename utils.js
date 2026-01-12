@@ -1,10 +1,9 @@
 /**
- * utils.js - v80.0 穩定相容版
- * 策略：
- * 1. 徹底棄用 2.0 系列 (因帳號權限 limit: 0)
- * 2. 智投建議：主用 gemini-flash-latest (1.5 Flash)，穩定且配額多
- * 3. 照片辨識：優先 2.5 (20次)，備援 flash-latest
- * 4. 強效 JSON 解析器 (防止 Markdown 格式錯誤)
+ * utils.js - v82.0 專業智投版
+ * 更新：
+ * 1. 智投建議：採用使用者提供的「量化基金經理 (Quantitative Portfolio Manager)」Prompt
+ * 2. 資料格式：微調送給 AI 的數據格式，以配合新的 Prompt 要求
+ * 3. 核心功能：保留代號清洗、JSON 暴力解析、多模型備援
  */
 import { safeNum, calculateAccountData } from "./state.js";
 import { showToast } from "./ui.js";
@@ -49,14 +48,13 @@ function extractJSON(text) {
   try {
     return JSON.parse(text);
   } catch (e) {
-    // 嘗試抓取第一個 {...} 或 [...]
     const match = text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
     if (match) {
       try {
         return JSON.parse(match[0]);
       } catch (e2) { }
     }
-    throw new Error("AI 回傳格式錯誤 (無法解析為 JSON)");
+    throw new Error("AI 回傳格式錯誤 (無法解析 JSON)");
   }
 }
 
@@ -70,7 +68,7 @@ async function fetchWithFallback(models, payload, apiKey) {
     const model = models[i];
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    if (i > 0) showToast(`⚠️ 嘗試備用線路 (${model})...`);
+    if (i > 0) showToast(`⚠️ 切換至備用線路 (${model})...`);
 
     try {
       const response = await internalFetch(url, payload);
@@ -78,22 +76,19 @@ async function fetchWithFallback(models, payload, apiKey) {
 
       const errData = await response.json().catch(() => ({}));
       const msg = errData.error?.message || "Unknown";
-
-      // 如果是 429 或 400 (limit 0)，視為失敗，切換下一個模型
-      // 特別注意：Limit 0 的錯誤通常是 429 或 403
       console.warn(`模型 ${model} 失敗: ${msg}`);
       throw new Error(`Status ${response.status}: ${msg}`);
     } catch (err) {
       lastError = err;
-      if (i === models.length - 1) break; // 如果是最後一個，就拋出錯誤
-      await new Promise(r => setTimeout(r, 1000)); // 切換前冷卻
+      if (i === models.length - 1) break;
+      await new Promise(r => setTimeout(r, 1000));
     }
   }
   throw lastError;
 }
 
 async function internalFetch(url, payload) {
-  await new Promise(r => setTimeout(r, 800)); // 基礎冷卻
+  await new Promise(r => setTimeout(r, 800));
   return fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -102,7 +97,7 @@ async function internalFetch(url, payload) {
 }
 
 // =========================================
-// 4. AI 照片辨識
+// 4. AI 照片辨識 (代號清洗 + 備援)
 // =========================================
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
@@ -132,7 +127,7 @@ export async function importFromImage(e, onComplete) {
       }]
     };
 
-    // 策略：先用最強的 2.5 (20次)，失敗後退回最穩的 1.5 Flash (latest)
+    // 優先 2.5 (20次), 備援 1.5
     const models = ["gemini-2.5-flash", "gemini-flash-latest"];
 
     const response = await fetchWithFallback(models, payload, apiKey);
@@ -148,6 +143,7 @@ export async function importFromImage(e, onComplete) {
       const assets = parsedData.assets || [];
 
       const formattedAssets = assets.map((a) => {
+        // 代號清洗 Regex
         let rawName = (a.name || "").toString().toUpperCase().trim();
         const match = rawName.match(/^([A-Z0-9]+)/);
         const cleanName = match ? match[1] : rawName;
@@ -165,7 +161,7 @@ export async function importFromImage(e, onComplete) {
       }).filter(a => a.name.length >= 2);
 
       onComplete(formattedAssets);
-      showToast(`✅ 辨識成功！發現 ${formattedAssets.length} 筆`);
+      showToast(`✅ 辨識成功！發現 ${formattedAssets.length} 筆 (已清洗代號)`);
     }
   } catch (err) {
     console.error(err);
@@ -176,7 +172,7 @@ export async function importFromImage(e, onComplete) {
 }
 
 // =========================================
-// 5. AI 智投建議 (全面改回 1.5)
+// 5. AI 智投建議 (專業量化經理 Prompt)
 // =========================================
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -192,26 +188,41 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
 
   showToast(`🧠 AI 正在計算配置...`);
 
+  // [修改] 資料格式化：配合 Prompt 的 "Ticker, Current Weight%, Asset Leverage"
   const aiAssetsInfo = aiAssets.map(a =>
-    `${a.name},${((parseFloat(a.bookValue) / data.netValue) * 100).toFixed(1)}%,${a.leverage}x`
-  ).join("|");
+    `"${a.name}, ${((parseFloat(a.bookValue) / data.netValue) * 100).toFixed(1)}%, ${a.leverage}"`
+  ).join(",\n    ");
 
   try {
-    const promptText = `Budget ${remainingBudget.toFixed(1)}%. Goal Lev ${targetExp}x.
-    Rule: 1.Sum exact. 2.High lev priority if Goal>Now. 3.No average.
-    OUTPUT RAW JSON ONLY. NO MARKDOWN TABLES.
-    Data: [${aiAssetsInfo}]. 
-    Format: {"suggestions":[{"name":"ID","targetRatio":20}]}`;
+    // [修改] 使用您指定的專業 Prompt
+    const promptText = `
+    Role: Senior Quantitative Portfolio Manager.
+    Task: Rebalance portfolio weights to achieve strict Target Leverage within Budget.
+    
+    [Parameters]
+    - Total Budget Available: ${remainingBudget.toFixed(2)}% (Must use exactly this amount)
+    - Target Portfolio Leverage: ${targetExp}x
+    
+    [Input Data Format]
+    Format: "Ticker, Current Weight%, Asset Leverage"
+    Assets: [${aiAssetsInfo}]
+
+    [Optimization Logic]
+    1. **Leverage Efficiency**: To increase total leverage, prioritize allocating budget to high-leverage assets (e.g., 2x, 3x) first, rather than over-sizing 1x assets.
+    2. **Stability**: If high-leverage assets are sufficient to hit the ${targetExp}x goal, fill the remaining budget with 1x (low volatility) assets to stabilize the portfolio.
+    3. **Math Constraint**: 
+       - Sum(Suggested_Weight * Asset_Leverage) should approach Target_Leverage * (Total_Budget / 100).
+       - Sum(Suggested_Weight) MUST EXACTLY EQUAL ${remainingBudget.toFixed(2)}.
+
+    [Output Requirement]
+    - JSON ONLY. No Markdown. No Explanations.
+    - Format: {"suggestions":[{"name":"TICKER","targetRatio": 15.5}]}
+    `;
 
     const payload = { contents: [{ parts: [{ text: promptText }] }] };
 
-    // ★★★ 策略：直接使用 gemini-flash-latest (1.5 Flash) ★★★
-    // 避開所有 2.0 (Limit 0) 和 2.5 (Limit 20) 的地雷
-    // 備援：gemini-pro-latest (1.5 Pro)
-    const models = [
-      "gemini-flash-latest",
-      "gemini-pro-latest"
-    ];
+    // 模型策略：優先用 1.5 Flash (最穩)，備援 Pro
+    const models = ["gemini-flash-latest", "gemini-pro-latest"];
 
     const response = await fetchWithFallback(models, payload, apiKey);
     const result = await response.json();
