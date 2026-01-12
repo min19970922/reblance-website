@@ -141,6 +141,9 @@ export async function importFromImage(e, onComplete) {
   }
 }
 
+// =========================================
+// 4. AI 智投建議 (改走 Preview 通道，避開主線塞車)
+// =========================================
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請設定 API Key");
@@ -153,9 +156,9 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  showToast(`🧠 AI (2.0 Lite) 正在計算配置...`);
+  showToast(`🧠 AI (Lite Preview) 正在計算...`);
 
-  // 極簡化數據，節省 Token
+  // 極簡化數據 (CSV格式)
   const aiAssetsInfo = aiAssets.map(a =>
     `${a.name},${((parseFloat(a.bookValue) / data.netValue) * 100).toFixed(1)}%,${a.leverage}x`
   ).join("|");
@@ -165,18 +168,21 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     Rule: 1.Sum exact. 2.High lev priority if Goal>Now. 3.No average.
     Data: [${aiAssetsInfo}]. JSON: {"suggestions":[{"name":"ID","targetRatio":20}]}`;
 
-    // ★★★ 核心修正：改用 gemini-2.0-flash-lite ★★★
-    // Lite 版專門處理高頻純文字任務，能有效避開標準版(001)的 429 限制
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
+    // ★★★ 關鍵修正：使用特定日期的 Preview 版 (Index 9) ★★★
+    // 這條通道通常比通用版(lite/001)空閒很多
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite-preview-02-05:generateContent?key=${apiKey}`;
 
-    // ★★★ 增強重試：傳入參數 (url, options, retries=3, delay=3000) ★★★
+    // 重試設定：失敗時等待 5 秒再試 (避開尖峰)
     const response = await fetchWithRetry(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
-    }, 3, 3000); // 失敗時重試 3 次，每次等待 3 秒
+    }, 2, 5000);
 
-    if (!response.ok) throw new Error(`API 錯誤: ${response.status}`);
+    if (!response.ok) {
+      if (response.status === 429) throw new Error("AI 通道全面擁塞，請 1 分鐘後再試");
+      throw new Error(`API 錯誤: ${response.status}`);
+    }
 
     const result = await response.json();
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
