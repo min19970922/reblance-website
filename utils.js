@@ -180,73 +180,100 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
 
   const data = calculateAccountData(acc);
   const lockedTotal = acc.assets.reduce((s, a) => s + (a.isLocked ? parseFloat(a.targetRatio || 0) : 0), 0) + parseFloat(acc.cashRatio || 0);
+  // 剩餘可用預算
   const remainingBudget = Math.max(0, 100 - lockedTotal);
 
   if (remainingBudget <= 0) return showToast("❌ 預算已滿");
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  showToast(`🧠 AI 正在計算配置...`);
+  showToast(`🧠 AI 基金經理人正在計算 (目標 ${targetExp}x)...`);
 
-  // [修改] 資料格式化：配合 Prompt 的 "Ticker, Current Weight%, Asset Leverage"
+  // [關鍵資料格式]：必須包含 Current Weight，AI 才能判斷如何 "Minimize churn"
   const aiAssetsInfo = aiAssets.map(a =>
-    `"${a.name}, ${((parseFloat(a.bookValue) / data.netValue) * 100).toFixed(1)}%, ${a.leverage}"`
-  ).join(",\n    ");
+    `"${a.name}, Current Weight:${((parseFloat(a.bookValue) / data.netValue) * 100).toFixed(1)}%, Asset Leverage:${a.leverage}"`
+  ).join("\n");
 
   try {
-    // [修改] 使用您指定的專業 Prompt
+    // [替換點] 使用您提供的專業 Prompt
     const promptText = `
-    Role: Senior Quantitative Portfolio Manager.
-    Task: Rebalance portfolio weights to achieve strict Target Leverage within Budget.
-    
-    [Parameters]
-    - Total Budget Available: ${remainingBudget.toFixed(2)}% (Must use exactly this amount)
-    - Target Portfolio Leverage: ${targetExp}x
-    
-    [Input Data Format]
-    Format: "Ticker, Current Weight%, Asset Leverage"
-    Assets: [${aiAssetsInfo}]
+    Role: Senior Quantitative Portfolio Manager for a multi-asset portfolio.
 
-    [Optimization Logic]
-    1. **Leverage Efficiency**: To increase total leverage, prioritize allocating budget to high-leverage assets (e.g., 2x, 3x) first, rather than over-sizing 1x assets.
-    2. **Stability**: If high-leverage assets are sufficient to hit the ${targetExp}x goal, fill the remaining budget with 1x (low volatility) assets to stabilize the portfolio.
-    3. **Math Constraint**: 
-       - Sum(Suggested_Weight * Asset_Leverage) should approach Target_Leverage * (Total_Budget / 100).
-       - Sum(Suggested_Weight) MUST EXACTLY EQUAL ${remainingBudget.toFixed(2)}.
+    Goal:
+    Rebalance the unlocked assets of the portfolio.
+    Distribute EXACTLY ${remainingBudget.toFixed(2)}% weight.
+    Help the portfolio approach the Target Portfolio Leverage = ${targetExp}x
+    while maintaining professional risk management.
 
-    [Output Requirement]
-    - JSON ONLY. No Markdown. No Explanations.
-    - Format: {"suggestions":[{"name":"TICKER","targetRatio": 15.5}]}
+    Input Data:
+    Each asset is provided as:
+    "Ticker, Current Weight%, Asset Leverage"
+
+    Assets:
+    ${aiAssetsInfo}
+
+    Professional Portfolio Constraints:
+
+    1) Capital Efficiency & Leverage Logic
+    - Prefer allocating to higher leverage assets **only when needed** to move portfolio leverage toward target.
+    - Do NOT blindly overweight all leveraged assets.
+    - Use leveraged ETFs mainly as "leverage tools".
+    - Use normal 1x assets as stability anchors.
+
+    2) Risk Management
+    - Avoid excessive concentration.
+    - Suggested rule of thumb:
+      - No single asset > 40% (unless user already locked that asset)
+      - High-risk / high volatility assets should generally remain <= 20%
+      - If multiple leveraged ETFs exist, avoid putting all budget into only one.
+
+    3) Stability / Realistic Trading
+    - Minimize unnecessary portfolio churn.
+    - Prefer adjustments that are "incremental" rather than a totally new portfolio.
+    - Respect existing weight structure and build upon it.
+
+    4) Mathematics Constraint
+    - The sum of suggested weights MUST equal EXACTLY ${remainingBudget.toFixed(2)}%.
+    - The result must reasonably help the portfolio move toward Target Leverage ${targetExp}x.
+
+    Output Requirement:
+    JSON ONLY. No explanation. No markdown.
+    Format:
+    {"suggestions":[{"name":"TICKER","targetRatio": 15.5}]}
     `;
 
     const payload = { contents: [{ parts: [{ text: promptText }] }] };
 
-    // 模型策略：優先用 1.5 Flash (最穩)，備援 Pro
-    const models = ["gemini-flash-latest", "gemini-pro-latest"];
+    // 建議使用邏輯能力較強的 gemini-pro 或最新的 flash
+    const models = ["gemini-2.0-flash-exp", "gemini-flash-latest"];
 
     const response = await fetchWithFallback(models, payload, apiKey);
     const result = await response.json();
 
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    // 清洗 Markdown 標記
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
     if (text) {
       const parsedData = extractJSON(text);
       const suggestions = parsedData.suggestions || [];
+
+      // 安全性校正：確保總和完全等於 remainingBudget
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
       const factor = aiSum > 0 ? remainingBudget / aiSum : 1;
 
       onComplete(suggestions.map(s => ({
         name: s.name.toString().toUpperCase().trim(),
-        targetRatio: Math.round(s.targetRatio * factor * 10) / 10,
+        targetRatio: Math.round(s.targetRatio * factor * 10) / 10, // 四雪五入到小數第一位
       })));
+
+      showToast("✅ 專業再平衡建議已生成");
     }
   } catch (err) {
     console.error(err);
     showToast(`❌ 智投失敗: ${err.message}`);
   }
 }
-
 // =========================================
 // 6. Excel 功能
 // =========================================
