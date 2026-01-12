@@ -114,8 +114,11 @@ export async function importFromImage(e, onComplete) {
 
     showToast("🤖 AI 視覺分析中 (2/3)...");
 
-    const promptText = `Analyze table. Extract Stock Symbol (TICKER) and Shares.
-    Important: If ticker is mixed with name (e.g. '00631L元大...'), extract ONLY '00631L'.
+    // 強化 Prompt：明確要求忽略總計列，並正確處理槓桿
+    const promptText = `Analyze table. Extract Stock Symbol (TICKER) and Shares. 
+    Rule 1: If ticker is mixed with name (e.g. '00631L元大'), extract ONLY '00631L'.
+    Rule 2: If name contains '正2', '2X', or 'L', set leverage to 2.0. Otherwise 1.0.
+    Rule 3: Ignore Summary or Total rows.
     JSON ONLY: {"assets": [{"name":"TICKER", "shares":100, "leverage":1.0}]}`;
 
     const payload = {
@@ -127,9 +130,7 @@ export async function importFromImage(e, onComplete) {
       }]
     };
 
-    // 優先 2.5 (20次), 備援 1.5
     const models = ["gemini-2.5-flash", "gemini-flash-latest"];
-
     const response = await fetchWithFallback(models, payload, apiKey);
     const result = await response.json();
 
@@ -141,27 +142,40 @@ export async function importFromImage(e, onComplete) {
     if (text) {
       const parsedData = extractJSON(text);
       const assets = parsedData.assets || [];
+      const assetMap = new Map();
 
-      const formattedAssets = assets.map((a) => {
-        // 代號清洗 Regex
+      assets.forEach((a) => {
         let rawName = (a.name || "").toString().toUpperCase().trim();
         const match = rawName.match(/^([A-Z0-9]+)/);
         const cleanName = match ? match[1] : rawName;
 
-        return {
-          id: Date.now() + Math.random(),
-          name: cleanName,
-          fullName: "---",
-          price: 0,
-          shares: Math.abs(parseInt(a.shares.toString().replace(/,/g, "")) || 0),
-          leverage: parseFloat(a.leverage) || 1.0,
-          targetRatio: 0,
-          isLocked: false
-        };
-      }).filter(a => a.name.length >= 2);
+        if (cleanName.length < 2) return;
 
-      onComplete(formattedAssets);
-      showToast(`✅ 辨識成功！發現 ${formattedAssets.length} 筆 (已清洗代號)`);
+        // 強化數值清理：移除逗號、括號，確保轉為純數字
+        const shares = Math.abs(parseInt(a.shares.toString().replace(/[,()]/g, "")) || 0);
+        const leverage = parseFloat(a.leverage) || 1.0;
+
+        if (assetMap.has(cleanName)) {
+          const existing = assetMap.get(cleanName);
+          existing.shares += shares;
+          existing.leverage = Math.max(existing.leverage, leverage);
+        } else {
+          assetMap.set(cleanName, {
+            id: Date.now() + Math.random(),
+            name: cleanName,
+            fullName: "---",
+            price: 0,
+            shares: shares,
+            leverage: leverage,
+            targetRatio: 0,
+            isLocked: false
+          });
+        }
+      });
+
+      const finalAssets = Array.from(assetMap.values());
+      onComplete(finalAssets);
+      showToast(`✅ 辨識成功！已合併擔保品，共 ${finalAssets.length} 筆`);
     }
   } catch (err) {
     console.error(err);
@@ -170,7 +184,6 @@ export async function importFromImage(e, onComplete) {
     e.target.value = "";
   }
 }
-
 // =========================================
 // 5. AI 智投建議 (專業量化經理 Prompt)
 // =========================================
@@ -180,94 +193,86 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
 
   const data = calculateAccountData(acc);
   const lockedTotal = acc.assets.reduce((s, a) => s + (a.isLocked ? parseFloat(a.targetRatio || 0) : 0), 0) + parseFloat(acc.cashRatio || 0);
-  // 剩餘可用預算
   const remainingBudget = Math.max(0, 100 - lockedTotal);
 
   if (remainingBudget <= 0) return showToast("❌ 預算已滿");
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  showToast(`🧠 AI 基金經理人正在計算 (目標 ${targetExp}x)...`);
+  showToast(`🧠 AI 主動經理人正在決策 (目標 ${targetExp}x)...`);
 
-  // [關鍵資料格式]：必須包含 Current Weight，AI 才能判斷如何 "Minimize churn"
+  // [資料格式] 包含當前權重，但這次 AI 有權力進行更有意義的調整
   const aiAssetsInfo = aiAssets.map(a =>
     `"${a.name}, Current Weight:${((parseFloat(a.bookValue) / data.netValue) * 100).toFixed(1)}%, Asset Leverage:${a.leverage}"`
   ).join("\n");
 
   try {
-    // [替換點] 使用您提供的專業 Prompt
+    // [Prompt 更新] 注入使用者的 4 大關鍵規則
     const promptText = `
-    Role: Senior Quantitative Portfolio Manager for a multi-asset portfolio.
+    Role: Senior Quantitative Portfolio Manager (Active Management Style).
 
     Goal:
-    Rebalance the unlocked assets of the portfolio.
-    Distribute EXACTLY ${remainingBudget.toFixed(2)}% weight.
-    Help the portfolio approach the Target Portfolio Leverage = ${targetExp}x
-    while maintaining professional risk management.
+    Rebalance the unlocked assets to distribute EXACTLY ${remainingBudget.toFixed(2)}% weight.
+    Achieve Target Portfolio Leverage: ${targetExp}x.
 
-    Input Data:
-    Each asset is provided as:
-    "Ticker, Current Weight%, Asset Leverage"
-
-    Assets:
+    [Input Data]
+    Format: "Ticker, Current Weight%, Asset Leverage"
     ${aiAssetsInfo}
 
-    Professional Portfolio Constraints:
+    [CRITICAL ALLOCATION RULES - MUST FOLLOW]
+    1) **NO TRIVIAL ALLOCATION**: 
+       - Do NOT simply evenly distribute the remaining budget (e.g., 5%, 5%, 5% is FORBIDDEN).
+       - Avoid outcomes where most assets receive the same percentage.
+       - Allocations MUST reflect different importance.
 
-    1) Capital Efficiency & Leverage Logic
-    - Prefer allocating to higher leverage assets **only when needed** to move portfolio leverage toward target.
-    - Do NOT blindly overweight all leveraged assets.
-    - Use leveraged ETFs mainly as "leverage tools".
-    - Use normal 1x assets as stability anchors.
+    2) **Role-Based Thinking**:
+       - Infer roles based on Ticker/Leverage:
+       - **Core Anchors** (e.g., Broad Market ETFs, low volatility): Assign LARGER, meaningful weights.
+       - **Growth/Satellite**: Moderate allocations.
+       - **Speculative / High Risk**: Smaller but intentional allocations.
 
-    2) Risk Management
-    - Avoid excessive concentration.
-    - Suggested rule of thumb:
-      - No single asset > 40% (unless user already locked that asset)
-      - High-risk / high volatility assets should generally remain <= 20%
-      - If multiple leveraged ETFs exist, avoid putting all budget into only one.
+    3) **Meaningful Portfolio**:
+       - The plan must look like a real fund manager's strategy, not a mathematical compromise.
+       - Create a hierarchy of conviction.
 
-    3) Stability / Realistic Trading
-    - Minimize unnecessary portfolio churn.
-    - Prefer adjustments that are "incremental" rather than a totally new portfolio.
-    - Respect existing weight structure and build upon it.
+    4) **Explicit Decision Making**:
+       - You are REQUIRED to make strong allocation decisions.
+       - Do not "play it safe" by flattening the curve.
 
-    4) Mathematics Constraint
-    - The sum of suggested weights MUST equal EXACTLY ${remainingBudget.toFixed(2)}%.
-    - The result must reasonably help the portfolio move toward Target Leverage ${targetExp}x.
+    [Constraints & Risk Control]
+    - **Leverage Logic**: Use high-leverage assets (2x/3x) primarily to hit the ${targetExp}x target efficiently.
+    - **Concentration Cap**: Max single asset < 40% (unless user already exceeds this).
+    - **Math**: Sum of suggestions MUST equal EXACTLY ${remainingBudget.toFixed(2)}.
 
-    Output Requirement:
-    JSON ONLY. No explanation. No markdown.
-    Format:
-    {"suggestions":[{"name":"TICKER","targetRatio": 15.5}]}
+    [Output]
+    JSON ONLY. No markdown.
+    Format: {"suggestions":[{"name":"TICKER","targetRatio": 15.5}]}
     `;
 
     const payload = { contents: [{ parts: [{ text: promptText }] }] };
 
-    // 建議使用邏輯能力較強的 gemini-pro 或最新的 flash
-    const models = ["gemini-2.0-flash-exp", "gemini-flash-latest"];
+    // 使用邏輯推理能力最強的模型
+    const models = ["gemini-2.0-flash-exp", "gemini-flash-latest", "gemini-pro"];
 
     const response = await fetchWithFallback(models, payload, apiKey);
     const result = await response.json();
 
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    // 清洗 Markdown 標記
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
     if (text) {
       const parsedData = extractJSON(text);
       const suggestions = parsedData.suggestions || [];
 
-      // 安全性校正：確保總和完全等於 remainingBudget
       const aiSum = suggestions.reduce((s, a) => s + parseFloat(a.targetRatio || 0), 0);
       const factor = aiSum > 0 ? remainingBudget / aiSum : 1;
 
       onComplete(suggestions.map(s => ({
         name: s.name.toString().toUpperCase().trim(),
-        targetRatio: Math.round(s.targetRatio * factor * 10) / 10, // 四雪五入到小數第一位
+        targetRatio: Math.round(s.targetRatio * factor * 10) / 10,
       })));
 
-      showToast("✅ 專業再平衡建議已生成");
+      showToast("✅ 主動型配置建議已生成");
     }
   } catch (err) {
     console.error(err);
