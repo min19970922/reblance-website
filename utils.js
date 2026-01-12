@@ -1,14 +1,15 @@
 /**
- * utils.js - 智能清洗版 (v74.0)
- * 修正：
- * 1. 照片辨識：自動過濾掉代號後面的中文名稱 (解決 API 404)
- * 2. 智投建議：維持使用 2.0-flash-001 (省額度)
+ * utils.js - 智慧備援版 (v78.0)
+ * 策略：
+ * 1. 實作「多模型自動切換 (Failover)」，遇到 429 自動換模型
+ * 2. 內建代號清洗 (Regex)，解決 API 404 錯誤
+ * 3. 圖片壓縮與重試機制
  */
 import { safeNum, calculateAccountData } from "./state.js";
 import { showToast } from "./ui.js";
 
 // =========================================
-// 1. 圖片壓縮 (維持不變)
+// 1. 圖片壓縮
 // =========================================
 const compressImage = (file) => {
   return new Promise((resolve, reject) => {
@@ -41,20 +42,61 @@ const compressImage = (file) => {
 };
 
 // =========================================
-// 2. 重試機制
+// 2. 智慧請求函式 (含備援邏輯)
 // =========================================
-async function fetchWithRetry(url, options, retries = 1, delay = 2000) {
-  const res = await fetch(url, options);
-  if (res.status === 429 && retries > 0) {
-    showToast(`⏳ 伺服器忙碌，${delay / 1000}秒後重試...`);
-    await new Promise(r => setTimeout(r, delay));
-    return fetchWithRetry(url, options, retries - 1, delay * 2);
+async function fetchWithFallback(models, payload, apiKey) {
+  let lastError = null;
+
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    // 顯示嘗試訊息
+    if (i > 0) showToast(`⚠️ 通道 ${i} 擁塞，切換至備用線路 (${model})...`);
+
+    try {
+      // 每個請求給予 1 次內部重試機會
+      const response = await internalFetch(url, payload);
+      if (response.ok) return response; // 成功則直接回傳
+
+      // 若失敗，拋出錯誤進入 catch
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(`Status ${response.status}: ${errData.error?.message || "Unknown"}`);
+    } catch (err) {
+      console.warn(`模型 ${model} 失敗:`, err);
+      lastError = err;
+      // 如果是最後一個模型，則不再重試
+      if (i === models.length - 1) break;
+      // 切換前稍作冷卻
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
+  throw lastError;
+}
+
+// 內部單次請求 (含簡單延遲)
+async function internalFetch(url, payload) {
+  // 強制冷卻 1 秒
+  await new Promise(r => setTimeout(r, 1000));
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  // 如果遇到 429，內部等待 2 秒再試一次 (僅限一次)
+  if (res.status === 429) {
+    await new Promise(r => setTimeout(r, 2000));
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
   }
   return res;
 }
 
 // =========================================
-// 3. AI 照片辨識 (2.5 Flash + 中文清洗)
+// 3. AI 照片辨識 (雙重備援)
 // =========================================
 export async function importFromImage(e, onComplete) {
   const file = e.target.files[0];
@@ -63,65 +105,53 @@ export async function importFromImage(e, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
   if (!apiKey) return showToast("❌ 請設定 API Key");
 
-  showToast("🔄 讀取圖片中 (1/3)...");
+  showToast("🔄 處理圖片中 (1/3)...");
 
   try {
     const compressedBase64 = await compressImage(file);
     const base64Content = compressedBase64.split(",")[1];
 
-    showToast("🤖 AI (2.5 Flash) 分析中... (2/3)");
+    showToast("🤖 AI 視覺分析中 (2/3)...");
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-    // 優化指令：明確要求只提取代號
     const promptText = `Analyze table. Extract Stock Symbol (TICKER) and Shares.
     Important: If ticker is mixed with name (e.g. '00631L元大...'), extract ONLY '00631L'.
     Rule: If name contains '正2','2X','L', set leverage=2.0. Else 1.0.
     JSON ONLY: {"assets": [{"name":"TICKER", "shares":100, "leverage":1.0}]}`;
 
-    await new Promise(r => setTimeout(r, 1000));
+    const payload = {
+      contents: [{
+        parts: [
+          { text: promptText },
+          { inline_data: { mime_type: "image/jpeg", data: base64Content } }
+        ]
+      }]
+    };
 
-    const response = await fetchWithRetry(apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: promptText },
-            { inline_data: { mime_type: "image/jpeg", data: base64Content } }
-          ]
-        }]
-      })
-    });
+    // ★★★ 備援清單：優先用 2.5 (強)，失敗用 2.0 (穩) ★★★
+    const models = ["gemini-2.5-flash", "gemini-2.0-flash"];
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      const errMsg = errData.error?.message || "未知錯誤";
-      if (response.status === 429) throw new Error("今日 2.5 版額度(20次) 已用完！請明天再來");
-      throw new Error(`API 錯誤 (${response.status}): ${errMsg}`);
-    }
-
-    showToast("⚡ 資料整理中... (3/3)");
-
+    const response = await fetchWithFallback(models, payload, apiKey);
     const result = await response.json();
+
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    showToast("⚡ 資料解析中 (3/3)...");
 
     if (text) {
       const parsedData = JSON.parse(text);
       const assets = parsedData.assets || [];
 
       const formattedAssets = assets.map((a) => {
-        // ★★★ 核心修復：自動清洗代號 ★★★
+        // ★ 自動清洗代號邏輯 (保留) ★
         let rawName = (a.name || "").toString().toUpperCase().trim();
-        // Regex: 只抓取開頭的英文數字 (例如 00631L)，捨棄後面的中文
         const match = rawName.match(/^([A-Z0-9]+)/);
         const cleanName = match ? match[1] : rawName;
 
         return {
           id: Date.now() + Math.random(),
-          name: cleanName, // 這裡存入乾淨的代號
-          fullName: "---", // 暫時留空，讓 api.js 自動去抓中文名
+          name: cleanName,
+          fullName: "---",
           price: 0,
           shares: Math.abs(parseInt(a.shares.toString().replace(/,/g, "")) || 0),
           leverage: parseFloat(a.leverage) || 1.0,
@@ -142,7 +172,7 @@ export async function importFromImage(e, onComplete) {
 }
 
 // =========================================
-// 4. AI 智投建議 (改走 Preview 通道，避開主線塞車)
+// 4. AI 智投建議 (三重備援)
 // =========================================
 export async function generateAiAllocation(acc, targetExp, onComplete) {
   const apiKey = window.GEMINI_API_KEY || localStorage.getItem("GEMINI_API_KEY");
@@ -156,9 +186,8 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
   const aiAssets = acc.assets.filter((a) => !a.isLocked);
   if (aiAssets.length === 0) return showToast("❌ 無可規劃標的");
 
-  showToast(`🧠 AI (Lite Preview) 正在計算...`);
+  showToast(`🧠 AI 正在計算配置 (自動尋找可用線路)...`);
 
-  // 極簡化數據 (CSV格式)
   const aiAssetsInfo = aiAssets.map(a =>
     `${a.name},${((parseFloat(a.bookValue) / data.netValue) * 100).toFixed(1)}%,${a.leverage}x`
   ).join("|");
@@ -168,23 +197,19 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     Rule: 1.Sum exact. 2.High lev priority if Goal>Now. 3.No average.
     Data: [${aiAssetsInfo}]. JSON: {"suggestions":[{"name":"ID","targetRatio":20}]}`;
 
-    // ★★★ 關鍵修正：使用特定日期的 Preview 版 (Index 9) ★★★
-    // 這條通道通常比通用版(lite/001)空閒很多
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite-preview-02-05:generateContent?key=${apiKey}`;
+    const payload = { contents: [{ parts: [{ text: promptText }] }] };
 
-    // 重試設定：失敗時等待 5 秒再試 (避開尖峰)
-    const response = await fetchWithRetry(apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
-    }, 2, 5000);
+    // ★★★ 備援清單：標準 -> 舊版 -> 輕量 ★★★
+    // 這樣能最大程度避開 429
+    const models = [
+      "gemini-2.0-flash",       // 首選：標準版 (1500次/天)
+      "gemini-flash-latest",    // 次選：舊版穩定通道
+      "gemini-2.0-flash-lite"   // 最後：輕量版 (容易塞車，但可當備案)
+    ];
 
-    if (!response.ok) {
-      if (response.status === 429) throw new Error("AI 通道全面擁塞，請 1 分鐘後再試");
-      throw new Error(`API 錯誤: ${response.status}`);
-    }
-
+    const response = await fetchWithFallback(models, payload, apiKey);
     const result = await response.json();
+
     let text = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
@@ -200,11 +225,13 @@ export async function generateAiAllocation(acc, targetExp, onComplete) {
     }
   } catch (err) {
     console.error(err);
-    showToast(`❌ 智投失敗: ${err.message}`);
+    showToast(`❌ 智投失敗 (全線路忙碌): ${err.message}`);
   }
 }
 
-// 5. Excel 功能 (請將原有的 exportExcel/importExcel 貼在下方)
+// =========================================
+// 5. Excel 功能 (保持原樣)
+// =========================================
 export function exportExcel(acc) {
   if (!acc) return;
   if (typeof XLSX === 'undefined') return showToast("❌ XLSX 套件未載入");
